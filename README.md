@@ -14,6 +14,8 @@ System Shock's assets importer for Unity. Requires Unity 5.0.
 - Change SpriteRenderer to MeshRenderer and plane mesh
 - Screens with text
 - Model 0-material override with animated texture material. (Just like animated screens)
+- Combine tiles to create uniform collision mesh from level geometry.
+- Code to weld and optimize level mesh.
 - Directional sprites
   - Enemies
 - Enemy animations
