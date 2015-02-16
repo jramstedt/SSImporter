@@ -42,7 +42,7 @@ namespace SSImporter.Resource {
             */
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
         }
 
         private static Dictionary<DrawType, ObjectFactoryDelegate> ObjectFactory = new Dictionary<DrawType, ObjectFactoryDelegate> {
@@ -300,7 +300,7 @@ namespace SSImporter.Resource {
             CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
             ObjectPropertyLibrary objectPropertyLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objprop.dat.asset", typeof(ObjectPropertyLibrary)) as ObjectPropertyLibrary;
 
-            float yFactor = 32f / (float)(Mathf.Pow(2, levelInfo.HeightFactor) * byte.MaxValue);
+            float yFactor = 32f / ((1 << (int)levelInfo.HeightFactor) * 256f);
 
             ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
 
@@ -327,7 +327,7 @@ namespace SSImporter.Resource {
                 GameObject gameObject = new GameObject(name);
 
                 gameObject.transform.localScale = new Vector3(1f, 1f, 1f);
-                gameObject.transform.localPosition = new Vector3((float)Math.Round(32f * objectInstance.X / 256f) / 32f, (float)Math.Round(32f * objectInstance.Z * yFactor) / 32f, (float)Math.Round(32f * objectInstance.Y / 256f) / 32f);
+                gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * yFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
                 gameObject.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
 
                 #region Static properties
@@ -790,7 +790,7 @@ namespace SSImporter.Resource {
             GameObject cameraGO = new GameObject();
             cameraGO.name = "Surveillance Camera";
 
-            float yFactor = 32f / (float)(Mathf.Pow(2, levelInfo.HeightFactor) * byte.MaxValue);
+            float yFactor = 32f / (float)((1 << (int)levelInfo.HeightFactor) * byte.MaxValue);
 
             cameraGO.transform.localScale = new Vector3(1f, 1f, 1f);
             cameraGO.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * yFactor, objectInstance.Y / 256f);
@@ -823,7 +823,7 @@ namespace SSImporter.Resource {
 
             uint[] fontMap = new uint[] {
                 606,
-                603, // ??
+                609,
                 602,
                 605,
                 607
@@ -896,7 +896,7 @@ namespace SSImporter.Resource {
 
             float width = bridgeWidth > 0 ? (float)bridgeWidth / (float)0x04 : defaultWidth;
             float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : 1f;
-            float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 0.03f;
+            float height = bridge.Height > 0 ? (float)bridge.Height / (float)Tile.MAX_HEIGHT : 4f / 128f; //0.03f;
 
             Material topBottomMaterial = bridge.TopBottomTextures > 0 ?
                     (bridge.TopBottomTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture) == (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture ?

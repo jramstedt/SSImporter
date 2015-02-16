@@ -40,7 +40,6 @@ namespace SSImporter.Resource {
                 !File.Exists(objart3Path))
                 return;
 
-            //AssetDatabase.StartAssetEditing();
             /*
             {
                 ResourceFile textureResource = new ResourceFile(textureLibraryPath);
@@ -53,6 +52,8 @@ namespace SSImporter.Resource {
             */
             StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
             CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
+
+            AssetDatabase.StartAssetEditing();
 
             #region Read texture properties
             List<TextureProperties> textureProperties = new List<TextureProperties>();
@@ -203,6 +204,7 @@ namespace SSImporter.Resource {
 
                     Texture2D emissiveTexture = texture.Emission ?? AssetDatabase.LoadAssetAtPath(string.Format(@"Assets/SSImporter/Emission/{0:000}.png", textureId), typeof(Texture2D)) as Texture2D;
                     if (emissiveTexture != null) {
+                        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive | MaterialGlobalIlluminationFlags.BakedEmissive;
                         material.SetTexture(@"_EmissionMap", emissiveTexture);
                         material.SetColor(@"_EmissionColor", Color.white);
                         material.EnableKeyword(@"_EMISSION");
@@ -319,7 +321,7 @@ namespace SSImporter.Resource {
             }
             #endregion
 
-            //AssetDatabase.StopAssetEditing();
+            AssetDatabase.StopAssetEditing();
 
             AssetDatabase.SaveAssets();
             EditorApplication.SaveAssets();
@@ -432,8 +434,8 @@ namespace SSImporter.Resource {
             Material material = new Material(Shader.Find(@"Standard"));
             material.mainTexture = atlasDiffuse;
             material.SetFloat(@"_Glossiness", 0f);
-            material.SetFloat(@"_Mode", 1f); // Cutout
-            material.SetFloat(@"_AlphaTestRef", 0.5f); // Cutout value
+            material.SetFloat(@"_Mode", 1f); // Cutoff
+            material.SetFloat(@"_Cutoff", 0.25f);
             material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
             material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
             material.SetInt("_ZWrite", 1);

@@ -60,7 +60,7 @@ namespace SSImporter.Resource {
             if (ignoreTypes.Length == 0) // Special case, diagonal walls have no ignore types
                 isSolidWall = true;
 
-            float mapScale = 1f / (float)Mathf.Pow(2, levelInfo.HeightFactor);
+            float mapScale = 1f / (float)(1 << (int)levelInfo.HeightFactor);
             float textureVerticalOffset = tile.TextureOffset * mapScale;
 
             if (isSolidWall) {
