@@ -53,7 +53,7 @@ namespace SSImporter.Resource {
             StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
             CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
 
-            AssetDatabase.StartAssetEditing();
+            //AssetDatabase.StartAssetEditing();
 
             #region Read texture properties
             List<TextureProperties> textureProperties = new List<TextureProperties>();
@@ -99,7 +99,6 @@ namespace SSImporter.Resource {
                 ResourceFile spritesResource = new ResourceFile(objartPath);
 
                 CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette);
-
                 /*
                 SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
                 AssetDatabase.CreateAsset(spriteLibrary, @"Assets/SystemShock/objart.res.asset");
@@ -321,7 +320,7 @@ namespace SSImporter.Resource {
             }
             #endregion
 
-            AssetDatabase.StopAssetEditing();
+            //AssetDatabase.StopAssetEditing();
 
             AssetDatabase.SaveAssets();
             EditorApplication.SaveAssets();
@@ -335,8 +334,7 @@ namespace SSImporter.Resource {
             ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
 
             List<Texture2D> allSpritesDiffuse = new List<Texture2D>();
-            List<Texture2D> allSpritesEmission = new List<Texture2D>();
-            List<string> spriteNames = new List<string>();
+            List<TextureSet> allSprites = new List<TextureSet>();
             List<int[]> spriteRectIndices = new List<int[]>();
 
             bool hasEmission = false;
@@ -352,8 +350,7 @@ namespace SSImporter.Resource {
 
                 foreach (TextureSet textureSet in sprites) {
                     allSpritesDiffuse.Add(textureSet.Diffuse);
-                    allSpritesEmission.Add(textureSet.Emission);
-                    spriteNames.Add(textureSet.Name);
+                    allSprites.Add(textureSet);
 
                     hasEmission |= textureSet.Emissive;
                 }
@@ -370,25 +367,21 @@ namespace SSImporter.Resource {
             if (hasEmission) {
                 atlasEmission.Fill(new Color32(0, 0, 0, 0));
                 for (int spriteIndex = 0; spriteIndex < allRects.Length; ++spriteIndex) {
-                    Texture2D spriteEmission = allSpritesEmission[spriteIndex];
-                    if (spriteEmission != null) {
+                    TextureSet sprite = allSprites[spriteIndex];
+                    if (sprite.Emissive) {
                         Rect pixelRect = allRects[spriteIndex];
-                        pixelRect.x *= atlasEmission.width;
-                        pixelRect.y *= atlasEmission.height;
-
-                        atlasEmission.SetPixels((int)pixelRect.x, (int)pixelRect.y, spriteEmission.width, spriteEmission.height, spriteEmission.GetPixels());
+                        atlasEmission.SetPixels(
+                            (int)(pixelRect.x * atlasDiffuse.width),
+                            (int)(pixelRect.y * atlasDiffuse.height),
+                            (int)(pixelRect.width * atlasDiffuse.width),
+                            (int)(pixelRect.height * atlasDiffuse.height),
+                            sprite.Emission.GetPixels());
                     }
                 }
                 atlasEmission.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Emission";
                 atlasEmission.Apply(true, false);
                 EditorUtility.CompressTexture(atlasEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
             }
-
-            foreach (Texture2D sprite in allSpritesDiffuse)
-                Texture2D.DestroyImmediate(sprite);
-
-            foreach (Texture2D sprite in allSpritesEmission)
-                Texture2D.DestroyImmediate(sprite);
 
             /*
             File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", atlas.EncodeToPNG());
@@ -449,6 +442,24 @@ namespace SSImporter.Resource {
                 material.EnableKeyword(@"_EMISSION");
             }
 
+            SpriteDefinition[][] unitySprites = new SpriteDefinition[spriteRectIndices.Count][];
+            for (int i = 0, nameIndex = 0; i < unitySprites.Length; ++i) {
+                int[] rectIndices = spriteRectIndices[i];
+                SpriteDefinition[] unitySprite = new SpriteDefinition[rectIndices.Length];
+
+                for (int j = 0; j < rectIndices.Length; ++j, ++nameIndex) {
+                    TextureSet spriteTextureSet = allSprites[nameIndex];
+                    unitySprite[j] = new SpriteDefinition() {
+                        Rect = allRects[rectIndices[j]],
+                        Pivot = Vector2.Scale(spriteTextureSet.Pivot, new Vector2(1f / spriteTextureSet.Diffuse.width, 1f / spriteTextureSet.Diffuse.height)),
+                        Name = i + " " + spriteTextureSet.Name
+                    };
+                }
+
+                unitySprites[i] = unitySprite;
+            }
+
+            /*
             Sprite[][] unitySprites = new Sprite[spriteRectIndices.Count][];
             for (int i = 0, nameIndex = 0; i < unitySprites.Length; ++i) {
                 int[] rectIndices = spriteRectIndices[i];
@@ -461,14 +472,24 @@ namespace SSImporter.Resource {
                     pixelRect.width *= atlasDiffuse.width;
                     pixelRect.height *= atlasDiffuse.height;
 
-                    Sprite sprite = Sprite.Create(atlasDiffuse, pixelRect, new Vector2(0.5f, 0.5f), 64f, 0, SpriteMeshType.Tight);
+                    Vector2 pivot = allSpritePivot[nameIndex];
+                    pivot.x /= pixelRect.width;
+                    pivot.y /= pixelRect.height;
+
+                    Sprite sprite = Sprite.Create(atlasDiffuse, pixelRect, pivot, 100f, 0, SpriteMeshType.Tight);
                     sprite.name = i + " " + spriteNames[nameIndex];
+
+                    Debug.Log(pivot + " " + sprite.pivot + " " + sprite.);
 
                     unitySprite[j] = sprite;
                 }
 
                 unitySprites[i] = unitySprite;
             }
+            */
+
+            foreach (TextureSet sprite in allSprites)
+                sprite.Dispose();
 
             SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
             spriteLibrary.SetSprites(material, unitySprites);
@@ -482,32 +503,22 @@ namespace SSImporter.Resource {
             if(hasEmission) AssetDatabase.AddObjectToAsset(atlasEmission, libraryAssetPath);
             AssetDatabase.AddObjectToAsset(material, libraryAssetPath);
             AssetDatabase.AddObjectToAsset(spriteLibrary, libraryAssetPath);
-
-            for (int i = 0; i < unitySprites.Length; ++i) {
-                Sprite[] unitySprite = unitySprites[i];
-                for (int j = 0; j < unitySprite.Length; ++j) {
-                    EditorUtility.SetDirty(unitySprite[j]);
-                    AssetDatabase.AddObjectToAsset(unitySprite[j], material);
-                }
-            }
         }
 
         private static TextureSet CreateTexture(ushort textureId, ResourceFile textureResource, PaletteChunk palette) {
             TextureSet fullSizeTexture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, palette, textureId.ToString());
             fullSizeTexture.Dispose();
 
-            bool animated = fullSizeTexture.Animated;
-            Texture2D completeDiffuse = new Texture2D(animated ? 512 : 128, 128, TextureFormat.RGB24, true, true);
-            Texture2D completeEmission = new Texture2D(animated ? 512 : 128, 128, TextureFormat.RGB24, true, true);
+            Texture2D completeDiffuse = new Texture2D(128, 128, TextureFormat.RGB24, true, true);
+            Texture2D completeEmission = new Texture2D(128, 128, TextureFormat.RGB24, true, true);
             bool emissionHasPixels = false;
 
             #region 128x128
-            for(int i = 0; i < 4 && (i == 0 || animated); ++i) {
-                PaletteChunk rotatedPalette = palette.RotateSlots(i);
-                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, rotatedPalette, textureId.ToString());
+            {
+                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, palette, textureId.ToString());
 
-                completeDiffuse.SetPixels(texture.Diffuse.width * i, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 0);
-                if (texture.Emission != null) { emissionHasPixels |= true; completeEmission.SetPixels(texture.Emission.width * i, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 0); }
+                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 0);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 0); }
 
                 texture.Dispose();
             }
@@ -517,56 +528,55 @@ namespace SSImporter.Resource {
             completeEmission.Apply();
 
             #region 64x64
-            for (int i = 0; i < 4&& (i == 0 || animated); ++i) {
-                PaletteChunk rotatedPalette = palette.RotateSlots(i);
-                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures64x64Start + textureId, rotatedPalette, textureId.ToString());
+            {
+                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures64x64Start + textureId, palette, textureId.ToString());
 
-                completeDiffuse.SetPixels(texture.Diffuse.width * i, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 1);
-                if (texture.Emission != null) { emissionHasPixels |= true; completeEmission.SetPixels(texture.Emission.width * i, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 1); }
+                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 1);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 1); }
 
                 texture.Dispose();
             }
             #endregion
 
             #region 32x32
-            for (int i = 0; i < 4&& (i == 0 || animated); ++i) {
-                PaletteChunk rotatedPalette = palette.RotateSlots(i);
-                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures32x32, rotatedPalette, textureId.ToString(), textureId);
+            {
+                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures32x32, palette, textureId.ToString(), textureId);
 
-                completeDiffuse.SetPixels(texture.Diffuse.width * i, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 2);
-                if (texture.Emission != null) { emissionHasPixels |= true; completeEmission.SetPixels(texture.Emission.width * i, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 2); }
+                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 2);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 2); }
 
                 texture.Dispose();
             }
             #endregion
 
             #region 16x16
-            for (int i = 0; i < 4&& (i == 0 || animated); ++i) {
-                PaletteChunk rotatedPalette = palette.RotateSlots(i);
-                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures16x16, rotatedPalette, textureId.ToString(), textureId);
+            {
+                TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures16x16, palette, textureId.ToString(), textureId);
 
-                completeDiffuse.SetPixels(texture.Diffuse.width * i, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 3);
-                if (texture.Emission != null) { emissionHasPixels |= true; completeEmission.SetPixels(texture.Emission.width * i, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 3); }
+                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 3);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 3); }
 
                 texture.Dispose();
             }
             #endregion
 
             completeDiffuse.Apply(false);
-            completeEmission.Apply(false);
-
             EditorUtility.CompressTexture(completeDiffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
-            EditorUtility.CompressTexture(completeEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
-
+            
             if (!emissionHasPixels) {
                 Texture2D.DestroyImmediate(completeEmission);
                 completeEmission = null;
+            } else {
+                completeEmission.Apply(false);
+                EditorUtility.CompressTexture(completeEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
             }
 
             return new TextureSet() {
+                Name = fullSizeTexture.Name,
                 Diffuse = completeDiffuse,
                 Emission = completeEmission,
-                Animated = animated
+                Animated = false,
+                Emissive = emissionHasPixels
             };
         }
     }

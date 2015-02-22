@@ -403,8 +403,8 @@ namespace SystemShock.Object {
             public ushort Object3;
             public ushort Object4;
             public byte Width;
-            public byte Height;
             public byte Depth;
+            public byte Height;
             public byte TopBottomTexture;
             public byte SideTexture;
             public ushort Flags;

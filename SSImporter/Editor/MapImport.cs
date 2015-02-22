@@ -300,7 +300,7 @@ namespace SSImporter.Resource {
             CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
             ObjectPropertyLibrary objectPropertyLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objprop.dat.asset", typeof(ObjectPropertyLibrary)) as ObjectPropertyLibrary;
 
-            float yFactor = 32f / ((1 << (int)levelInfo.HeightFactor) * 256f);
+            float yFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightFactor) * 256f);
 
             ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
 
@@ -599,16 +599,22 @@ namespace SSImporter.Resource {
 
             BaseProperties baseProperties = objectData.Base;
 
-            GameObject spriteGO = new GameObject();
-            SpriteRenderer spriteRenderer = spriteGO.AddComponent<SpriteRenderer>();
-
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
             spriteIndex += 1; // World sprite.
 
-            spriteRenderer.sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex];
+            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex];
+            Material material = objartLibrary.GetMaterial();
 
+            GameObject spriteGO = new GameObject();
+            MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
+            meshFilter.mesh = MeshUtils.CreateTwoSidedPlane(
+                sprite.Pivot,
+                new Vector2(sprite.Rect.width * material.mainTexture.width / 100f, sprite.Rect.height * material.mainTexture.height / 100f),
+                sprite.Rect);
+            MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
+
+            meshRenderer.sharedMaterial = material;
             spriteGO.transform.SetParent(gameObject.transform, false);
-            spriteGO.transform.localScale = new Vector3(2f / 3f, 2f / 3f, 2f / 3f); // TODO objectdata has Scale, find out how it works.
 
             spriteGO.AddComponent<Billboard>();
 
@@ -621,35 +627,28 @@ namespace SSImporter.Resource {
 
             if ((baseProperties.Flags & (int)Flags.Solid) == (int)Flags.Solid) {
                 BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-                boxCollider.center = gameObject.transform.InverseTransformPoint(spriteRenderer.bounds.center);
-                boxCollider.size = gameObject.transform.InverseTransformDirection(spriteRenderer.bounds.size);
+                boxCollider.center = gameObject.transform.InverseTransformPoint(meshRenderer.bounds.center);
+                boxCollider.size = gameObject.transform.InverseTransformDirection(meshRenderer.bounds.size);
             } else if(!isStatic) {
                 SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
-                sphereCollider.center = gameObject.transform.InverseTransformPoint(spriteRenderer.bounds.center);
-                sphereCollider.radius = Mathf.Min(spriteRenderer.bounds.size.x, spriteRenderer.bounds.size.y, spriteRenderer.bounds.size.z) / 2f;
+                sphereCollider.center = gameObject.transform.InverseTransformPoint(meshRenderer.bounds.center);
+                sphereCollider.radius = Mathf.Min(meshRenderer.bounds.size.x, meshRenderer.bounds.size.y, meshRenderer.bounds.size.z) / 2f;
             }
         }
 
         private static void ArtObjectFactory(SpriteLibrary objartLibrary, ushort spriteIndex, uint frame, ObjectData objectData, GameObject gameObject) {
-            Sprite sprite = (Sprite)objartLibrary.GetSpriteAnimation(spriteIndex)[frame];
+            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(spriteIndex)[frame];
+            Material material = objartLibrary.GetMaterial();
 
             GameObject spriteGO = new GameObject();
             MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
-            meshFilter.mesh = MeshUtils.CreateTwoSidedPlane();
-            MeshRenderer spriteRenderer = spriteGO.AddComponent<MeshRenderer>();
+            meshFilter.mesh = MeshUtils.CreateTwoSidedPlane(
+                sprite.Pivot,
+                new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
+                sprite.Rect);
+            MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
 
-            spriteRenderer.sharedMaterial = objartLibrary.GetMaterial();
-
-            MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
-            spriteRenderer.GetPropertyBlock(materialPropertyBlock);
-            materialPropertyBlock.SetVector(Shader.PropertyToID(@"_MainTex_ST"),
-                new Vector4(sprite.rect.width / sprite.texture.width,
-                            sprite.rect.height / sprite.texture.height,
-                            sprite.rect.x / sprite.texture.width,
-                            sprite.rect.y / sprite.texture.height));
-            spriteRenderer.SetPropertyBlock(materialPropertyBlock);
-
-            spriteGO.transform.localScale = new Vector3(sprite.rect.width / 64f, sprite.rect.height / 64f, 1f);
+            meshRenderer.sharedMaterial = material;
             spriteGO.transform.SetParent(gameObject.transform, false);
 
             if ((objectData.Base.Flags & (int)Flags.Solid) == (int)Flags.Solid) {
@@ -747,7 +746,7 @@ namespace SSImporter.Resource {
             GameObject spriteGO = new GameObject();
             MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
             meshFilter.mesh = MeshUtils.CreateTwoSidedPlane();
-            MeshRenderer spriteRenderer = spriteGO.AddComponent<MeshRenderer>();
+            MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
 
             Material material = isSurveillance ? new Material(Shader.Find(@"Standard")) : animationLibrary.GetMaterial((ushort)(frameIndex + objectInstance.AnimationState));
 
@@ -760,17 +759,17 @@ namespace SSImporter.Resource {
                 surveillance.Camera = camera;
             }
 
-            spriteRenderer.sharedMaterial = material;
+            meshRenderer.sharedMaterial = material;
 
             /*
             MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
-            spriteRenderer.GetPropertyBlock(materialPropertyBlock);
+            meshRenderer.GetPropertyBlock(materialPropertyBlock);
             materialPropertyBlock.SetVector(Shader.PropertyToID(@"_MainTex_ST"),
                 new Vector4(sprite.rect.width / sprite.texture.width,
                             sprite.rect.height / sprite.texture.height,
                             sprite.rect.x / sprite.texture.width,
                             sprite.rect.y / sprite.texture.height));
-            spriteRenderer.SetPropertyBlock(materialPropertyBlock);
+            meshRenderer.SetPropertyBlock(materialPropertyBlock);
             */
             spriteGO.transform.localScale = new Vector3(screenSize, screenSize, 1f);
             spriteGO.transform.SetParent(gameObject.transform, false);
@@ -790,7 +789,7 @@ namespace SSImporter.Resource {
             GameObject cameraGO = new GameObject();
             cameraGO.name = "Surveillance Camera";
 
-            float yFactor = 32f / (float)((1 << (int)levelInfo.HeightFactor) * byte.MaxValue);
+            float yFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightFactor) * 256f);
 
             cameraGO.transform.localScale = new Vector3(1f, 1f, 1f);
             cameraGO.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * yFactor, objectInstance.Y / 256f);
@@ -896,7 +895,7 @@ namespace SSImporter.Resource {
 
             float width = bridgeWidth > 0 ? (float)bridgeWidth / (float)0x04 : defaultWidth;
             float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : 1f;
-            float height = bridge.Height > 0 ? (float)bridge.Height / (float)Tile.MAX_HEIGHT : 4f / 128f; //0.03f;
+            float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 1f / 32f;
 
             Material topBottomMaterial = bridge.TopBottomTextures > 0 ?
                     (bridge.TopBottomTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture) == (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture ?
@@ -941,15 +940,15 @@ namespace SSImporter.Resource {
         }
 
         private static void SmallCrateFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
-            CrateFactory(new Vector3(80f / 256f, 80f / 256f, 80f / 256f), objectInstance, objectData, gameObject);
+            CrateFactory(new Vector3(8f / (float)Tile.MAX_HEIGHT, 8f / (float)Tile.MAX_HEIGHT, 8f / (float)Tile.MAX_HEIGHT), objectInstance, objectData, gameObject);
         }
 
         private static void LargeCrateFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
-            CrateFactory(new Vector3(160f / 256f, 160f / 256f, 160f / 256f), objectInstance, objectData, gameObject);
+            CrateFactory(new Vector3(16f / (float)Tile.MAX_HEIGHT, 16f / (float)Tile.MAX_HEIGHT, 16f / (float)Tile.MAX_HEIGHT), objectInstance, objectData, gameObject);
         }
 
         private static void SecureCrateFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
-            CrateFactory(new Vector3(240f / 256f, 240f / 256f, 240f / 256f), objectInstance, objectData, gameObject);
+            CrateFactory(new Vector3(24f / (float)Tile.MAX_HEIGHT, 24f / (float)Tile.MAX_HEIGHT, 24f / (float)Tile.MAX_HEIGHT), objectInstance, objectData, gameObject);
         }
 
         private static void CrateFactory(Vector3 defaultSize, ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
@@ -963,9 +962,9 @@ namespace SSImporter.Resource {
             Material topBottomMaterial = modelTextureLibrary.GetMaterial(crate.TopBottomTexture > 0 ? (ushort)(materialBase + crate.TopBottomTexture) : (ushort)63);
             Material sideMaterial = modelTextureLibrary.GetMaterial(crate.SideTexture > 0 ? (ushort)(materialBase + crate.SideTexture) : (ushort)62);
 
-            Vector3 size = new Vector3( crate.Width > 0 ? crate.Width / (float)0xFF : defaultSize.x,
-                                        crate.Width > 0 ? crate.Height / (float)0xFF : defaultSize.y,
-                                        crate.Width > 0 ? crate.Depth / (float)0xFF : defaultSize.z);
+            Vector3 size = new Vector3( crate.Width > 0 ? crate.Width / (float)Tile.MAX_HEIGHT : defaultSize.x,
+                                        crate.Height > 0 ? crate.Height / (float)Tile.MAX_HEIGHT : defaultSize.y,
+                                        crate.Depth > 0 ? crate.Depth / (float)Tile.MAX_HEIGHT : defaultSize.z);
 
             GameObject crateGO = new GameObject();
             MeshFilter meshFilter = crateGO.AddComponent<MeshFilter>();
@@ -1006,7 +1005,7 @@ namespace SSImporter.Resource {
             GameObject spriteGO = new GameObject();
             MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
             meshFilter.mesh = MeshUtils.CreateTwoSidedPlane();
-            MeshRenderer spriteRenderer = spriteGO.AddComponent<MeshRenderer>();
+            MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
 
             Color color = new Color(0.5f, 0f, 0f, 0.75f);
             Color emission = new Color(0.25f, 0f, 0f, 1f);
@@ -1037,7 +1036,7 @@ namespace SSImporter.Resource {
             colorMaterial.EnableKeyword("_ALPHABLEND_ON");
             colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             colorMaterial.renderQueue = 3000;
-            spriteRenderer.sharedMaterial = colorMaterial;
+            meshRenderer.sharedMaterial = colorMaterial;
 
             spriteGO.transform.SetParent(gameObject.transform, false);
 

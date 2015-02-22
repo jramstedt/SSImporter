@@ -5,15 +5,16 @@ using SystemShock.Object;
 
 namespace SSImporter.Resource {
     public static class MeshUtils {
-        public static Mesh CreateTwoSidedPlane() {
+        public static Mesh CreateTwoSidedPlane() { return CreateTwoSidedPlane(new Vector2(0.5f, 0.5f), new Vector2(1f, 1f), new Rect(0f, 0f, 1f, 1f)); }
+        public static Mesh CreateTwoSidedPlane(Vector2 pivot, Vector2 size, Rect uvRect) {
             Mesh mesh = new Mesh();
             mesh.vertices = new Vector3[] {
-                new Vector3(-0.5f, -0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(0.5f, -0.5f, 0f),
-                new Vector3(-0.5f, -0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(0.5f, -0.5f, 0f)
+                new Vector3(-pivot.x * size.x, -pivot.y * size.y, 0f), new Vector3(-pivot.x * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, -pivot.y * size.y, 0f),
+                new Vector3(-pivot.x * size.x, -pivot.y * size.y, 0f), new Vector3(-pivot.x * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, -pivot.y * size.y, 0f)
             };
             mesh.uv = new Vector2[] {
-                new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f),
-                new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f)
+                uvRect.min, new Vector2(uvRect.xMin, uvRect.yMax), uvRect.max, new Vector2(uvRect.xMax, uvRect.yMin),
+                uvRect.min, new Vector2(uvRect.xMin, uvRect.yMax), uvRect.max, new Vector2(uvRect.xMax, uvRect.yMin),
             };
 
             mesh.triangles = new int[] {
@@ -29,7 +30,28 @@ namespace SSImporter.Resource {
             return mesh;
         }
 
-        
+        public static Mesh CreatePlane() { return CreatePlane(new Vector2(0.5f, 0.5f), new Vector2(1f, 1f), new Rect(0f, 0f, 1f, 1f)); }
+        public static Mesh CreatePlane(Vector2 pivot, Vector2 size, Rect uvRect) {
+            Mesh mesh = new Mesh();
+            mesh.vertices = new Vector3[] {
+                new Vector3(-pivot.x * size.x, -pivot.y * size.y, 0f), new Vector3(-pivot.x * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, (1f-pivot.y) * size.y, 0f), new Vector3((1f-pivot.x) * size.x, -pivot.y * size.y, 0f)
+            };
+            mesh.uv = new Vector2[] {
+                uvRect.min, new Vector2(uvRect.xMin, uvRect.yMax), uvRect.max, new Vector2(uvRect.xMax, uvRect.yMin),
+            };
+
+            mesh.triangles = new int[] {
+                0, 1, 2, 2, 3, 0
+            };
+
+            mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
+            mesh.Optimize();
+            mesh.RecalculateBounds();
+
+            return mesh;
+        }
+
         public static Mesh CreateCubeTopPivot(float width = 1f, float length = 1f, float height = 0.025f) {
             return CreateCube(new Vector3(0.5f, 0f, 0.5f), width, length, height);
         }
@@ -50,13 +72,6 @@ namespace SSImporter.Resource {
                 new Vector3(-pivot.x * width, -pivot.y * height, -pivot.z * length), new Vector3(-pivot.x * width, -pivot.y * height, (1f-pivot.z) * length), new Vector3((1f - pivot.x) * width, -pivot.y * height, (1f-pivot.z) * length), new Vector3((1f - pivot.x) * width, -pivot.y * height, -pivot.z * length) // Bottom
             };
 
-            /*
-            Vector3[] vertexTemplate = new Vector3[] {
-                new Vector3(-0.5f * width, 1f * height, -0.5f * length), new Vector3(-0.5f * width, 1f * height, 0.5f * length), new Vector3(0.5f * width, 1f * height, 0.5f * length), new Vector3(0.5f * width, 1f * height, -0.5f * length), // Top
-                new Vector3(-0.5f * width, 0f * height, -0.5f * length), new Vector3(-0.5f * width, 0f * height, 0.5f * length), new Vector3(0.5f * width, 0f * height, 0.5f * length), new Vector3(0.5f * width, 0f * height, -0.5f * length) // Bottom
-            };
-            */
-
             mesh.vertices = new Vector3[] {
                 vertexTemplate[0], vertexTemplate[1], vertexTemplate[2], vertexTemplate[3], // Top
                 vertexTemplate[4], vertexTemplate[5], vertexTemplate[6], vertexTemplate[7], // Bottom
@@ -65,6 +80,7 @@ namespace SSImporter.Resource {
                 vertexTemplate[6], vertexTemplate[2], vertexTemplate[1], vertexTemplate[5], // Front 
                 vertexTemplate[5], vertexTemplate[1], vertexTemplate[0], vertexTemplate[4], // Right
             };
+
             mesh.uv = new Vector2[] {
                 new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f),
                 new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f),

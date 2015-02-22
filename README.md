@@ -10,12 +10,14 @@ System Shock's assets importer for Unity. Requires Unity 5.0.
 - Animated tile textures
 - Palette rotated textures
   - Each palette chunk (5 colors) is rotated at different speed. Use multi layered material (one layer per chunk)?
-- Change SpriteRenderer to MeshRenderer and plane mesh
+- Bitmap upsampling (some sprites seems to be upsampled)
+- Rotating cameras
 - Screens with text
 - Shodan screens (texture animation + noise)
 - Model 0-material override with animated texture material. (Just like animated screens)
 - Combine tiles to create uniform collision mesh from level geometry.
 - Code to weld and optimize level mesh.
+- Sprite library inspector (preview sprites)
 - Directional sprites
   - Enemies
 - Enemy animations

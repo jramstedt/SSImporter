@@ -258,6 +258,7 @@ namespace SSImporter.Resource {
                     }
                 }
 
+                /*
                 if (name.Contains(":426"))
                     Debug.Log("426 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
                 if (name.Contains(":435"))
@@ -268,6 +269,7 @@ namespace SSImporter.Resource {
                     Debug.Log("404 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
                 if (name.Contains(" ("))
                     Debug.Log(name + " " + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
+                */
 
                 #region Create texture
                 Texture2D diffuse = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true);
@@ -276,9 +278,10 @@ namespace SSImporter.Resource {
                 bool emissionHasPixels = false;
                 bool animated = false;
 
+                int lastY = bitmap.Height - 1;
                 for (int y = 0; y < bitmap.Height; ++y) {
                     for (int x = 0; x < bitmap.Width; ++x) {
-                        byte paletteIndex = pixelData[((bitmap.Height - 1 - y) * bitmap.Width) + x];
+                        byte paletteIndex = pixelData[((lastY - y) * bitmap.Width) + x];
 
                         if (paletteIndex > 2 && paletteIndex < 32) { // TODO check these against original game
                             emission.SetPixel(x, y, palette[paletteIndex]);
@@ -297,12 +300,22 @@ namespace SSImporter.Resource {
                     emission = null;
                 }
 
+                Vector2 pivot = new Vector2(    (bitmap.PivotMinX + bitmap.PivotMaxX) / 2f,
+                                                lastY - (bitmap.PivotMinY + bitmap.PivotMaxY) / 2f);
+
+                if (bitmap.PivotMinX == 0 && bitmap.PivotMaxX == 0)
+                    pivot.x = bitmap.Width >> 1;
+
+                if (bitmap.PivotMinY == 0 && bitmap.PivotMaxY == 0)
+                    pivot.y = bitmap.Height >> 1;
+
                 return new TextureSet() {
                     Name = name,
                     Diffuse = diffuse,
                     Emission = emission,
                     Animated = animated,
-                    Emissive = emissionHasPixels
+                    Emissive = emissionHasPixels,
+                    Pivot = pivot
                 };
                 #endregion
             }
@@ -564,6 +577,7 @@ namespace SSImporter.Resource {
         public Texture2D Emission;
         public bool Animated;
         public bool Emissive;
+        public Vector2 Pivot;
 
         public void Dispose() {
             if (Diffuse != null)

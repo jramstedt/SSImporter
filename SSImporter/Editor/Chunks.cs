@@ -125,10 +125,10 @@ namespace SSImporter.Resource {
         public ushort Pitch;
         public byte LogWidth;
         public byte LogHeight;
-        public ushort OffsetX;
-        public ushort OffsetY;
-        public ushort PivotX;
-        public ushort PivotY;
+        public ushort PivotMinX;
+        public ushort PivotMinY;
+        public ushort PivotMaxX;
+        public ushort PivotMaxY;
         public int Unknown3;
 
         public override string ToString() {

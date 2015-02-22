@@ -160,16 +160,14 @@ namespace SystemShock.Resource {
         public byte Armour;
         public DrawType DrawType;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
         public byte[] Unknown1;
 
-        public byte Scale;
-        public ushort Unknown2;
         [EnumMask] public DamageType Vulnerabilities;
         public byte SpecialVulnerabilities; // TODO "Special Effects"
-        public ushort Unknown3;
+        public ushort Unknown2;
         public byte Defence;
-        public byte Unknown4;
+        public byte Unknown3;
         public ushort Flags;
         public ushort ModelIndex;
         public FramesMask ExtraFrames;
