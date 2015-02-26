@@ -646,6 +646,7 @@ namespace SSImporter.Resource {
                 sprite.Pivot,
                 new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
                 sprite.Rect);
+            meshFilter.mesh.name = sprite.Name;
             MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
 
             meshRenderer.sharedMaterial = material;
@@ -702,7 +703,23 @@ namespace SSImporter.Resource {
 
         private static void IconFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
             SpriteLibrary objart3Library = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objart3.res.asset", typeof(SpriteLibrary)) as SpriteLibrary;
-            ArtObjectFactory(objart3Library, (ushort)311, objectInstance.AnimationState, objectData, gameObject);
+            //ArtObjectFactory(objart3Library, (ushort)311, objectInstance.AnimationState, objectData, gameObject);
+
+
+            SpriteDefinition sprite = objart3Library.GetSpriteAnimation((ushort)311)[objectInstance.AnimationState];
+            Material material = objart3Library.GetMaterial();
+
+            GameObject spriteGO = new GameObject();
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                sprite.Rect.width * material.mainTexture.width / 64f,
+                sprite.Rect.height * material.mainTexture.height / 64f,
+                Mathf.Min(sprite.Rect.width * material.mainTexture.width, sprite.Rect.height * material.mainTexture.height) / 64f);
+            meshProjector.UVRect = sprite.Rect;
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            spriteGO.transform.SetParent(gameObject.transform, false);
         }
 
         private static void SignFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
@@ -711,7 +728,22 @@ namespace SSImporter.Resource {
             ObjectPropertyLibrary objectPropertyLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objprop.dat.asset", typeof(ObjectPropertyLibrary)) as ObjectPropertyLibrary;
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
 
-            ArtObjectFactory(objartLibrary, (ushort)0, spriteIndex + objectInstance.AnimationState + 1, objectData, gameObject);
+            //ArtObjectFactory(objartLibrary, (ushort)0, spriteIndex + objectInstance.AnimationState + 1, objectData, gameObject);
+
+            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex + objectInstance.AnimationState + 1];
+            Material material = objartLibrary.GetMaterial();
+
+            GameObject spriteGO = new GameObject();
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                sprite.Rect.width * material.mainTexture.width / 64f,
+                sprite.Rect.height * material.mainTexture.height / 64f,
+                Mathf.Min(sprite.Rect.width * material.mainTexture.width, sprite.Rect.height * material.mainTexture.height) / 64f);
+            meshProjector.UVRect = sprite.Rect;
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            spriteGO.transform.SetParent(gameObject.transform, false);
         }
 
         private static void ScreenFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
@@ -744,9 +776,9 @@ namespace SSImporter.Resource {
             }
 
             GameObject spriteGO = new GameObject();
-            MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
-            meshFilter.mesh = MeshUtils.CreateTwoSidedPlane();
-            MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
+            //MeshFilter meshFilter = spriteGO.AddComponent<MeshFilter>();
+            //meshFilter.mesh = MeshUtils.CreatePlane();
+            //MeshRenderer meshRenderer = spriteGO.AddComponent<MeshRenderer>();
 
             Material material = isSurveillance ? new Material(Shader.Find(@"Standard")) : animationLibrary.GetMaterial((ushort)(frameIndex + objectInstance.AnimationState));
 
@@ -758,6 +790,14 @@ namespace SSImporter.Resource {
                 Surveillance surveillance = spriteGO.AddComponent<Surveillance>();
                 surveillance.Camera = camera;
             }
+
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                screenSize,
+                screenSize,
+                screenSize);
+            meshProjector.UVRect = new Rect(0, 0, 1f, 1f);
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
 
             meshRenderer.sharedMaterial = material;
 
@@ -771,7 +811,7 @@ namespace SSImporter.Resource {
                             sprite.rect.y / sprite.texture.height));
             meshRenderer.SetPropertyBlock(materialPropertyBlock);
             */
-            spriteGO.transform.localScale = new Vector3(screenSize, screenSize, 1f);
+            //spriteGO.transform.localScale = new Vector3(screenSize, screenSize, 1f);
             spriteGO.transform.SetParent(gameObject.transform, false);
             /*
             if ((objectData.Base.Flags & (int)Flags.Solid) == (int)Flags.Solid) {
@@ -810,7 +850,22 @@ namespace SSImporter.Resource {
             ObjectPropertyLibrary objectPropertyLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objprop.dat.asset", typeof(ObjectPropertyLibrary)) as ObjectPropertyLibrary;
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
 
-            ArtObjectFactory(objartLibrary, (ushort)0, spriteIndex + objectInstance.AnimationState + 1, objectData, gameObject);
+            //ArtObjectFactory(objartLibrary, (ushort)0, spriteIndex + objectInstance.AnimationState + 1, objectData, gameObject);
+
+            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex + objectInstance.AnimationState + 1];
+            Material material = objartLibrary.GetMaterial();
+
+            GameObject spriteGO = new GameObject();
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                sprite.Rect.width * material.mainTexture.width / 64f,
+                sprite.Rect.height * material.mainTexture.height / 64f,
+                Mathf.Min(sprite.Rect.width * material.mainTexture.width, sprite.Rect.height * material.mainTexture.height) / 64f);
+            meshProjector.UVRect = sprite.Rect;
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            spriteGO.transform.SetParent(gameObject.transform, false);
         }
 
         private static void TextFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
@@ -873,12 +928,44 @@ namespace SSImporter.Resource {
             //int spriteIndex = 881 + (nameIndex - 284); // 270 = starting index in objart3, 284 = starting index in objproperty
 
             SpriteLibrary objartLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objart.res.asset", typeof(SpriteLibrary)) as SpriteLibrary;
-            ArtObjectFactory(objartLibrary, (ushort)0, (uint)spriteIndex, objectData, gameObject);
+            //ArtObjectFactory(objartLibrary, (ushort)0, (uint)spriteIndex, objectData, gameObject);
+
+            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex];
+            Material material = objartLibrary.GetMaterial();
+
+            GameObject spriteGO = new GameObject();
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                sprite.Rect.width * material.mainTexture.width / 64f,
+                sprite.Rect.height * material.mainTexture.height / 64f,
+                Mathf.Min(sprite.Rect.width * material.mainTexture.width, sprite.Rect.height * material.mainTexture.height) / 64f);
+            meshProjector.UVRect = sprite.Rect;
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            spriteGO.transform.SetParent(gameObject.transform, false);
         }
 
         private static void GraffitiFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject) {
             SpriteLibrary objart3Library = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/objart3.res.asset", typeof(SpriteLibrary)) as SpriteLibrary;
-            ArtObjectFactory(objart3Library, (ushort)312, objectInstance.AnimationState, objectData, gameObject);
+            
+            //ArtObjectFactory(objart3Library, (ushort)312, objectInstance.AnimationState, objectData, gameObject);
+
+            SpriteDefinition sprite = objart3Library.GetSpriteAnimation((ushort)312)[objectInstance.AnimationState];
+            Material material = objart3Library.GetMaterial();
+
+            GameObject spriteGO = new GameObject("STAIN");
+            MeshProjector meshProjector = spriteGO.AddComponent<MeshProjector>();
+            meshProjector.Size = new Vector3(
+                sprite.Rect.width * material.mainTexture.width / 64f,
+                sprite.Rect.height * material.mainTexture.height / 64f,
+                Mathf.Min(sprite.Rect.width * material.mainTexture.width, sprite.Rect.height * material.mainTexture.height) / 64f);
+            meshProjector.UVRect = sprite.Rect;
+
+            MeshRenderer meshRenderer = spriteGO.GetComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            spriteGO.transform.SetParent(gameObject.transform, false);
         }
 
         private static void WalkableFactory(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject, float defaultWidth) {
