@@ -4,6 +4,7 @@ using UnityEditor;
 namespace SystemShock.Resource {
     public class ReadOnlyAttribute : PropertyAttribute { }
 
+#if UNITY_EDITOR
     [CustomPropertyDrawer(typeof(ReadOnlyAttribute))]
     public class ReadOnlyDrawer : PropertyDrawer {
         public override float GetPropertyHeight(SerializedProperty property, GUIContent label) {
@@ -16,4 +17,5 @@ namespace SystemShock.Resource {
             GUI.enabled = true;
         }
     }
+#endif
 }

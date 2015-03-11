@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class StringLibrary : ScriptableObject {
+    public class StringLibrary : AbstractResourceLibrary<StringLibrary> {
 
         [SerializeField]
         private CyberString[] strings;

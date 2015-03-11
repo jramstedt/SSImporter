@@ -3,13 +3,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace SSImporter.Resource {
+namespace SystemShock.Resource {
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
     [ExecuteInEditMode]
     public class MeshProjector : MonoBehaviour {
-        public Vector3 Size;
-        public Rect UVRect;
+        public Vector3 Size = Vector3.one;
+        public Rect UVRect = new Rect(0f, 0f, 1f, 1f);
         public float ThresholdAngle = Mathf.Cos(Mathf.PI / 4f);
         public float Offset = 0.002f;
 
@@ -228,6 +228,22 @@ namespace SSImporter.Resource {
             projectedMesh.Optimize();
 
             meshFilter.sharedMesh = projectedMesh;
+
+            Bounds meshBounds = projectedMesh.bounds;
+
+            Collider collider = GetComponent<Collider>();
+            if (collider != null) {
+                if (collider is BoxCollider) {
+                    ((BoxCollider)collider).center = meshBounds.center;
+                    ((BoxCollider)collider).size = meshBounds.size;
+                } else if (collider is SphereCollider) {
+                    Vector3 radius = meshBounds.extents;
+                    ((SphereCollider)collider).center = meshBounds.center;
+                    ((SphereCollider)collider).radius = Mathf.Min(radius.x, radius.y, radius.z);
+                } else if (collider is MeshCollider) {
+                    ((MeshCollider)collider).sharedMesh = projectedMesh;
+                }
+            }
         }
 
         private void OnDrawGizmosSelected() {

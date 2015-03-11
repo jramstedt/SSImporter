@@ -20,13 +20,22 @@ namespace SystemShock.Object {
         public byte Unknown3;
 
         public virtual void SetClassData(object classData) { }
+
+        public virtual void InitializeInstance() { }
     }
     public abstract class SystemShockObject<T> : SystemShockObject {
         public T ClassData;
     }
 
     public abstract class SystemShockObjectProperties : MonoBehaviour {
+        public abstract BaseProperties Base { get; }
+
         public virtual void SetProperties(ObjectData properties) { }
+    }
+
+    public abstract class SystemShockObjectProperties<G, S> : SystemShockObjectProperties {
+        public abstract G Generic { get; }
+        public abstract S Specific { get; }
     }
 
     public enum ObjectClass : byte {
@@ -196,7 +205,7 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Screen {
+            public class MaterialOverride {
                 public ushort Frames;
                 public ushort PingPong;
                 public ushort Unknown1;
@@ -226,17 +235,6 @@ namespace SystemShock.Object {
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
                 public byte[] Fill;
-            }
-
-            [Serializable]
-            [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Furniture {
-                public ushort Unknown1;
-                public ushort Unknown2;
-                public ushort Unknown3;
-                public byte TextureOverride;
-                public byte Unknown4;
-                public ushort Unknown5;
             }
 
             [Serializable]

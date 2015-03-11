@@ -3,6 +3,8 @@
 using System;
 using System.Collections.Generic;
 
+using SystemShock.Resource;
+
 namespace SSImporter.Resource {
     public abstract class BaseMesh {
         public readonly uint tileX;
@@ -75,7 +77,7 @@ namespace SSImporter.Resource {
             }
 
             for (int corner = 0; corner < 4; ++corner)
-                vertices[corner].y = cornerHeight[corner] / (float)(1 << (int)levelInfo.HeightFactor);
+                vertices[corner].y = cornerHeight[corner] / (float)(1 << (int)levelInfo.HeightPower);
 
             Mesh mesh = new Mesh();
             mesh.vertices = vertices;
@@ -90,5 +92,25 @@ namespace SSImporter.Resource {
         public abstract bool HasFloor { get; }
 
         public abstract bool HasCeiling { get; }
+
+        public float FloorHeightMiddle {
+            get {
+                float floorHeightMiddle = 0f;
+                for (int corner = 0; corner < 4; ++corner)
+                    floorHeightMiddle += floorCornerHeight[corner];
+
+                return floorHeightMiddle / 4f;
+            }
+        }
+
+        public float CeilingHeightMiddle {
+            get {
+                float ceilingHeightMiddle = 0f;
+                for (int corner = 0; corner < 4; ++corner)
+                    ceilingHeightMiddle += ceilingCornerHeight[corner];
+
+                return ceilingHeightMiddle / 4f;
+            }
+        }
     }
 }

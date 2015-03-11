@@ -11,7 +11,7 @@ using SystemShock.Object;
 
 namespace SSImporter.Resource {
     public class SystemShockObjectGenerator : MonoBehaviour {
-        [MenuItem("Assets/System Shock/Generate Object Instance Classes")]
+        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes")]
         public static void Init() {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                 AssetDatabase.CreateFolder(@"Assets", @"SystemShock");

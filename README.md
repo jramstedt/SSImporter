@@ -2,7 +2,6 @@
 System Shock's assets importer for Unity. Requires Unity 5.0.
 
 ## Todo
-- Object creation code remake and runtime support
 - Animated screens
 - Animated tile textures
 - Palette rotated textures
@@ -11,7 +10,6 @@ System Shock's assets importer for Unity. Requires Unity 5.0.
 - Rotating cameras script
 - Screens with text
 - Shodan screens (texture animation + noise)
-- Model 0-material override with animated texture material. (Just like animated screens)
 - Combine tiles to create uniform collision mesh from level geometry.
 - Code to weld and optimize level & decal mesh.
 - Sprite library inspector (preview sprites)

@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class SpriteLibrary : ScriptableObject {
+    public class SpriteLibrary : AbstractResourceLibrary<SpriteLibrary> {
         [SerializeField]
         private SpriteAnimation[] animations;
 

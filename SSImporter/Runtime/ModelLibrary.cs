@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class ModelLibrary : ScriptableObject {
+    public class ModelLibrary : AbstractResourceLibrary<ModelLibrary> {
         [SerializeField]
         [HideInInspector]
         private List<string> modelGuids;

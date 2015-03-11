@@ -10,8 +10,8 @@ using System.Runtime.InteropServices;
 using SystemShock.Resource;
 
 namespace SSImporter.Resource {
-    public class TextureImport {
-        [MenuItem("Assets/System Shock/Import Textures")]
+    public static class TextureImport {
+        [MenuItem("Assets/System Shock/7. Import Textures")]
         public static void Init() {
             CreateTextureAssets();
         }
@@ -92,6 +92,8 @@ namespace SSImporter.Resource {
 
                 File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", paletteTexture.EncodeToPNG());
             }
+
+            ObjectFactory.GetController().AddLibrary(paletteLibrary);
             #endregion
 
             #region Create object sprites
@@ -99,34 +101,6 @@ namespace SSImporter.Resource {
                 ResourceFile spritesResource = new ResourceFile(objartPath);
 
                 CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette);
-                /*
-                SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
-                AssetDatabase.CreateAsset(spriteLibrary, @"Assets/SystemShock/objart.res.asset");
-
-                ushort spriteCount = spritesResource.GetChunkBlockCount(KnownChunkId.ObjectSprites);
-                Texture2D[] sprites = new Texture2D[spriteCount];
-                for (ushort spriteId = 0; spriteId < spriteCount; ++spriteId)
-                    sprites[spriteId] = spritesResource.ReadBitmap(KnownChunkId.ObjectSprites, gamePalette, spriteId);
-
-                Texture2D atlas = new Texture2D(1024, 1024, TextureFormat.RGBA32, true, true);
-                Rect[] rects = atlas.PackTextures(sprites, 1, 4096);
-                atlas.Apply(true, true);
-                EditorUtility.CompressTexture(atlas, TextureFormat.DXT5, TextureCompressionQuality.Best);
-                atlas.name = @"objart.res sprites";
-                AssetDatabase.AddObjectToAsset(atlas, spriteLibrary);
-
-                Material material = new Material(Shader.Find(@"Standard"));
-                material.mainTexture = atlas;
-
-                AssetDatabase.AddObjectToAsset(material, spriteLibrary);
-
-                EditorUtility.SetDirty(spriteLibrary);
-
-                spriteLibrary.SetSprites(material, atlas, rects);
-
-                foreach (Texture2D sprite in sprites)
-                    Texture2D.DestroyImmediate(sprite);
-                */
             }
             #endregion
 
@@ -135,35 +109,6 @@ namespace SSImporter.Resource {
                 ResourceFile spritesResource = new ResourceFile(objart2Path);
 
                 CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette);
-
-                /*
-                SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
-                AssetDatabase.CreateAsset(spriteLibrary, @"Assets/SystemShock/objart2.res.asset");
-
-                ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
-                Texture2D[] sprites = new Texture2D[spriteChunkIds.Count];
-                for (ushort spriteId = 0; spriteId < sprites.Length; ++spriteId)
-                    sprites[spriteId] = spritesResource.ReadBitmap(KnownChunkId.EnemyAnimationStart + spriteId, gamePalette);
-
-                Texture2D atlas = new Texture2D(1024, 1024, TextureFormat.RGBA32, true, true);
-                Rect[] rects = atlas.PackTextures(sprites, 1, 4096);
-                atlas.Apply(true, true);
-                EditorUtility.CompressTexture(atlas, TextureFormat.DXT5, TextureCompressionQuality.Best);
-                atlas.name = @"objart2.res sprites";
-                AssetDatabase.AddObjectToAsset(atlas, spriteLibrary);
-
-                Material material = new Material(Shader.Find(@"Standard"));
-                material.mainTexture = atlas;
-
-                AssetDatabase.AddObjectToAsset(material, spriteLibrary);
-
-                EditorUtility.SetDirty(spriteLibrary);
-
-                spriteLibrary.SetSprites(material, atlas, rects);
-
-                foreach (Texture2D sprite in sprites)
-                    Texture2D.DestroyImmediate(sprite);
-                */
             }
             #endregion
 
@@ -222,6 +167,8 @@ namespace SSImporter.Resource {
                 }
 
                 EditorUtility.SetDirty(textureLibrary);
+
+                ObjectFactory.GetController().AddLibrary(textureLibrary);
             }
             #endregion
 
@@ -268,6 +215,8 @@ namespace SSImporter.Resource {
                 }
 
                 EditorUtility.SetDirty(textureLibrary);
+
+                ObjectFactory.GetController().AddLibrary(textureLibrary);
             }
             #endregion
 
@@ -317,6 +266,8 @@ namespace SSImporter.Resource {
                 }
 
                 EditorUtility.SetDirty(materialLibrary);
+
+                ObjectFactory.GetController().AddLibrary(materialLibrary);
             }
             #endregion
 
@@ -492,6 +443,13 @@ namespace SSImporter.Resource {
                 sprite.Dispose();
 
             SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
+
+            AssetDatabase.CreateAsset(spriteLibrary, libraryAssetPath);
+            AssetDatabase.AddObjectToAsset(atlasDiffuse, libraryAssetPath);
+            if (hasEmission)
+                AssetDatabase.AddObjectToAsset(atlasEmission, libraryAssetPath);
+            AssetDatabase.AddObjectToAsset(material, libraryAssetPath);
+
             spriteLibrary.SetSprites(material, unitySprites);
 
             EditorUtility.SetDirty(material);
@@ -499,10 +457,7 @@ namespace SSImporter.Resource {
             EditorUtility.SetDirty(atlasEmission);
             EditorUtility.SetDirty(spriteLibrary);
 
-            AssetDatabase.CreateAsset(atlasDiffuse, libraryAssetPath);
-            if(hasEmission) AssetDatabase.AddObjectToAsset(atlasEmission, libraryAssetPath);
-            AssetDatabase.AddObjectToAsset(material, libraryAssetPath);
-            AssetDatabase.AddObjectToAsset(spriteLibrary, libraryAssetPath);
+            ObjectFactory.GetController().AddLibrary(spriteLibrary);
         }
 
         private static TextureSet CreateTexture(ushort textureId, ResourceFile textureResource, PaletteChunk palette) {

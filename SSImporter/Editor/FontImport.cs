@@ -12,7 +12,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class FontImport {
-        [MenuItem("Assets/System Shock/Import Fonts")]
+        [MenuItem("Assets/System Shock/6. Import Fonts")]
         public static void Init() {
             CreateObjectFontAssets();
         }
@@ -39,6 +39,8 @@ namespace SSImporter.Resource {
 
             AssetDatabase.CreateFolder(@"Assets/SystemShock", @"gamescr.res");
 
+            Dictionary<uint, Font> fonts = new Dictionary<uint, Font>();
+
             ResourceFile gamescrResource = new ResourceFile(gamescrPath);
             foreach (KnownChunkId chunkId in gamescrResource.GetChunkList()) {
                 ChunkInfo chunkInfo = gamescrResource.GetChunkInfo(chunkId);
@@ -59,9 +61,19 @@ namespace SSImporter.Resource {
                     EditorUtility.SetDirty(fontSet.Font);
                     EditorUtility.SetDirty(fontSet.Texture);
                     EditorUtility.SetDirty(material);
+
+                    fonts.Add((uint)chunkId, fontSet.Font);
                 }
                 //Debug.Log(chunkId + " " + chunkInfo.info);
             }
+
+            FontLibrary fontLibrary = ScriptableObject.CreateInstance<FontLibrary>();
+            fontLibrary.SetFonts(fonts);
+
+            AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
+            EditorUtility.SetDirty(fontLibrary);
+
+            ObjectFactory.GetController().AddLibrary(fontLibrary);
 
             //AssetDatabase.StopAssetEditing();
 

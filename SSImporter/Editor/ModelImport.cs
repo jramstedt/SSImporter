@@ -11,7 +11,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class ModelImport {
-        [MenuItem("Assets/System Shock/Import Models")]
+        [MenuItem("Assets/System Shock/8. Import Models")]
         public static void Init() {
             CreateMeshAssets();
         }
@@ -88,6 +88,8 @@ namespace SSImporter.Resource {
             }
 
             EditorUtility.SetDirty(modelLibrary);
+
+            ObjectFactory.GetController().AddLibrary(modelLibrary);
             #endregion
 
             AssetDatabase.StopAssetEditing();

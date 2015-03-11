@@ -12,7 +12,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class DataObjectGenerator {
-        [MenuItem("Assets/System Shock/Generate DataObject Classes")]
+        [MenuItem("Assets/System Shock/3. Generate DataObject Classes")]
         public static void Init() {
             ObjectDeclaration[][] ObjectDeclarations = ObjectPropertyImport.ObjectDeclarations;
 
@@ -165,7 +165,7 @@ namespace SSImporter.Resource {
             monoBehaviourClass.IsClass = true;
             monoBehaviourClass.IsPartial = true;
             monoBehaviourClass.TypeAttributes = TypeAttributes.Public;
-            monoBehaviourClass.BaseTypes.Add(typeof(SystemShockObjectProperties));
+            monoBehaviourClass.BaseTypes.Add(typeof(SystemShockObjectProperties<,>).MakeGenericType(genericType, specificType));
             monoBehaviourClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
 
             monoBehaviourClass.Members.Add(new CodeMemberField(Name, @"Properties") {
@@ -187,7 +187,7 @@ namespace SSImporter.Resource {
             CodeMemberProperty baseProperty = new CodeMemberProperty() {
                 Name = @"Base",
                 Type = new CodeTypeReference(typeof(BaseProperties)),
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
+                Attributes = MemberAttributes.Public |  MemberAttributes.Override,
                 HasGet = true,
                 HasSet = false
             };
@@ -199,7 +199,7 @@ namespace SSImporter.Resource {
             CodeMemberProperty genericProperty = new CodeMemberProperty() {
                 Name = @"Generic",
                 Type = new CodeTypeReference(genericType),
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
+                Attributes = MemberAttributes.Public | MemberAttributes.Override,
                 HasGet = true,
                 HasSet = false
             };
@@ -211,7 +211,7 @@ namespace SSImporter.Resource {
             CodeMemberProperty specificProperty = new CodeMemberProperty() {
                 Name = @"Specific",
                 Type = new CodeTypeReference(specificType),
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
+                Attributes = MemberAttributes.Public | MemberAttributes.Override,
                 HasGet = true,
                 HasSet = false
             };

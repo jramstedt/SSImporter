@@ -14,7 +14,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class ObjectPropertyImport {
-        [MenuItem("Assets/System Shock/Import Object Properties")]
+        [MenuItem("Assets/System Shock/5. Import Object Properties")]
         public static void Init() {
             CreateObjectPropertyAssets();
         }
@@ -221,6 +221,9 @@ namespace SSImporter.Resource {
                             //objectData.SetBase(binaryReader.Read(objectDataType.GetBaseType()));
                             objectData.Base = binaryReader.Read<BaseProperties>();
 
+                            //if ((objectData.Base.Flags & (ushort)Flags.F12) != 0)
+                            //    Debug.Log(classIndex + ":" + subclassIndex + ":" + typeIndex + " " + objectData.FullName + " " + Convert.ToString(objectData.Base.Flags, 2).PadLeft(16, '0'));
+
                             AssetDatabase.AddObjectToAsset(objectData, objectPropertyLibrary);
 
                             EditorUtility.SetDirty(objectData);
@@ -231,6 +234,8 @@ namespace SSImporter.Resource {
 
                 EditorUtility.SetDirty(objectPropertyLibrary);
             }
+
+            ObjectFactory.GetController().AddLibrary(objectPropertyLibrary);
 
             AssetDatabase.SaveAssets();
             EditorApplication.SaveAssets();

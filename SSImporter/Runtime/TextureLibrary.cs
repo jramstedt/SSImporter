@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace SystemShock.Resource {
-    public class TextureLibrary : ScriptableObject {
+    public class TextureLibrary : AbstractResourceLibrary<TextureLibrary> {
         [SerializeField]
         [HideInInspector]
         private List<string> textureGuids;

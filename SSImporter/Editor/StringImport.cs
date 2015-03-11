@@ -12,7 +12,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class StringImport {
-        [MenuItem("Assets/System Shock/Import Strings")]
+        [MenuItem("Assets/System Shock/2. Import Strings")]
         public static void Init() {
             CreateStringAssets();
         }
@@ -38,6 +38,8 @@ namespace SSImporter.Resource {
 
             AssetDatabase.CreateAsset(stringLibrary, @"Assets/SystemShock/cybstrng.res.asset");
             EditorUtility.SetDirty(stringLibrary);
+
+            ObjectFactory.GetController().AddLibrary(stringLibrary);
 
             AssetDatabase.SaveAssets();
             EditorApplication.SaveAssets();

@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class PaletteLibrary : ScriptableObject {
+    public class PaletteLibrary : AbstractResourceLibrary<PaletteLibrary> {
         [SerializeField]
         private List<Palette> palettes;
 
