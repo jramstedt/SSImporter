@@ -22,7 +22,8 @@ namespace SSImporter.Resource {
         private delegate void ObjectFactoryDelegate(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject);
 
         private static void CreateMapAssets() {
-            string filePath = @"D:\Users\Janne\Downloads\SYSTEMSHOCK-Portable-v1.2.3\RES";
+            string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
+
             string mapLibraryPath = filePath + @"\DATA\archive.dat";
 
             if (!File.Exists(mapLibraryPath))
@@ -186,14 +187,14 @@ namespace SSImporter.Resource {
                         if (tileMesh.FloorMoving) {
                             MovingTileMesh movingFloor = new MovingTileMesh(MovingTileMesh.Type.Floor, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
 
-                            GameObject floorGo = CreateGameObject(CombineTile(movingFloor, tileMeshes, true), "Moving floor");
+                            GameObject floorGo = CreateGameObject(CombineTile(movingFloor, tileMeshes, true), "Moving floor", true);
                             floorGo.transform.SetParent(tileGO.transform, false);
                         }
 
                         if (tileMesh.CeilingMoving) {
                             MovingTileMesh movingCeiling = new MovingTileMesh(MovingTileMesh.Type.Ceiling, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
 
-                            GameObject ceilingGo = CreateGameObject(CombineTile(movingCeiling, tileMeshes, true), "Moving ceiling");
+                            GameObject ceilingGo = CreateGameObject(CombineTile(movingCeiling, tileMeshes, true), "Moving ceiling", true);
                             ceilingGo.transform.SetParent(tileGO.transform, false);
                         }
 
@@ -257,21 +258,26 @@ namespace SSImporter.Resource {
             Resources.UnloadUnusedAssets();
         }
 
-        private static GameObject CreateGameObject(CombinedTileMesh combinedTileMesh, string name) {
+        private static GameObject CreateGameObject(CombinedTileMesh combinedTileMesh, string name, bool moving = false) {
             GameObject gameObject = new GameObject();
             gameObject.name = name;
-            GameObjectUtility.SetStaticEditorFlags(gameObject, StaticEditorFlags.LightmapStatic |
-                                                                StaticEditorFlags.OccluderStatic |
-                                                                StaticEditorFlags.NavigationStatic |
-                                                                StaticEditorFlags.OccludeeStatic |
-                                                                StaticEditorFlags.OffMeshLinkGeneration |
-                                                                StaticEditorFlags.ReflectionProbeStatic);
+
+            if (!moving)
+                GameObjectUtility.SetStaticEditorFlags(gameObject,  StaticEditorFlags.LightmapStatic |
+                                                                    StaticEditorFlags.OccluderStatic |
+                                                                    StaticEditorFlags.NavigationStatic |
+                                                                    StaticEditorFlags.OccludeeStatic |
+                                                                    StaticEditorFlags.OffMeshLinkGeneration |
+                                                                    StaticEditorFlags.ReflectionProbeStatic);
 
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = combinedTileMesh.Mesh;
 
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterials = combinedTileMesh.Materials;
+
+            MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
+            meshCollider.sharedMesh = combinedTileMesh.Mesh;
 
             return gameObject;
         }
@@ -466,7 +472,8 @@ namespace SSImporter.Resource {
                 BinaryReader msbr = new BinaryReader(ms);
 
                 uint amount = (uint)ms.Length / sizeof(ushort);
-                ushort[] textureMap = new ushort[amount];
+
+                ushort[] textureMap = new ushort[Math.Max(amount, 64)];
 
                 for (uint i = 0; i < amount; ++i)
                     textureMap[i] = msbr.ReadUInt16();

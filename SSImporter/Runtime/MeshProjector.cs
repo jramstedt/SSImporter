@@ -209,8 +209,13 @@ namespace SystemShock.Resource {
             List<CombineInstance> combineInstances = new List<CombineInstance>();
 
             foreach (MeshFilter targetMeshFilter in targetMeshFilters) {
-                if (targetMeshFilter == meshFilter)
+#if UNITY_EDITOR
+                if (targetMeshFilter == meshFilter || !(targetMeshFilter.sharedMesh ?? targetMeshFilter.mesh).isReadable)
                     continue;
+#else
+                if (targetMeshFilter == meshFilter || targetMeshFilter.mesh == null || !targetMeshFilter.mesh.isReadable)
+                    continue;
+#endif
 
                 Mesh mesh = Project(targetMeshFilter);
 

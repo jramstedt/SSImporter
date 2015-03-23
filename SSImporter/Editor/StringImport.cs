@@ -18,7 +18,8 @@ namespace SSImporter.Resource {
         }
 
         private static void CreateStringAssets() {
-            string filePath = @"D:\Users\Janne\Downloads\SYSTEMSHOCK-Portable-v1.2.3\RES";
+            string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
+
             string stringResourcePath = filePath + @"\DATA\cybstrng.res";
 
             if (!File.Exists(stringResourcePath))

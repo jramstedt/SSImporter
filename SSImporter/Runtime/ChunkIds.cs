@@ -20,7 +20,10 @@ namespace SystemShock.Resource {
         EnemyDeathStart = 0x05C2,
         EnemySevereDamageStart = 0x05E7,
         EnemyLightDamageStart = 0x060C,
-        EnemyIdleDamageStart = 0x0631,
+        EnemyIdleStart = 0x0631,
+
+        EnemyWalkStart = 0x0758,
+        EnemyAttackSecondaryStart = 0x0841,
 
         DecalWords = 0x0868,
         TextureNames = 0x086A,

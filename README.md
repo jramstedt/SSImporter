@@ -2,7 +2,6 @@
 System Shock's assets importer for Unity. Requires Unity 5.0.
 
 ## Todo
-- Animated screens
 - Animated tile textures
 - Palette rotated textures
   - Each palette chunk (5 colors) is rotated at different speed. Use multi layered material (one layer per chunk)?
@@ -13,9 +12,6 @@ System Shock's assets importer for Unity. Requires Unity 5.0.
 - Combine tiles to create uniform collision mesh from level geometry.
 - Code to weld and optimize level & decal mesh.
 - Sprite library inspector (preview sprites)
-- Directional sprites
-  - Enemies
-- Enemy animations
 - UI graphics import
 - Sound import
 - Intro/Ending movie import

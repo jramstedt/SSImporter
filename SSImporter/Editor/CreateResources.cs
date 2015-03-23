@@ -10,6 +10,9 @@ namespace SSImporter.Resource {
     public static class CreateResources {
         [MenuItem("Assets/System Shock/1. Create Object Factory")]
         public static void CreateGameController() {
+            if(!PlayerPrefs.HasKey(@"SSHOCKRES"))
+                PlayerPrefs.SetString(@"SSHOCKRES", EditorUtility.OpenFolderPanel(@"System Shock folder with DATA", string.Empty, string.Empty));
+
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                 AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
@@ -39,6 +42,11 @@ namespace SSImporter.Resource {
             Resources.UnloadUnusedAssets();
 
             GameObject.DestroyImmediate(prefab);
+        }
+
+        [MenuItem("Assets/System Shock/0. Clear RES path")]
+        public static void ClearResourcePath() {
+            PlayerPrefs.DeleteKey(@"SSHOCKRES");
         }
     }
 }

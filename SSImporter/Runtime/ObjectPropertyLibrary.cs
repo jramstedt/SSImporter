@@ -100,6 +100,7 @@ namespace SystemShock.Resource {
 
     [Flags]
     public enum DamageType : byte {
+        None = 0x00,
         Impact = 0x01,
         Energy = 0x02,
         EMP = 0x04,

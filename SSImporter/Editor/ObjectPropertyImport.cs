@@ -127,7 +127,7 @@ namespace SSImporter.Resource {
             };
 
         private static void CreateObjectPropertyAssets() {
-            string filePath = @"D:\Users\Janne\Downloads\SYSTEMSHOCK-Portable-v1.2.3\RES";
+            string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
             string objpropPath = filePath + @"\DATA\objprop.dat";
 

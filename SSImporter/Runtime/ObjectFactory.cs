@@ -68,7 +68,12 @@ namespace SystemShock.Resource {
             PrefabLibrary prefabLibrary = GetLibrary<PrefabLibrary>(@"objprefabs");
 
             GameObject prefab = prefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
+
+#if UNITY_EDITOR
+            GameObject gameObject = UnityEditor.PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+#else
             GameObject gameObject = GameObject.Instantiate(prefab);
+#endif
 
             gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * levelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
             gameObject.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
@@ -85,6 +90,7 @@ namespace SystemShock.Resource {
 
             ssObject.Unknown1 = objectInstance.Unknown1;
             ssObject.Unknown2 = objectInstance.Unknown2;
+            ssObject.Unknown3 = objectInstance.Unknown3;
 
             ssObject.SetClassData(instanceData);
 

@@ -16,10 +16,20 @@ namespace SystemShock {
                 }
 
 #if UNITY_EDITOR
-                GameObject gameControllers = UnityEditor.PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+                GameObject gameControllers = null;
+
+                GameObject[] gameObjects = GameObject.FindGameObjectsWithTag(ResourceName);
+                foreach (GameObject gameObject in gameObjects) {
+                    if (UnityEditor.PrefabUtility.GetPrefabParent(gameObject) == prefab)
+                        gameControllers = gameObject; // GameController already present in the scene.
+                }
+
+                if (gameControllers == null)
+                    gameControllers = UnityEditor.PrefabUtility.InstantiatePrefab(prefab) as GameObject;
 #else
-                GameObject gameControllers = Instantiate<GameObject>(prefab);
+                GameObject gameControllers = Instantiate(prefab);
 #endif
+
                 gameControllers.name = ResourceName;
                 gameControllers.hideFlags = HideFlags.DontSaveInBuild | HideFlags.DontSaveInEditor;
                 DontDestroyOnLoad(gameControllers);

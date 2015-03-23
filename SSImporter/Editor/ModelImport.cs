@@ -17,7 +17,7 @@ namespace SSImporter.Resource {
         }
 
         private static void CreateMeshAssets() {
-            string filePath = @"D:\Users\Janne\Downloads\SYSTEMSHOCK-Portable-v1.2.3\RES";
+            string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
             string obj3dPath = filePath + @"\DATA\obj3d.res";
 
@@ -73,7 +73,7 @@ namespace SSImporter.Resource {
                                                                     StaticEditorFlags.ReflectionProbeStatic);
 
                 MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
-                meshFilter.mesh = meshInfo.mesh;
+                meshFilter.sharedMesh = meshInfo.mesh;
 
                 MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
                 meshRenderer.materials = materials;

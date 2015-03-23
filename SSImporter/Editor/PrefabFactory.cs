@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEditor;
+using UnityEditor.Animations;
 
 using System;
 using System.IO;
@@ -20,18 +21,25 @@ namespace SSImporter.Resource {
 
         private static ModelLibrary modelLibrary;
         private static SpriteLibrary objartLibrary;
+        private static SpriteLibrary objart2Library;
+        private static SpriteLibrary objart3Library;
         private static StringLibrary stringLibrary;
         private static ObjectPropertyLibrary objectPropertyLibrary;
         private static Material nullMaterial;
+
+        private static EnemyAnimations[] enemyAnimations;
 
         private static void CreateObjectPrefabs() {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                 AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
             AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Prefabs");
+            AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Animations");
 
             modelLibrary = ModelLibrary.GetLibrary(@"obj3d.res");
             objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
+            objart2Library = SpriteLibrary.GetLibrary(@"objart2.res");
+            objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
             stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
             objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
             nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
@@ -40,6 +48,8 @@ namespace SSImporter.Resource {
 
             PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
             AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
+
+            CalculateAnimationIndices();
 
             uint nameIndex = 0;
 
@@ -72,11 +82,11 @@ namespace SSImporter.Resource {
                         if (baseProperties.DrawType == DrawType.Model)
                             AddModel(combinedId, baseProperties, gameObject);
                         else if (baseProperties.DrawType == DrawType.Sprite)
-                            AddSprite(combinedId, baseProperties, gameObject);
+                            AddSprite(combinedId, baseProperties, gameObject, prefabAsset);
                         else if (baseProperties.DrawType == DrawType.Screen)
                             AddScreen(combinedId, baseProperties, gameObject);
                         else if (baseProperties.DrawType == DrawType.Enemy)
-                            Debug.LogWarning("DrawType.Enemy not supported", gameObject);
+                            AddEnemy(combinedId, baseProperties, gameObject, prefabAsset);
                         else if (baseProperties.DrawType == DrawType.T5)
                             Debug.LogWarning("DrawType.T5 not supported", gameObject);
                         else if (baseProperties.DrawType == DrawType.Fragments)
@@ -136,7 +146,9 @@ namespace SSImporter.Resource {
                                 Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
                             } else if (gameObject.GetComponent<Collider>() == null) {
                                 BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-                                boxCollider.isTrigger = true;
+                                boxCollider.isTrigger = baseProperties.DrawType == DrawType.Screen ||
+                                                        baseProperties.DrawType == DrawType.Decal ||
+                                                        baseProperties.DrawType == DrawType.Sprite;
                                 boxCollider.center = renderer.bounds.center;
                                 boxCollider.size = renderer.bounds.size;
                             }
@@ -166,13 +178,17 @@ namespace SSImporter.Resource {
 
                         if (!HasPhysics &&
                             ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup &&
-                            baseProperties.DrawType != DrawType.Sprite)
+                            baseProperties.DrawType != DrawType.Sprite &&
+                            baseProperties.Vulnerabilities == DamageType.None)
                             staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
                         #endregion
 
                         if (HasPhysics) {
                             Rigidbody rigidbody = gameObject.AddComponent<Rigidbody>();
                             rigidbody.mass = baseProperties.Mass / 10f;
+
+                            if (baseProperties.DrawType == DrawType.Sprite || baseProperties.DrawType == DrawType.Enemy)
+                                rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
                             if (gameObject.GetComponent<Collider>() == null) { // Rigidbody always needs collider
                                 Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
@@ -213,28 +229,87 @@ namespace SSImporter.Resource {
             Resources.UnloadUnusedAssets();
         }
 
+        private static void CalculateAnimationIndices() {
+            List<EnemyAnimations> enemyAnimations = new List<EnemyAnimations>();
+
+            EnemyAnimations.Frames
+                idle = new EnemyAnimations.Frames { Library = objart2Library, Index = 185, Directional = true },
+                walk = new EnemyAnimations.Frames { Library = objart3Library, Index = 0, Directional = true },
+                evade = new EnemyAnimations.Frames { Library = objart2Library, Index = 37, Directional = false },
+                damage = new EnemyAnimations.Frames { Library = objart2Library, Index = 148, Directional = false },
+                criticalDamage = new EnemyAnimations.Frames { Library = objart2Library, Index = 111, Directional = false },
+                death = new EnemyAnimations.Frames { Library = objart2Library, Index = 74, Directional = false },
+                primaryAttack = new EnemyAnimations.Frames { Library = objart2Library, Index = 0, Directional = false },
+                secondaryAttack = new EnemyAnimations.Frames { Library = objart3Library, Index = 233, Directional = false };
+
+            ObjectClass classIndex = ObjectClass.Enemy;
+            ObjectDeclaration[] objectDataSubclass = ObjectPropertyImport.ObjectDeclarations[(uint)classIndex];
+
+            for (byte subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+
+                for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                    uint combinedId = (uint)classIndex << 24 | (uint)subclassIndex << 16 | typeIndex;
+
+                    ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
+                    BaseProperties baseProperties = objectData.Base;
+
+                    enemyAnimations.Add(new EnemyAnimations {
+                        Idle = idle,
+                        Walk = walk,
+                        Evade = evade,
+                        Damage = damage,
+                        CriticalDamage = criticalDamage,
+                        Death = death,
+                        PrimaryAttack = primaryAttack,
+                        SecondaryAttack = secondaryAttack
+                    });
+
+                    if (baseProperties.DrawType == DrawType.Enemy) {
+                        bool isStub = subclassIndex == 1 && typeIndex == 4;
+                        idle.Index += (ushort)(isStub ? 1 : 8);
+                        walk.Index += (ushort)(isStub ? 1 : 8);
+                    }
+
+                    ++evade.Index;
+                    ++damage.Index;
+                    ++criticalDamage.Index;
+                    ++death.Index;
+                    ++primaryAttack.Index;
+                    ++secondaryAttack.Index;
+                }
+            }
+
+            PrefabFactory.enemyAnimations = enemyAnimations.ToArray();
+        }
+
         private static void AddModel(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             string modelPath = AssetDatabase.GUIDToAssetPath(modelLibrary.GetModelGuid(baseProperties.ModelIndex));
             GameObject modelGO = PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath(modelPath, typeof(GameObject))) as GameObject;
             modelGO.transform.SetParent(gameObject.transform, false);
         }
 
-        private static void AddSprite(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddSprite(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
             spriteIndex += 1; // World sprite.
 
             SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex];
             Material material = objartLibrary.GetMaterial();
 
-            MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+            GameObject visualization = new GameObject(sprite.Name);
+            visualization.transform.SetParent(gameObject.transform, false);
+
+            MeshFilter meshFilter = visualization.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
                 sprite.Pivot,
                 new Vector2(sprite.Rect.width * material.mainTexture.width / 100f, sprite.Rect.height * material.mainTexture.height / 100f),
                 sprite.Rect);
-            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+            MeshRenderer meshRenderer = visualization.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = material;
 
-            gameObject.AddComponent<Billboard>();
+            visualization.AddComponent<Billboard>();
+
+            AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
         }
 
         private static void AddScreen(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
@@ -250,7 +325,32 @@ namespace SSImporter.Resource {
             meshRenderer.sharedMaterial = nullMaterial;
         }
 
-        public static void AddDecal(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddEnemy(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
+            GameObject visualization = new GameObject("Visualization");
+            visualization.transform.SetParent(gameObject.transform, false);
+
+            SpriteRenderer spriteRenderer = visualization.AddComponent<SpriteRenderer>();
+            spriteRenderer.useLightProbes = true;
+            spriteRenderer.receiveShadows = true;
+            spriteRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
+            spriteRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+
+            int enemyIndex =    objectPropertyLibrary.GetIndex(combinedId) -
+                                objectPropertyLibrary.GetIndex(ObjectClass.Enemy, 0, 0);
+
+            Sprite snapshot;
+
+            Animator animator = visualization.AddComponent<Animator>();
+            animator.updateMode = AnimatorUpdateMode.AnimatePhysics;
+            animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+            AnimatorController.SetAnimatorController(animator, CreateEnemyAnimatorController(gameObject, (ushort)enemyIndex, prefabAsset, out snapshot));
+
+            spriteRenderer.sprite = snapshot;
+
+            gameObject.AddComponent<SystemShock.Enemy>();
+        }
+
+        private static void AddDecal(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
             Material material = objartLibrary.GetMaterial();
 
@@ -275,17 +375,216 @@ namespace SSImporter.Resource {
             }
         }
 
-        public static void AddSpecial(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddSpecial(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
         }
 
-        public static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(baseProperties.Size);
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
 
             // Material is added on instance creation.
+        }
+
+        private const string AttackPrimaryParameter = @"AttackPrimary";
+        private const string AttackSecondaryParameter = @"AttackSecondary";
+        private const string EvadingParameter = @"Evading";
+        private const string DeadParameter = @"Dead";
+        private const string DirectionParameter = @"Direction";
+        private const string SpeedParameter = @"Speed";
+        private const string DamageParameter = @"Damage";
+        private const string CriticalDamageParameter = @"CriticalDamage";
+
+        private static AnimatorController CreateEnemyAnimatorController(GameObject gameObject, int enemyIndex, UnityEngine.Object prefabAsset, out Sprite snapshot) {
+            string fileName = string.Format(@"{0} {1}.controller", enemyIndex, gameObject.name);
+            fileName = Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
+
+            string assetPath = string.Format(@"Assets/SystemShock/Animations/{0}", fileName);
+
+            AnimatorController animatorController = AnimatorController.CreateAnimatorControllerAtPath(assetPath);
+            SpriteRenderer spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
+
+            AnimatorStateMachine rootStateMachine = animatorController.layers[0].stateMachine;
+
+            #region Add parameters
+            animatorController.AddParameter(AttackPrimaryParameter, AnimatorControllerParameterType.Trigger);
+            animatorController.AddParameter(AttackSecondaryParameter, AnimatorControllerParameterType.Trigger);
+            animatorController.AddParameter(EvadingParameter, AnimatorControllerParameterType.Trigger);
+            animatorController.AddParameter(DeadParameter, AnimatorControllerParameterType.Bool);
+            animatorController.AddParameter(DirectionParameter, AnimatorControllerParameterType.Float); // Degrees, Offset from looking at player
+            animatorController.AddParameter(SpeedParameter, AnimatorControllerParameterType.Float);
+            animatorController.AddParameter(DamageParameter, AnimatorControllerParameterType.Trigger);
+            animatorController.AddParameter(CriticalDamageParameter, AnimatorControllerParameterType.Trigger);
+            #endregion
+
+            #region Add states
+            AnimatorState primaryAttackState = rootStateMachine.AddState(@"PrimaryAttack");
+            AnimatorState secondaryAttackState = rootStateMachine.AddState(@"SecondaryAttack");
+            AnimatorState evadeState = rootStateMachine.AddState(@"Evade");
+            AnimatorState deathState = rootStateMachine.AddState(@"Death");
+            AnimatorState damageState = rootStateMachine.AddState(@"Damage");
+            AnimatorState criticalDamageState = rootStateMachine.AddState(@"CriticalDamage");
+            #endregion
+
+            #region Add Motions
+            EnemyAnimations enemyAnimations = PrefabFactory.enemyAnimations[enemyIndex];
+
+            AnimatorState motionState = CreateMotionState(enemyAnimations, animatorController, prefabAsset);
+            primaryAttackState.motion = CreateAnimationClip(@"Primary Attack", enemyAnimations.PrimaryAttack, prefabAsset);
+            secondaryAttackState.motion = CreateAnimationClip(@"Secondary Attack", enemyAnimations.SecondaryAttack, prefabAsset);
+            evadeState.motion = CreateAnimationClip(@"Evade", enemyAnimations.Evade, prefabAsset);
+            deathState.motion = CreateAnimationClip(@"Death", enemyAnimations.Death, prefabAsset);
+            damageState.motion = CreateAnimationClip(@"Damage", enemyAnimations.Damage, prefabAsset);
+            criticalDamageState.motion = CreateAnimationClip(@"Critical Damage", enemyAnimations.CriticalDamage, prefabAsset);
+
+            rootStateMachine.defaultState = motionState;
+            #endregion
+
+            #region Add transitions
+            #region Evade
+            AnimatorStateTransition idleToEvadeTransition = motionState.AddTransition(evadeState);
+            idleToEvadeTransition.AddCondition(AnimatorConditionMode.If, 0f, EvadingParameter);
+
+            evadeState.AddTransition(motionState).hasExitTime = true;
+            #endregion
+
+            #region Attack
+            AnimatorStateTransition anyToPrimaryAttack = rootStateMachine.AddAnyStateTransition(primaryAttackState);
+            anyToPrimaryAttack.interruptionSource = TransitionInterruptionSource.Source;
+            anyToPrimaryAttack.AddCondition(AnimatorConditionMode.If, 0f, AttackPrimaryParameter);
+
+            primaryAttackState.AddTransition(motionState).hasExitTime = true;
+
+            AnimatorStateTransition anyToSecondaryAttack = rootStateMachine.AddAnyStateTransition(secondaryAttackState);
+            anyToSecondaryAttack.interruptionSource = TransitionInterruptionSource.Source;
+            anyToSecondaryAttack.AddCondition(AnimatorConditionMode.If, 0f, AttackSecondaryParameter);
+
+            secondaryAttackState.AddTransition(motionState).hasExitTime = true;
+            #endregion
+
+            #region Death
+            AnimatorStateTransition anyToDeath = rootStateMachine.AddAnyStateTransition(deathState);
+            anyToDeath.interruptionSource = TransitionInterruptionSource.None;
+            anyToDeath.canTransitionToSelf = false;
+            anyToDeath.AddCondition(AnimatorConditionMode.If, 0f, DeadParameter);
+            #endregion
+
+            #region Damage
+            AnimatorStateTransition anyToDamage = rootStateMachine.AddAnyStateTransition(damageState);
+            anyToDamage.interruptionSource = TransitionInterruptionSource.None;
+            anyToDamage.AddCondition(AnimatorConditionMode.If, 0f, DamageParameter);
+            damageState.AddTransition(motionState).hasExitTime = true;
+
+            AnimatorStateTransition anyToCriticalDamage = rootStateMachine.AddAnyStateTransition(criticalDamageState);
+            anyToCriticalDamage.interruptionSource = TransitionInterruptionSource.None;
+            anyToCriticalDamage.AddCondition(AnimatorConditionMode.If, 0f, CriticalDamageParameter);
+            criticalDamageState.AddTransition(motionState).hasExitTime = true;
+            #endregion
+
+            #endregion
+            
+            snapshot = AnimationUtility.GetObjectReferenceCurve(evadeState.motion as AnimationClip, AnimationUtility.GetObjectReferenceCurveBindings(evadeState.motion as AnimationClip)[0])[0].value as Sprite;
+
+            return animatorController;
+        }
+
+        private static AnimationClip CreateAnimationClip(string name, SpriteAnimation spriteAnimation, SpriteLibrary spriteLibrary, UnityEngine.Object prefabAsset, bool loop = false, float framesPerSecond = 10f) {
+            Material material = spriteLibrary.GetMaterial();
+
+            ObjectReferenceKeyframe[] keyFrames = new ObjectReferenceKeyframe[spriteAnimation.Count()];
+            for (uint k = 0; k < keyFrames.Length; ++k) {
+                SpriteDefinition spriteDefinition = spriteAnimation[k];
+
+                Rect spriteRect = new Rect( spriteDefinition.Rect.x * material.mainTexture.width,
+                                            spriteDefinition.Rect.y * material.mainTexture.height,
+                                            spriteDefinition.Rect.width * material.mainTexture.width,
+                                            spriteDefinition.Rect.height * material.mainTexture.height);
+
+                Sprite sprite = Sprite.Create(material.mainTexture as Texture2D, spriteRect, spriteDefinition.Pivot, 100f);
+
+                AssetDatabase.AddObjectToAsset(sprite, prefabAsset);
+
+                keyFrames[k] = new ObjectReferenceKeyframe() {
+                    time = k / framesPerSecond,
+                    value = sprite
+                };
+            }
+
+            AnimationClip clip = new AnimationClip();
+            clip.name = name;
+            clip.frameRate = framesPerSecond;
+
+            if (loop) {
+                AnimationClipSettings clipSettings = AnimationUtility.GetAnimationClipSettings(clip);
+                clipSettings.loopTime = true;
+                AnimationUtility.SetAnimationClipSettings(clip, clipSettings);
+                EditorUtility.SetDirty(clip);
+            }
+
+            AnimationUtility.SetObjectReferenceCurve(clip, new EditorCurveBinding() {
+                type = typeof(SpriteRenderer),
+                propertyName = "m_Sprite"
+            }, keyFrames);
+
+            AssetDatabase.AddObjectToAsset(clip, prefabAsset);
+
+            return clip;
+        }
+
+        private static AnimationClip CreateAnimationClip(string name, EnemyAnimations.Frames animationFrames, UnityEngine.Object prefabAsset, bool loop = false, float framesPerSecond = 5f) {
+            SpriteAnimation spriteAnimation = animationFrames.Library.GetSpriteAnimation((ushort)(animationFrames.Index));
+            AnimationClip clip = CreateAnimationClip(name, spriteAnimation, animationFrames.Library, prefabAsset, loop, framesPerSecond);
+            
+            return clip;
+        }
+
+        private static AnimatorState CreateMotionState(EnemyAnimations animations, AnimatorController animatorController, UnityEngine.Object prefabAsset) {
+            BlendTree blendTree;
+            AnimatorState state = animatorController.CreateBlendTreeInController("Motion", out blendTree);
+            blendTree.blendType = BlendTreeType.FreeformCartesian2D;
+            blendTree.blendParameter = DirectionParameter;
+            blendTree.blendParameterY = SpeedParameter;
+
+            for (uint i = 0; i < 8; ++i) {
+                uint direction = (i + 6) & 7; // We want 0 to be looking at player.
+
+                EnemyAnimations.Frames idleFrames = animations.Idle;
+                SpriteAnimation idleSpriteAnimation = idleFrames.Library.GetSpriteAnimation((ushort)(idleFrames.Index + direction));
+                AnimationClip idleClip = CreateAnimationClip(@"Idle " + i, idleSpriteAnimation, idleFrames.Library, prefabAsset, true, 3f);
+
+                EnemyAnimations.Frames walkFrames = animations.Walk;
+                SpriteAnimation walkSpriteAnimation = walkFrames.Library.GetSpriteAnimation((ushort)(walkFrames.Index + direction));
+                AnimationClip walkClip = CreateAnimationClip(@"Walk " + i, walkSpriteAnimation, walkFrames.Library, prefabAsset, true, 3f);
+
+                blendTree.AddChild(idleClip, new Vector2(i / 8f, 0f));
+                blendTree.AddChild(walkClip, new Vector2(i / 8f, 1f));
+
+                if (i == 0) { // Wrap
+                    blendTree.AddChild(idleClip, new Vector2(1f, 0f));
+                    blendTree.AddChild(walkClip, new Vector2(1f, 1f));
+                }
+            }
+
+            return state;
+        }
+
+        private struct EnemyAnimations {
+            public struct Frames {
+                public SpriteLibrary Library;
+                public ushort Index;
+                public bool Directional;
+            }
+
+            public Frames Idle;
+            public Frames Walk;
+            public Frames Evade;
+            public Frames Damage;
+            public Frames CriticalDamage;
+            public Frames Death;
+            public Frames PrimaryAttack;
+            public Frames SecondaryAttack;
         }
     }
 }

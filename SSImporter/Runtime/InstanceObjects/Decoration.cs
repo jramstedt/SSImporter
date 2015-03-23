@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 using SystemShock.Object;
 using SystemShock.Resource;
@@ -222,11 +223,24 @@ namespace SystemShock.InstanceObjects {
                 if (meshProjector != null)
                     meshProjector.Size = properties.Base.GetRenderSize(overridingMaterial.mainTexture.GetSize());
 
-                for (int i = 0; i < sharedMaterials.Length; ++i)
-                    if (sharedMaterials[i] == nullMaterial)
+                List<int> nullMaterialIndices = new List<int>();
+                for (int i = 0; i < sharedMaterials.Length; ++i) {
+                    if (sharedMaterials[i] == nullMaterial) {
                         sharedMaterials[i] = overridingMaterial;
+                        nullMaterialIndices.Add(i);
+                    }
+                }
 
                 meshRenderer.sharedMaterials = sharedMaterials;
+
+                if (materialOverride.Frames > 1) {
+                    Material[] frames = new Material[materialOverride.Frames];
+                    for(ushort i = 0; i < frames.Length; ++i)
+                        frames[i] = animationLibrary.GetMaterial((ushort)(materialOverride.StartFrameIndex + i));
+
+                    AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
+                    animate.Setup(nullMaterialIndices.ToArray(), frames, materialOverride.PingPong, 2f);
+                }
             }
         }
     }

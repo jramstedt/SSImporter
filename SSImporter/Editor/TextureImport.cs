@@ -17,9 +17,8 @@ namespace SSImporter.Resource {
         }
 
         private static void CreateTextureAssets() {
-            //string filePath = EditorUtility.OpenFolderPanel(@"System Shock RES folder", @"", @"RES");
-
-            string filePath = @"D:\Users\Janne\Downloads\SYSTEMSHOCK-Portable-v1.2.3\RES";
+            string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
+            PlayerPrefs.SetString(@"SSHOCKRES", filePath);
 
             string gamePalettePath = filePath + @"\DATA\gamepal.res";
             string texturePropertiesLibraryPath = filePath + @"\DATA\textprop.dat";
@@ -60,8 +59,14 @@ namespace SSImporter.Resource {
 
             using (FileStream fs = new FileStream(texturePropertiesLibraryPath, FileMode.Open)) {
                 BinaryReader br = new BinaryReader(fs, Encoding.ASCII);
-                while (fs.Position < fs.Length)
+
+                uint eh = br.ReadUInt32();
+
+                int dataSize = Marshal.SizeOf(typeof(TextureProperties));
+
+                while (fs.Position <= (fs.Length - dataSize)) {
                     textureProperties.Add(br.Read<TextureProperties>());
+                }
             }
             #endregion
 
@@ -161,9 +166,7 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    string guid = AssetDatabase.AssetPathToGUID(assetPath);
-
-                    textureLibrary.SetTexture(textureId, guid, textureProperties[textureId]);
+                    textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
                 }
 
                 EditorUtility.SetDirty(textureLibrary);
@@ -209,9 +212,7 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    string guid = AssetDatabase.AssetPathToGUID(assetPath);
-
-                    textureLibrary.SetTexture(textureId, guid, textureProperties[textureId]);
+                    textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
                 }
 
                 EditorUtility.SetDirty(textureLibrary);
@@ -258,9 +259,7 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    string guid = AssetDatabase.AssetPathToGUID(assetPath);
-
-                    materialLibrary.SetTexture(materialId, guid, textureProperties[materialId]);
+                    materialLibrary.SetTexture(materialId, material, textureProperties[materialId]);
 
                     ++materialId;
                 }
