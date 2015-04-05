@@ -31,7 +31,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level7Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -182,7 +182,6 @@ namespace SSImporter.Resource {
                         ceilingMaterial.SetColor(@"_EmissionColorWithMapUI", Color.white);
                         ceilingMaterial.SetFloat(@"_EmissionScaleUI", (float)(0x0F - shadeUpper) / 15f);
                         */
-
                         
                         if (tileMesh.FloorMoving) {
                             MovingTileMesh movingFloor = new MovingTileMesh(MovingTileMesh.Type.Floor, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
@@ -216,12 +215,36 @@ namespace SSImporter.Resource {
                     TileMesh tileMesh = tileMeshes[x, y];
 
                     if (tileMesh.tile.Type != TileType.Solid) {
-                        lightProbes.Add(new Vector3(x + 0.5f, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) + 0.25f, y + 0.5f));
-                        lightProbes.Add(new Vector3(x + 0.5f, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) - 0.25f, y + 0.5f));
+                        float xOffset = 0.5f, yOffset = 0.15f, zOffset = 0.5f;
+
+                        if(tileMesh.tile.Type == TileType.OpenDiagonalNE) {
+                            zOffset = 0.75f;
+                            xOffset = 0.75f;
+                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalNW) {
+                            zOffset = 0.75f;
+                            xOffset = 0.25f;
+                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalSE) {
+                            zOffset = 0.25f;
+                            xOffset = 0.75f;
+                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalSW) {
+                            zOffset = 0.25f;
+                            xOffset = 0.25f;
+                        }
+
+                        if (!tileMesh.FloorMoving)
+                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) + yOffset, y + zOffset));
+
+                        if (!tileMesh.CeilingMoving)
+                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) - yOffset, y + zOffset));
                     }
                 }
             }
             lightProbeGroub.probePositions = lightProbes.ToArray();
+            #endregion
+
+            #region Reflection probes
+            lightProbesGameObject.AddComponent<ReflectionProbe>();
+
             #endregion
 
             ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
@@ -244,6 +267,10 @@ namespace SSImporter.Resource {
                     continue;
 
                 GameObject instanceGO = objectFactory.Instantiate(objectInstance, instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex]);
+
+                if (instanceGO == null)
+                    continue;
+
                 EditorUtility.SetDirty(instanceGO);
             }
             #endregion
@@ -278,6 +305,29 @@ namespace SSImporter.Resource {
 
             MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
             meshCollider.sharedMesh = combinedTileMesh.Mesh;
+
+            #region Check and build texture animations
+            Dictionary<TextureProperties, List<int>> materialAnimations = new Dictionary<TextureProperties, List<int>>();
+            for (int i = 0; i < combinedTileMesh.Materials.Length; ++i) {
+                TextureProperties textureProperties = textureLibrary.GetTextureProperties(combinedTileMesh.Materials[i]);
+                if(textureProperties.AnimationGroup > 0) {
+                    List<int> indices;
+                    if (!materialAnimations.TryGetValue(textureProperties, out indices))
+                        materialAnimations.Add(textureProperties, indices = new List<int>());
+
+                    indices.Add(i);
+                }
+            }
+
+            if (materialAnimations.Count > 0) {
+                AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
+
+                foreach (KeyValuePair<TextureProperties, List<int>> materialAnimation in materialAnimations) {
+                    Material[] frames = textureLibrary.GetMaterialAnimation(materialAnimation.Key.AnimationGroup);
+                    animate.AddAnimation(materialAnimation.Value.ToArray(), frames, 1, 3.5f);
+                }
+            }
+            #endregion
 
             return gameObject;
         }

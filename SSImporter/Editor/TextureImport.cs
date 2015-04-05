@@ -60,13 +60,18 @@ namespace SSImporter.Resource {
             using (FileStream fs = new FileStream(texturePropertiesLibraryPath, FileMode.Open)) {
                 BinaryReader br = new BinaryReader(fs, Encoding.ASCII);
 
-                uint eh = br.ReadUInt32();
+                /*uint unknownHeader =*/ br.ReadUInt32();
 
                 int dataSize = Marshal.SizeOf(typeof(TextureProperties));
 
                 while (fs.Position <= (fs.Length - dataSize)) {
                     textureProperties.Add(br.Read<TextureProperties>());
                 }
+
+                /*
+                while (fs.Position < fs.Length)
+                    Debug.Log("Jämä " + br.ReadByte());
+                */
             }
             #endregion
 
@@ -159,9 +164,6 @@ namespace SSImporter.Resource {
                         material.EnableKeyword(@"_EMISSION");
                     }
 
-                    if (texture.Animated)
-                        material.mainTextureScale = new Vector2(0.25f, 1f);
-
                     EditorUtility.SetDirty(material);
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
@@ -174,6 +176,8 @@ namespace SSImporter.Resource {
                 ObjectFactory.GetController().AddLibrary(textureLibrary);
             }
             #endregion
+
+            TextureProperties emptyTextureProperties = new TextureProperties();
 
             #region Create animation texture assets
             {
@@ -193,26 +197,22 @@ namespace SSImporter.Resource {
 
                     string assetPath = string.Format(@"Assets/SystemShock/texture.res.anim/{0}.asset", textureId);
                     AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
-                    if (texture.Emission != null)
-                        AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
 
                     Material material = new Material(Shader.Find(@"Standard"));
                     material.name = textureNames[textureId];
-                    material.mainTexture = texture.Diffuse;
-                    material.SetFloat(@"_Glossiness", 0f);
+                    //material.mainTexture = texture.Diffuse;
+                    material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
 
-                    Texture2D emissiveTexture = texture.Emission /*?? AssetDatabase.LoadAssetAtPath(string.Format(@"Assets/Emission/{0:000}.png", textureId), typeof(Texture2D)) as Texture2D*/;
-                    if (emissiveTexture != null) {
-                        material.SetTexture(@"_EmissionMap", emissiveTexture);
-                        material.SetColor(@"_EmissionColor", Color.white);
-                        material.EnableKeyword(@"_EMISSION");
-                    }
+                    //Screens are blacklit, so use diffuse texture as emission!
+                    material.SetTexture(@"_EmissionMap", texture.Diffuse);
+                    material.SetColor(@"_EmissionColor", Color.white);
+                    material.EnableKeyword(@"_EMISSION");
 
                     EditorUtility.SetDirty(material);
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
+                    textureLibrary.SetTexture(textureId, material, emptyTextureProperties);
                 }
 
                 EditorUtility.SetDirty(textureLibrary);
@@ -259,7 +259,7 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    materialLibrary.SetTexture(materialId, material, textureProperties[materialId]);
+                    materialLibrary.SetTexture(materialId, material, emptyTextureProperties);
 
                     ++materialId;
                 }
@@ -529,7 +529,6 @@ namespace SSImporter.Resource {
                 Name = fullSizeTexture.Name,
                 Diffuse = completeDiffuse,
                 Emission = completeEmission,
-                Animated = false,
                 Emissive = emissionHasPixels
             };
         }

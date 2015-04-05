@@ -29,7 +29,8 @@ namespace SystemShock {
         }
 
         public GameObject GetPrefab(uint combinedId) {
-            return Prefabs[indexMap.IndexOf(combinedId)];
+            int index = indexMap.IndexOf(combinedId);
+            return index < 0 ? null : Prefabs[index];
         }
 
         public GameObject GetPrefab(ObjectClass Class, byte Subclass, byte Type) {

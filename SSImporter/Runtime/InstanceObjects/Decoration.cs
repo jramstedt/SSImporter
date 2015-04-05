@@ -25,11 +25,8 @@ namespace SystemShock.InstanceObjects {
             ObjectFactory objectFactory = ObjectFactory.GetController();
 
             if (ssobject.SubClass == 2) {
-                if (ssobject.Type == 6 || ssobject.Type == 8 || ssobject.Type == 9 || ssobject.Type == 10) {
+                if (ssobject.Type == 6 || ssobject.Type == 7 || ssobject.Type == 8 || ssobject.Type == 9 || ssobject.Type == 10) {
                     // Nothing
-                } else if (ssobject.Type == 7) { // Texture map
-                    Destroy(meshProjector);
-                    Debug.Log("Texture map", gameObject);
                 } else if (ssobject.Type == 3) { // Text
 #if UNITY_EDITOR
                     DestroyImmediate(meshProjector);
@@ -182,6 +179,12 @@ namespace SystemShock.InstanceObjects {
 
                     GetComponent<MeshCollider>().sharedMesh = meshFilter.sharedMesh;
                 }
+            } else if (ssobject.SubClass == 5) {
+                if (ssobject.Type == 4) { // Camera
+                    ObjectInstance.Decoration.Camera camera = ClassData.Data.Read<ObjectInstance.Decoration.Camera>();
+                    if (camera.Rotating != 0)
+                        gameObject.AddComponent<RotatingCamera>();
+                }
             }
 
             Material[] sharedMaterials = meshRenderer.sharedMaterials;
@@ -189,7 +192,7 @@ namespace SystemShock.InstanceObjects {
                 ObjectInstance.Decoration.MaterialOverride materialOverride = ClassData.Data.Read<ObjectInstance.Decoration.MaterialOverride>();
 
                 TextureLibrary animationLibrary = TextureLibrary.GetLibrary(@"texture.res.anim");
-                
+
                 Material overridingMaterial;
 
                 bool isSurveillance = materialOverride.StartFrameIndex >= 0xF8 && materialOverride.StartFrameIndex <= 0xFF;
@@ -197,49 +200,67 @@ namespace SystemShock.InstanceObjects {
                     overridingMaterial = animationLibrary.GetMaterial(materialOverride.StartFrameIndex);
                 } else if (materialOverride.StartFrameIndex == 0x007F) { // Random Number
                     overridingMaterial = nullMaterial;
-                } else { // > 0x7F
+                } else { // not animated or > 0x7F
                     if (materialOverride.StartFrameIndex == 246) { // Noise + shodan
-                        overridingMaterial = animationLibrary.GetMaterial(63);  // FIXME
+                        materialOverride.Frames = 6;
+                        materialOverride.PingPong = 1;
+                        materialOverride.StartFrameIndex = 63;
+
+                        overridingMaterial = animationLibrary.GetMaterial(63);
+                        gameObject.AddComponent<ShodanScreen>();
                     } else if (materialOverride.StartFrameIndex == 247) { // Noise
-                        overridingMaterial = animationLibrary.GetMaterial(63);  // FIXME
+                        overridingMaterial = animationLibrary.GetMaterial(0);
+                        gameObject.AddComponent<NoiseScreen>();
                     } else if (isSurveillance) { // Surveillance
                         overridingMaterial = new Material(Shader.Find(@"Standard"));
                     } else if(materialOverride.StartFrameIndex > 0x00FF) { // Text
                         int stringStartIndex = materialOverride.StartFrameIndex & 0x7F;
                         overridingMaterial = nullMaterial;
                     } else { // Model texture
-                        overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
+                        if (ssobject.Type == 7) {
+                            TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
+                            ushort[] textureMap = objectFactory.levelInfo.TextureMap;
+                            overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
+                        } else {
+                            overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
+                        }
                     }
                 }
 
                 if (isSurveillance) {
                     Camera camera = objectFactory.levelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07];
-                    overridingMaterial.mainTexture = camera.targetTexture;
+                    //overridingMaterial.mainTexture = camera.targetTexture;
+
+                    //Screens are blacklit, so use diffuse texture as emission!
+                    overridingMaterial.SetTexture(@"_EmissionMap", camera.targetTexture);
+                    overridingMaterial.SetColor(@"_EmissionColor", Color.white);
+                    overridingMaterial.EnableKeyword(@"_EMISSION");
 
                     Surveillance surveillance = gameObject.AddComponent<Surveillance>();
                     surveillance.Camera = camera;
                 }
 
-                if (meshProjector != null)
-                    meshProjector.Size = properties.Base.GetRenderSize(overridingMaterial.mainTexture.GetSize());
-
-                List<int> nullMaterialIndices = new List<int>();
-                for (int i = 0; i < sharedMaterials.Length; ++i) {
-                    if (sharedMaterials[i] == nullMaterial) {
-                        sharedMaterials[i] = overridingMaterial;
-                        nullMaterialIndices.Add(i);
-                    }
+                if (meshProjector != null) {
+                    Texture projectedTexture = overridingMaterial.mainTexture ?? overridingMaterial.GetTexture(@"_EmissionMap");
+                    meshProjector.Size = properties.Base.GetRenderSize(projectedTexture.GetSize());
                 }
+                    
 
                 meshRenderer.sharedMaterials = sharedMaterials;
 
                 if (materialOverride.Frames > 1) {
-                    Material[] frames = new Material[materialOverride.Frames];
-                    for(ushort i = 0; i < frames.Length; ++i)
-                        frames[i] = animationLibrary.GetMaterial((ushort)(materialOverride.StartFrameIndex + i));
+                    List<int> nullMaterialIndices = new List<int>();
+                    for (int i = 0; i < sharedMaterials.Length; ++i) {
+                        if (sharedMaterials[i] == nullMaterial) {
+                            sharedMaterials[i] = overridingMaterial;
+                            nullMaterialIndices.Add(i);
+                        }
+                    }
 
-                    AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
-                    animate.Setup(nullMaterialIndices.ToArray(), frames, materialOverride.PingPong, 2f);
+                    Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
+
+                    AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
+                    animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.PingPong, 2f);
                 }
             }
         }

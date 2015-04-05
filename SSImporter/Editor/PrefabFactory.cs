@@ -23,7 +23,6 @@ namespace SSImporter.Resource {
         private static SpriteLibrary objartLibrary;
         private static SpriteLibrary objart2Library;
         private static SpriteLibrary objart3Library;
-        private static StringLibrary stringLibrary;
         private static ObjectPropertyLibrary objectPropertyLibrary;
         private static Material nullMaterial;
 
@@ -40,11 +39,8 @@ namespace SSImporter.Resource {
             objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
             objart2Library = SpriteLibrary.GetLibrary(@"objart2.res");
             objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
-            stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
             objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
             nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
-
-            CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
 
             PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
             AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
@@ -175,6 +171,9 @@ namespace SSImporter.Resource {
 
                             staticFlags |= StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic;
                         }
+
+                        if (!HasPhysics && baseProperties.DrawType != DrawType.Sprite)
+                            staticFlags |= StaticEditorFlags.OccludeeStatic | StaticEditorFlags.LightmapStatic;
 
                         if (!HasPhysics &&
                             ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup &&
@@ -376,14 +375,14 @@ namespace SSImporter.Resource {
         }
 
         private static void AddSpecial(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
-            MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
-            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+            gameObject.AddComponent<MeshFilter>();
+            gameObject.AddComponent<MeshRenderer>();
         }
 
         private static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(baseProperties.Size);
-            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+            gameObject.AddComponent<MeshRenderer>();
 
             // Material is added on instance creation.
         }
@@ -404,8 +403,6 @@ namespace SSImporter.Resource {
             string assetPath = string.Format(@"Assets/SystemShock/Animations/{0}", fileName);
 
             AnimatorController animatorController = AnimatorController.CreateAnimatorControllerAtPath(assetPath);
-            SpriteRenderer spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
-
             AnimatorStateMachine rootStateMachine = animatorController.layers[0].stateMachine;
 
             #region Add parameters

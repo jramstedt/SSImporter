@@ -4,6 +4,7 @@ using UnityEditor;
 #endif
 
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -38,15 +39,42 @@ namespace SystemShock.Resource {
 
         public Material GetMaterial(ushort textureId) {
             int index = indexMap.IndexOf(textureId);
-            return materials[index];
+            return index < 0 ? null : materials[index];
         }
 
         public ushort GetTextureId(Material material) {
             return indexMap[materials.IndexOf(material)];
         }
 
-        private TextureProperties GetTextureProperties(ushort textureId) {
+        public TextureProperties GetTextureProperties(ushort textureId) {
             return textureProperties[indexMap.IndexOf(textureId)];
+        }
+
+        public TextureProperties GetTextureProperties(Material material) {
+            return textureProperties[materials.IndexOf(material)];
+        }
+
+        public Material[] GetMaterialAnimation(ushort startTexureId, ushort count) {
+            Material[] frames = new Material[count];
+            for (ushort i = 0; i < count; ++i)
+                frames[i] = GetMaterial((ushort)(startTexureId + i));
+
+            return frames;
+        }
+
+        public Material[] GetMaterialAnimation(byte animationGroup) {
+            SortedDictionary<byte, Material> animationFrames = new SortedDictionary<byte, Material>();
+            for(int i = 0; i < textureProperties.Count; ++i) {
+                TextureProperties properties = textureProperties[i];
+                if(properties.AnimationGroup == animationGroup)
+                    animationFrames.Add(properties.AnimationIndex, materials[i]);
+            }
+
+            return animationFrames.Values.ToArray();
+        }
+
+        public Material[] GetMaterialAnimation(Material material) {
+            return GetMaterialAnimation(textureProperties[materials.IndexOf(material)].AnimationGroup);
         }
     }
 

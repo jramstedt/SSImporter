@@ -258,25 +258,12 @@ namespace SSImporter.Resource {
                     }
                 }
 
-                /*
-                if (name.Contains(":426"))
-                    Debug.Log("426 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
-                if (name.Contains(":435"))
-                    Debug.Log("435 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
-                if (name.Contains(":432"))
-                    Debug.Log("432 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
-                if (name.Contains(":404"))
-                    Debug.Log("404 ox:" + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
-                if (name.Contains(" ("))
-                    Debug.Log(name + " " + bitmap.OffsetX + " oy:" + bitmap.OffsetY + " px:" + bitmap.PivotX + " py:" + bitmap.PivotY + " w:" + bitmap.Width + " h:" + bitmap.Height);
-                */
-
                 #region Create texture
                 Texture2D diffuse = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true);
                 Texture2D emission = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true);
                 emission.Fill(new Color32(0, 0, 0, 0));
                 bool emissionHasPixels = false;
-                bool animated = false;
+                //bool animated = false;
 
                 int lastY = bitmap.Height - 1;
                 for (int y = 0; y < bitmap.Height; ++y) {
@@ -288,8 +275,8 @@ namespace SSImporter.Resource {
                             emissionHasPixels = true;
                         }
                         
-                        if (paletteIndex > 4 && paletteIndex < 32)
-                            animated = true;
+                        //if (paletteIndex > 4 && paletteIndex < 32)
+                        //    animated = true;
 
                         diffuse.SetPixel(x, y, palette[paletteIndex]);
                     }
@@ -313,7 +300,6 @@ namespace SSImporter.Resource {
                     Name = name,
                     Diffuse = diffuse,
                     Emission = emission,
-                    Animated = animated,
                     Emissive = emissionHasPixels,
                     Pivot = pivot
                 };
@@ -575,7 +561,6 @@ namespace SSImporter.Resource {
         public string Name;
         public Texture2D Diffuse;
         public Texture2D Emission;
-        public bool Animated;
         public bool Emissive;
         public Vector2 Pivot;
 

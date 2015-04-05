@@ -192,11 +192,13 @@ namespace SystemShock.Resource {
         public Vector3 GetRenderSize(Vector2 graphicSize) {
             Vector3 worldSize = Size;
 
-            if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapWidth) == SystemShock.Resource.SizeFlags.UseBitmapWidth)
-                worldSize.x = graphicSize.x / 64f;
+            if (DrawType != Resource.DrawType.Screen) {
+                if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapWidth) == SystemShock.Resource.SizeFlags.UseBitmapWidth)
+                    worldSize.x = graphicSize.x / 64f;
 
-            if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapHeight) == SystemShock.Resource.SizeFlags.UseBitmapHeight)
-                worldSize.y = graphicSize.y / 64f;
+                if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapHeight) == SystemShock.Resource.SizeFlags.UseBitmapHeight)
+                    worldSize.y = graphicSize.y / 64f;
+            }
 
             worldSize.z = Mathf.Min(worldSize.x, worldSize.y);
 

@@ -69,6 +69,11 @@ namespace SystemShock.Resource {
 
             GameObject prefab = prefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
 
+            if (prefab == null) {
+                Debug.LogWarningFormat(@"Prefab not found {0}:{1}:{2}", objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
+                return null;
+            }
+
 #if UNITY_EDITOR
             GameObject gameObject = UnityEditor.PrefabUtility.InstantiatePrefab(prefab) as GameObject;
 #else

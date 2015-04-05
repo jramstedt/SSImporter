@@ -67,10 +67,6 @@ namespace SSImporter.Resource {
                 }
 
                 GameObject gameObject = new GameObject();
-                GameObjectUtility.SetStaticEditorFlags(gameObject,  StaticEditorFlags.NavigationStatic |
-                                                                    StaticEditorFlags.OccludeeStatic |
-                                                                    StaticEditorFlags.OffMeshLinkGeneration |
-                                                                    StaticEditorFlags.ReflectionProbeStatic);
 
                 MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
                 meshFilter.sharedMesh = meshInfo.mesh;

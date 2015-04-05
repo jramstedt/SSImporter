@@ -1,34 +1,64 @@
 ﻿using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+using System;
 using System.Collections;
 
 namespace SystemShock {
     public class AnimateMaterial : MonoBehaviour {
         private Renderer Renderer;
 
-        public int[] MaterialIndices;
-        public Material[] Frames;
-        public ushort AnimationType;
-        public float FPS;
+        [SerializeField]
+        private AnimationSet[] animationSets = new AnimationSet[0];
+
+        private double timeAccumulator;
 
         private uint currentFrame;
+
+        public event Action LoopCompleted;
 
         private void Awake() {
             Renderer = GetComponentInChildren<Renderer>();
         }
 
+        private void OnEnable() {
+            timeAccumulator = 0.0;
+        }
+
         private void Update() {
-            if (!Renderer.isVisible || Frames.Length <= 1 || MaterialIndices.Length == 0)
+            timeAccumulator += Time.deltaTime;
+
+            if (!Renderer.isVisible)
                 return;
 
-            uint nextFrame = (uint)Mathf.FloorToInt(Time.time * FPS);
+            foreach (AnimationSet animationSet in animationSets)
+                UpdateAnimationSet(animationSet);
+        }
+
+        private void UpdateAnimationSet(AnimationSet animationSet) {
+            int[] MaterialIndices = animationSet.MaterialIndices;
+            Material[] Frames = animationSet.Frames;
+            ushort AnimationType = animationSet.AnimationType;
+            float FPS = animationSet.FPS;
+
+            if (Frames.Length <= 1 || MaterialIndices.Length == 0)
+                return;
+
+            uint nextFrame = (uint)(timeAccumulator * FPS);
 
             if (nextFrame != currentFrame) {
                 uint previousFrame = currentFrame;
+                bool loopComplete = false;
 
                 if (AnimationType == 0) {
+                    loopComplete = nextFrame == Frames.Length;
                     currentFrame = nextFrame % (uint)Frames.Length;
                 } else {
-                    uint bounceFrame = nextFrame % (uint)(Frames.Length * 2);
+                    loopComplete = nextFrame == (Frames.Length << 1);
+                    uint bounceFrame = nextFrame % (uint)(Frames.Length << 1);
 
                     if (bounceFrame >= Frames.Length)
                         currentFrame = (uint)(Frames.Length - 1u) - (uint)(bounceFrame % Frames.Length);
@@ -43,16 +73,32 @@ namespace SystemShock {
                         sharedMaterials[MaterialIndices[i]] = Frames[currentFrame];
 
                     Renderer.sharedMaterials = sharedMaterials;
+
+                    DynamicGI.UpdateMaterials(Renderer);
                 }
+
+                if (loopComplete && LoopCompleted != null)
+                    LoopCompleted();
             }
         }
 
-        public void Setup(int[] materialIndices, Material[] frames, ushort animationType, float fps) {
-            MaterialIndices = materialIndices;
-            Frames = frames;
-            AnimationType = animationType;
-            FPS = fps;
+#if UNITY_EDITOR
+        public void AddAnimation(int[] materialIndices, Material[] frames, ushort animationType, float fps) {
+            ArrayUtility.Add(ref animationSets, new AnimationSet {
+                MaterialIndices = materialIndices,
+                Frames = frames,
+                AnimationType = animationType,
+                FPS = fps
+            });
+        }
+#endif
+
+        [Serializable]
+        private struct AnimationSet {
+            public int[] MaterialIndices;
+            public Material[] Frames;
+            public ushort AnimationType;
+            public float FPS;
         }
     }
-
 }

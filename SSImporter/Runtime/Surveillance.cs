@@ -15,6 +15,8 @@ namespace SystemShock {
                 return;
 
             Camera.Render();
+
+            DynamicGI.UpdateMaterials(Renderer);
         }
     }
 }
