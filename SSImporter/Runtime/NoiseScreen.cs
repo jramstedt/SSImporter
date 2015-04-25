@@ -22,6 +22,9 @@ namespace SystemShock {
 
         private double timeAccumulator;
 
+        [HideInInspector]
+        public int[] MaterialIndices;
+
         private void Awake() {
             Renderer = GetComponentInChildren<Renderer>();
 
@@ -39,11 +42,16 @@ namespace SystemShock {
         }
 
         private void OnEnable() {
-            Material material = Renderer.material; // Should we create material? 
-            material.SetTexture(@"_EmissionMap", NoiseTexture);
-            material.SetColor(@"_EmissionColor", Color.white);
-            material.EnableKeyword(@"_EMISSION");
-            Renderer.material = material;
+            Material[] sharedMaterials = Renderer.sharedMaterials;
+
+            foreach (int nullMaterialIndex in MaterialIndices) {
+                Material material = sharedMaterials[nullMaterialIndex];
+                material.SetTexture(@"_EmissionMap", NoiseTexture);
+                material.SetColor(@"_EmissionColor", Color.white);
+                material.EnableKeyword(@"_EMISSION");
+            }
+
+            Renderer.sharedMaterials = sharedMaterials;
         }
 
         private void Update() {

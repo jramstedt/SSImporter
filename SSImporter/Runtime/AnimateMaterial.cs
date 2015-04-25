@@ -15,7 +15,6 @@ namespace SystemShock {
         private AnimationSet[] animationSets = new AnimationSet[0];
 
         private double timeAccumulator;
-
         private uint currentFrame;
 
         public event Action LoopCompleted;

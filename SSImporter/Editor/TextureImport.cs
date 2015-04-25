@@ -201,6 +201,7 @@ namespace SSImporter.Resource {
                     Material material = new Material(Shader.Find(@"Standard"));
                     material.name = textureNames[textureId];
                     //material.mainTexture = texture.Diffuse;
+                    material.color = Color.black;
                     material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
 
                     //Screens are blacklit, so use diffuse texture as emission!

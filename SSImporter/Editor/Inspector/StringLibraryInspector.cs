@@ -26,7 +26,9 @@ public class StringLibraryInspector : InspectorBase<StringLibrary> {
                 ++EditorGUI.indentLevel;
 
                 for (int stringIndex = 0; stringIndex < chunkStrings.Length; ++stringIndex) {
-                    EditorGUILayout.LabelField(stringIndex.ToString(), chunkStrings[stringIndex].ToString());
+                    string chunkString = chunkStrings[stringIndex];
+                    string removedBreaks = chunkString.Replace("\r\n", @"\n").Replace("\n", @"\n").Replace("\r", @"\n");
+                    EditorGUILayout.LabelField(stringIndex.ToString(), removedBreaks);
                 }
 
                 --EditorGUI.indentLevel;

@@ -5,7 +5,6 @@ System Shock's assets importer for Unity. Requires Unity 5.0.
 - Palette rotated textures
   - Each palette chunk (5 colors) is rotated at different speed. Use multi layered material (one layer per chunk)?
 - Bitmap upsampling (some sprites seems to be upsampled)
-- Screens with text
 - Combine tiles to create uniform collision mesh from level geometry.
 - Code to weld and optimize level & decal mesh.
 - Sprite library inspector (preview sprites)

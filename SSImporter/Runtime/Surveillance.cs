@@ -7,7 +7,7 @@ namespace SystemShock {
         public Camera Camera;
 
         private void Awake() {
-            Renderer = GetComponent<Renderer>();
+            Renderer = GetComponentInChildren<Renderer>();
         }
 
         private void Update() {

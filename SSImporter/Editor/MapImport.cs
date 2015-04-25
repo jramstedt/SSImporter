@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 using UnityEditor;
 
 using System;
@@ -31,7 +32,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level7Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -243,7 +244,7 @@ namespace SSImporter.Resource {
             #endregion
 
             #region Reflection probes
-            lightProbesGameObject.AddComponent<ReflectionProbe>();
+            //lightProbesGameObject.AddComponent<ReflectionProbe>();
 
             #endregion
 
@@ -252,16 +253,75 @@ namespace SSImporter.Resource {
             #region Surveillance nodes
             ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
             List<Camera> surveillanceCamera = new List<Camera>(surveillanceNodeIndices.Length);
-            for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex)
-                surveillanceCamera.Add(CreateCamera(objectInstances[surveillanceNodeIndices[nodeIndex]]));
+            for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
+                ushort instanceIndex = surveillanceNodeIndices[nodeIndex];
+
+                if (instanceIndex == 0)
+                    surveillanceCamera.Add(null);
+                else
+                    surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
+            }
 
             levelInfoRuntime.SurveillanceCamera = surveillanceCamera.ToArray();
             #endregion
 
+            #region Text screen
+            {
+                FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
+
+                GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
+                textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");
+                levelInfoRuntime.TextScreenRenderer = textScreenRendererGO.AddComponent<TextScreenRenderer>();
+
+                GameObject cameraGO = new GameObject(@"Camera");
+                cameraGO.layer = LayerMask.NameToLayer(@"UI");
+                cameraGO.transform.SetParent(textScreenRendererGO.transform, false);
+                Camera camera = cameraGO.AddComponent<Camera>();
+                camera.backgroundColor = Color.black;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.orthographic = true;
+                camera.orthographicSize = 0.5f;
+                camera.nearClipPlane = 0.1f;
+                camera.farClipPlane = 2f;
+                camera.cullingMask = LayerMask.GetMask(@"UI");
+                camera.useOcclusionCulling = false;
+                camera.enabled = false;
+
+                GameObject canvasGO = new GameObject(@"Canvas");
+                canvasGO.layer = LayerMask.NameToLayer(@"UI");
+                canvasGO.transform.SetParent(textScreenRendererGO.transform, false);
+                Canvas canvas = canvasGO.AddComponent<Canvas>();
+                canvas.referencePixelsPerUnit = 64f;
+                canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                canvas.planeDistance = 1f;
+                canvas.worldCamera = camera;
+                CanvasScaler canvasScaler = canvasGO.AddComponent<CanvasScaler>();
+                canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+                canvasScaler.scaleFactor = 1f;
+
+                GameObject textGO = new GameObject(@"Text");
+                textGO.layer = LayerMask.NameToLayer(@"UI");
+                textGO.transform.SetParent(canvasGO.transform, false);
+                Text text = textGO.AddComponent<Text>();
+                text.rectTransform.anchorMin = Vector2.zero;
+                text.rectTransform.anchorMax = Vector2.one;
+                text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                text.rectTransform.offsetMin = Vector2.zero;
+                text.rectTransform.offsetMax = Vector2.zero;
+                text.alignment = TextAnchor.MiddleLeft;
+                text.horizontalOverflow = HorizontalWrapMode.Overflow;
+                text.verticalOverflow = VerticalWrapMode.Overflow;
+                text.supportRichText = false;
+                text.color = Color.red; //TODO Get color from palette
+                text.font = fontLibrary.GetFont((KnownChunkId)605);
+                text.text = "GENERAL\nSYSTEM\nSTATUS";
+            }
+            #endregion
+
+            #region Objects
             ObjectFactory objectFactory = ObjectFactory.GetController();
             objectFactory.UpdateLevelInfo();
 
-            #region Objects
             foreach (ObjectInstance objectInstance in objectInstances) {
                 if (objectInstance.InUse == 0)
                     continue;

@@ -6,5 +6,6 @@ namespace SystemShock {
         public float HeightFactor;
         public ushort[] TextureMap;
         public Camera[] SurveillanceCamera;
+        public TextScreenRenderer TextScreenRenderer;
     }
 }

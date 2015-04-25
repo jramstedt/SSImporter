@@ -27,10 +27,15 @@ namespace SystemShock.Object {
         public T ClassData;
     }
 
+    public interface ISystemShockObjectPrefab {
+        void Setup(byte classIndex, byte subclassIndex, byte typeIndex);
+    }
+
     public abstract class SystemShockObjectProperties : MonoBehaviour {
         public abstract BaseProperties Base { get; }
 
         public virtual void SetProperties(ObjectData properties) { }
+
     }
 
     public abstract class SystemShockObjectProperties<G, S> : SystemShockObjectProperties {

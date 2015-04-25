@@ -16,7 +16,6 @@ namespace SystemShock.InstanceObjects {
 
             SystemShockObject ssobject = GetComponent<SystemShockObject>();
             MeshProjector meshProjector = GetComponent<MeshProjector>();
-            MeshFilter meshFilter = GetComponent<MeshFilter>();
             MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
 
             TextureLibrary modelTextureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
@@ -28,14 +27,6 @@ namespace SystemShock.InstanceObjects {
                 if (ssobject.Type == 6 || ssobject.Type == 7 || ssobject.Type == 8 || ssobject.Type == 9 || ssobject.Type == 10) {
                     // Nothing
                 } else if (ssobject.Type == 3) { // Text
-#if UNITY_EDITOR
-                    DestroyImmediate(meshProjector);
-                    DestroyImmediate(GetComponent<MeshFilter>());
-#else
-                    Destroy(meshProjector);
-                    Destroy(GetComponent<MeshFilter>());
-#endif
-
                     PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary(@"gamepal.res");
                     StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
                     FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
@@ -46,19 +37,15 @@ namespace SystemShock.InstanceObjects {
 
                     ushort[] fontMap = new ushort[] { 606, 609, 602, 605, 607 };
 
-                    float[] sizeMap = new float[] { 0.155f, 0.0775f, 0.0385f, 0.08f, 0.15f, 0.15f };
+                    float[] sizeMap = new float[] { 0.155f, 0.01925f/*0.0775f*/, 0.0385f, 0.08f, 0.15f, 0.15f };
 
                     Font font = fontLibrary.GetFont((KnownChunkId)fontMap[text.Font & 0x000F]);
 
                     CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.DecalWords);
 
-                    TextMesh textMesh = gameObject.AddComponent<TextMesh>();
-                    textMesh.offsetZ = -0.0001f;
+                    TextMesh textMesh = gameObject.GetComponent<TextMesh>();
                     textMesh.font = font;
-                    textMesh.alignment = TextAlignment.Center;
-                    textMesh.anchor = TextAnchor.MiddleCenter;
                     textMesh.color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
-                    textMesh.richText = false;
                     textMesh.characterSize = sizeMap[(text.Font & 0x00F0) >> 4];
                     textMesh.text = decalWords[text.TextIndex];
 
@@ -117,6 +104,7 @@ namespace SystemShock.InstanceObjects {
                         length = 1f;
                     }
 
+                    MeshFilter meshFilter = GetComponent<MeshFilter>();
                     meshFilter.sharedMesh = MeshUtils.CreateCubeTopPivot(width, length, height);
 
                     if (ssobject.Type == 7 || ssobject.Type == 9) {
@@ -193,43 +181,92 @@ namespace SystemShock.InstanceObjects {
 
                 TextureLibrary animationLibrary = TextureLibrary.GetLibrary(@"texture.res.anim");
 
+                List<int> nullMaterialIndices = new List<int>();
+                for (int i = 0; i < sharedMaterials.Length; ++i) {
+                    if (sharedMaterials[i] == nullMaterial)
+                        nullMaterialIndices.Add(i);
+                }
+
                 Material overridingMaterial;
 
-                bool isSurveillance = materialOverride.StartFrameIndex >= 0xF8 && materialOverride.StartFrameIndex <= 0xFF;
-                if (materialOverride.StartFrameIndex < 0x007F && materialOverride.Frames > 0) { // Animated texture
-                    overridingMaterial = animationLibrary.GetMaterial(materialOverride.StartFrameIndex);
-                } else if (materialOverride.StartFrameIndex == 0x007F) { // Random Number
-                    overridingMaterial = nullMaterial;
-                } else { // not animated or > 0x7F
-                    if (materialOverride.StartFrameIndex == 246) { // Noise + shodan
-                        materialOverride.Frames = 6;
-                        materialOverride.PingPong = 1;
-                        materialOverride.StartFrameIndex = 63;
+                bool isAnimated = false;
+                bool isSurveillance = materialOverride.StartFrameIndex >= 0x00F8 && materialOverride.StartFrameIndex <= 0x00FF;
 
-                        overridingMaterial = animationLibrary.GetMaterial(63);
-                        gameObject.AddComponent<ShodanScreen>();
-                    } else if (materialOverride.StartFrameIndex == 247) { // Noise
-                        overridingMaterial = animationLibrary.GetMaterial(0);
-                        gameObject.AddComponent<NoiseScreen>();
-                    } else if (isSurveillance) { // Surveillance
-                        overridingMaterial = new Material(Shader.Find(@"Standard"));
-                    } else if(materialOverride.StartFrameIndex > 0x00FF) { // Text
-                        int stringStartIndex = materialOverride.StartFrameIndex & 0x7F;
-                        overridingMaterial = nullMaterial;
-                    } else { // Model texture
-                        if (ssobject.Type == 7) {
-                            TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
-                            ushort[] textureMap = objectFactory.levelInfo.TextureMap;
-                            overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
-                        } else {
-                            overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
-                        }
+                if (isSurveillance && objectFactory.levelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
+                    materialOverride.StartFrameIndex = 0x00F7; // Override with noise.
+                    isSurveillance = false;
+                }
+
+                if (materialOverride.StartFrameIndex < 0x007F && materialOverride.Frames > 0) { // Animated texture
+                    isAnimated = true;
+                    overridingMaterial = animationLibrary.GetMaterial(materialOverride.StartFrameIndex);
+                } else if (materialOverride.StartFrameIndex == 0x00F6) { // Noise + shodan
+                    isAnimated = true;
+
+                    materialOverride.Frames = 6;
+                    materialOverride.PingPong = 1;
+                    materialOverride.StartFrameIndex = 63;
+
+                    overridingMaterial = animationLibrary.GetMaterial(63);
+
+                    NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
+                    noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
+
+                    gameObject.AddComponent<ShodanScreen>();
+                } else if (materialOverride.StartFrameIndex == 0x00F7) { // Noise
+                    overridingMaterial = new Material(Shader.Find(@"Standard"));
+                    NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
+                    noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
+                } else if (isSurveillance) { // Surveillance
+                    overridingMaterial = new Material(Shader.Find(@"Standard"));
+                } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text
+                    StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
+
+                    int stringIndex = materialOverride.StartFrameIndex & 0x7F;
+                    bool scrollVertically = (materialOverride.StartFrameIndex & 0x80) == 0x80;
+                    bool isRandomScreen = stringIndex == 0x7F;
+
+                    if (isRandomScreen) { // Random number in level before CPU is destroyed
+                        materialOverride.Frames = 10;
+                        stringIndex = 52;
+                    }
+
+                    TextScreen textScreen = gameObject.AddComponent<TextScreen>();
+                    textScreen.Frames = materialOverride.Frames;
+                    textScreen.Texts = new string[] { stringLibrary.GetStrings(KnownChunkId.ScreenTexts)[(uint)stringIndex] };
+                    textScreen.Texture = new RenderTexture(128, 128, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                    textScreen.Texture.DiscardContents(false, true);
+                    textScreen.Alignment = isRandomScreen ? TextAnchor.MiddleCenter : scrollVertically ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft;
+                    textScreen.FPS = 2.5f;
+                    textScreen.Type = isRandomScreen ? TextScreen.AnimationType.Random : TextScreen.AnimationType.Normal;
+
+                    if (scrollVertically || isRandomScreen) {
+                        int linesNeeded = scrollVertically ? materialOverride.Frames + TextScreen.LinesNeeded : materialOverride.Frames;
+                        Array.Resize(ref textScreen.Texts, linesNeeded);
+                        for (int i = 0; i < linesNeeded; ++i)
+                            textScreen.Texts[i] = stringLibrary.GetStrings(KnownChunkId.ScreenTexts)[(uint)(stringIndex + i)];
+                    }
+
+                    overridingMaterial = new Material(Shader.Find(@"Standard"));
+                    overridingMaterial.color = Color.black;
+                    overridingMaterial.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
+                    overridingMaterial.SetTexture(@"_EmissionMap", textScreen.Texture);
+                    overridingMaterial.SetColor(@"_EmissionColor", Color.white);
+                    overridingMaterial.EnableKeyword(@"_EMISSION");
+                } else { // Model texture
+                    if (ssobject.Type == 7) {
+                        TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
+                        ushort[] textureMap = objectFactory.levelInfo.TextureMap;
+                        overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
+                    } else {
+                        overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
                     }
                 }
 
                 if (isSurveillance) {
                     Camera camera = objectFactory.levelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07];
                     //overridingMaterial.mainTexture = camera.targetTexture;
+                    overridingMaterial.color = Color.black;
 
                     //Screens are blacklit, so use diffuse texture as emission!
                     overridingMaterial.SetTexture(@"_EmissionMap", camera.targetTexture);
@@ -244,24 +281,18 @@ namespace SystemShock.InstanceObjects {
                     Texture projectedTexture = overridingMaterial.mainTexture ?? overridingMaterial.GetTexture(@"_EmissionMap");
                     meshProjector.Size = properties.Base.GetRenderSize(projectedTexture.GetSize());
                 }
-                    
 
-                meshRenderer.sharedMaterials = sharedMaterials;
+                foreach(int nullMaterialIndex in nullMaterialIndices)
+                    sharedMaterials[nullMaterialIndex] = overridingMaterial;
 
-                if (materialOverride.Frames > 1) {
-                    List<int> nullMaterialIndices = new List<int>();
-                    for (int i = 0; i < sharedMaterials.Length; ++i) {
-                        if (sharedMaterials[i] == nullMaterial) {
-                            sharedMaterials[i] = overridingMaterial;
-                            nullMaterialIndices.Add(i);
-                        }
-                    }
-
+                if (isAnimated) {
                     Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
 
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
                     animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.PingPong, 2f);
                 }
+
+                meshRenderer.sharedMaterials = sharedMaterials;
             }
         }
     }

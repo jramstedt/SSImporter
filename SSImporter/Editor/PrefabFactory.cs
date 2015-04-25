@@ -178,7 +178,7 @@ namespace SSImporter.Resource {
                         if (!HasPhysics &&
                             ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup &&
                             baseProperties.DrawType != DrawType.Sprite &&
-                            baseProperties.Vulnerabilities == DamageType.None)
+                            (baseProperties.Vulnerabilities == DamageType.None || baseProperties.DrawType == DrawType.Special))
                             staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
                         #endregion
 
@@ -205,6 +205,9 @@ namespace SSImporter.Resource {
                         GameObjectUtility.SetStaticEditorFlags(gameObject, staticFlags);
                         foreach(Transform child in gameObject.transform)
                             GameObjectUtility.SetStaticEditorFlags(child.gameObject, staticFlags);
+
+                        if (properties is ISystemShockObjectPrefab)
+                            (properties as ISystemShockObjectPrefab).Setup(classIndex, subclassIndex, typeIndex);
 
                         EditorUtility.SetDirty(gameObject);
                         GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
