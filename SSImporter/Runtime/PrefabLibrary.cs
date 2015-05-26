@@ -34,7 +34,7 @@ namespace SystemShock {
         }
 
         public GameObject GetPrefab(ObjectClass Class, byte Subclass, byte Type) {
-            return GetPrefab((uint)Class << 24 | (uint)Subclass << 16 | Type);
+            return GetPrefab((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
         public int GetIndex(uint combinedId) {
@@ -42,7 +42,7 @@ namespace SystemShock {
         }
 
         public int GetIndex(ObjectClass Class, byte Subclass, byte Type) {
-            return GetIndex((uint)Class << 24 | (uint)Subclass << 16 | Type);
+            return GetIndex((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
     }
 }

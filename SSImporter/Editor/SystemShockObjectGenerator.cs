@@ -66,7 +66,7 @@ namespace SSImporter.Resource {
             #region SetProperties
             CodeMemberMethod setProperties = new CodeMemberMethod() {
                 Name = @"SetClassData",
-                Attributes = MemberAttributes.Public | MemberAttributes.Override
+                Attributes = MemberAttributes.Family | MemberAttributes.Override
             };
             setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(object), @"classData"));
             setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));

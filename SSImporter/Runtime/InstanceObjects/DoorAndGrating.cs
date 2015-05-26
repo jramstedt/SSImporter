@@ -6,7 +6,7 @@ using SystemShock.Resource;
 
 namespace SystemShock.InstanceObjects {
     public partial class DoorAndGrating : SystemShockObject<ObjectInstance.DoorAndGrating> {
-        public override void InitializeInstance() {
+        protected override void InitializeInstance() {
             SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
             if (properties.Base.DrawType == Resource.DrawType.NoDraw)
@@ -58,16 +58,29 @@ namespace SystemShock.InstanceObjects {
                 int startIndex = objectPropertyLibrary.GetIndex(ObjectClass.DoorAndGrating, 0, 0);
                 int spriteIndex = objectPropertyLibrary.GetIndex(ssobject.Class, ssobject.SubClass, ssobject.Type);
 
-                SpriteDefinition sprite = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)))[ssobject.AnimationState];
+                SpriteAnimation spriteAnimation = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)));
+
+                SpriteDefinition sprite = spriteAnimation[ssobject.AnimationState];
                 Material material = objart3Library.GetMaterial();
 
-                meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
-                    sprite.Pivot,
-                    new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
-                    sprite.Rect);
-                meshFilter.sharedMesh.name = sprite.Name;
-
                 meshRenderer.sharedMaterial = material;
+
+                if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable && spriteAnimation.Sprites.Length > 1) {
+                    meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
+                        sprite.Pivot,
+                        Vector2.one);
+                    meshFilter.sharedMesh.name = sprite.Name;
+
+                    Door door = gameObject.AddComponent<Door>();
+                    door.Frames = spriteAnimation.Sprites;
+                    door.CurrentFrame = ssobject.AnimationState;
+                } else {
+                    meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
+                        sprite.Pivot,
+                        new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
+                        sprite.Rect);
+                    meshFilter.sharedMesh.name = sprite.Name;
+                }
             }
 
             BoxCollider boxCollider = GetComponent<BoxCollider>();

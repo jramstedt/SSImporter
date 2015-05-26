@@ -3,7 +3,7 @@ using System.Collections;
 
 namespace SystemShock {
     public class Enemy : MonoBehaviour {
-        private readonly int AttackPrimaryHash= Animator.StringToHash(@"AttackPrimary");
+        private readonly int AttackPrimaryHash = Animator.StringToHash(@"AttackPrimary");
         private readonly int AttackSecondaryHash = Animator.StringToHash(@"AttackSecondary");
         private readonly int EvadingHash = Animator.StringToHash(@"Evading");
         private readonly int DeadHash = Animator.StringToHash(@"Dead");

@@ -56,7 +56,7 @@ namespace SSImporter.Resource {
                     ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
                     for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                        uint combinedId = (uint)classIndex << 24 | (uint)subclassIndex << 16 | typeIndex;
+                        uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
                         ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
                         BaseProperties baseProperties = objectData.Base;
@@ -172,13 +172,9 @@ namespace SSImporter.Resource {
                             staticFlags |= StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic;
                         }
 
-                        if (!HasPhysics && baseProperties.DrawType != DrawType.Sprite)
-                            staticFlags |= StaticEditorFlags.OccludeeStatic | StaticEditorFlags.LightmapStatic;
-
                         if (!HasPhysics &&
-                            ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup &&
                             baseProperties.DrawType != DrawType.Sprite &&
-                            (baseProperties.Vulnerabilities == DamageType.None || baseProperties.DrawType == DrawType.Special))
+                            (((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup || baseProperties.Vulnerabilities == DamageType.None || baseProperties.DrawType == DrawType.Special))
                             staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
                         #endregion
 
@@ -206,8 +202,7 @@ namespace SSImporter.Resource {
                         foreach(Transform child in gameObject.transform)
                             GameObjectUtility.SetStaticEditorFlags(child.gameObject, staticFlags);
 
-                        if (properties is ISystemShockObjectPrefab)
-                            (properties as ISystemShockObjectPrefab).Setup(classIndex, subclassIndex, typeIndex);
+                        PostProcess(properties, (ObjectClass)classIndex, subclassIndex, typeIndex);
 
                         EditorUtility.SetDirty(gameObject);
                         GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
@@ -231,6 +226,24 @@ namespace SSImporter.Resource {
             Resources.UnloadUnusedAssets();
         }
 
+        private static void PostProcess(SystemShockObjectProperties properties, ObjectClass objectClass, byte subclassIndex, byte typeIndex) {
+            GameObject gameObject = properties.gameObject;
+
+            if (objectClass == ObjectClass.Decoration) {
+                if (subclassIndex == 2) {
+                    if (typeIndex == 3) { // Text
+                        GameObject.DestroyImmediate(gameObject.GetComponent<MeshProjector>());
+                        gameObject.AddComponent<MeshText>();
+                    }
+                } else if (subclassIndex == 3) {
+                    Light light = gameObject.AddComponent<Light>();
+                    light.type = LightType.Point;
+                    light.range = 4f;
+                    light.shadows = LightShadows.Soft;
+                }
+            }
+        }
+
         private static void CalculateAnimationIndices() {
             List<EnemyAnimations> enemyAnimations = new List<EnemyAnimations>();
 
@@ -251,7 +264,7 @@ namespace SSImporter.Resource {
                 ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
                 for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                    uint combinedId = (uint)classIndex << 24 | (uint)subclassIndex << 16 | typeIndex;
+                    uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
                     ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
                     BaseProperties baseProperties = objectData.Base;
@@ -268,7 +281,7 @@ namespace SSImporter.Resource {
                     });
 
                     if (baseProperties.DrawType == DrawType.Enemy) {
-                        bool isStub = subclassIndex == 1 && typeIndex == 4;
+                        bool isStub = subclassIndex == 1 && typeIndex == 4; // HACK
                         idle.Index += (ushort)(isStub ? 1 : 8);
                         walk.Index += (ushort)(isStub ? 1 : 8);
                     }

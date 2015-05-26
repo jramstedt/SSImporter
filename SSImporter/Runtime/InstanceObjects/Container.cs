@@ -6,17 +6,16 @@ using SystemShock.Resource;
 
 namespace SystemShock.InstanceObjects {
     public partial class Container : SystemShockObject<ObjectInstance.Container> {
-        public override void InitializeInstance() {
+        protected override void InitializeInstance() {
             SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
             if (properties.Base.DrawType == Resource.DrawType.NoDraw)
                 return;
 
-            SystemShockObject ssobject = GetComponent<SystemShockObject>();
             MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
             MeshFilter meshFilter = GetComponent<MeshFilter>();
 
-            if (ssobject.SubClass == 0) { // Crates
+            if (SubClass == 0) { // Crates
                 TextureLibrary modelTextureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
 
                 ushort materialBase = 51;

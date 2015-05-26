@@ -6,7 +6,8 @@ using SystemShock.Object;
 namespace SystemShock.Resource {
     public static class MeshUtils {
         public static Mesh CreateTwoSidedPlane() { return CreateTwoSidedPlane(new Vector2(1f, 1f)); }
-        public static Mesh CreateTwoSidedPlane(Vector2 size) { return CreateTwoSidedPlane(new Vector2(0.5f, 0.5f), size, new Rect(0f, 0f, 1f, 1f)); }
+        public static Mesh CreateTwoSidedPlane(Vector2 size) { return CreateTwoSidedPlane(new Vector2(0.5f, 0.5f), size); }
+        public static Mesh CreateTwoSidedPlane(Vector2 pivot, Vector2 size) { return CreateTwoSidedPlane(pivot, size, new Rect(0f, 0f, 1f, 1f)); }
         public static Mesh CreateTwoSidedPlane(Vector2 pivot, Vector2 size, Rect uvRect) {
             Mesh mesh = new Mesh();
             mesh.vertices = new Vector3[] {

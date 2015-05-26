@@ -38,7 +38,7 @@ namespace SystemShock.Resource {
         }
 
         public T GetObject<T>(ObjectClass Class, byte Subclass, byte Type) where T : ObjectData {
-            return GetObject<T>((uint)Class << 24 | (uint)Subclass << 16 | Type);
+            return GetObject<T>((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
         public int GetIndex(uint combinedId) {
@@ -46,7 +46,7 @@ namespace SystemShock.Resource {
         }
 
         public int GetIndex(ObjectClass Class, byte Subclass, byte Type) {
-            return GetIndex((uint)Class << 24 | (uint)Subclass << 16 | Type);
+            return GetIndex((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
         public uint GetSpriteOffset(uint combinedId) {

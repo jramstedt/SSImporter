@@ -1,41 +1,67 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using SystemShock.Triggers;
 using SystemShock.TriggerActions;
-using SystemShock.Interfaces;
 
 namespace SystemShock.InstanceObjects {
-    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, ITriggerActionProvider {
+    public partial class Trigger : SystemShockObject<ObjectInstance.Trigger>, ITriggerActionProvider {
         protected override void InitializeInstance() {
-            SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
+            //Debug.LogFormat(gameObject, "Trigger {0}", ClassData.Action);
 
-            SystemShockObject ssobject = GetComponent<SystemShockObject>();
-
-            if (SubClass == 2) {
+            if (SubClass == 0) { // Triggers
                 if (Type == 0) {
-                    // Cyberspace terminal
+                    gameObject.AddComponent<Entry>();
+                } else if(Type == 1) {
+                    // NULL Trigger.
+                } else if(Type == 2) {
+                    gameObject.AddComponent<Floor>();
+                } else if (Type == 3) {
+                    gameObject.AddComponent<PlayerDeath>();
+                } else if (Type == 4) {
+                    gameObject.AddComponent<DeathWatch>();
+                } else if (Type == 5) {
+                    gameObject.AddComponent<AreaEnter>();
+                } else if (Type == 6) {
+                    gameObject.AddComponent<AreaContinous>();
+                } else if (Type == 7) {
+                    gameObject.AddComponent<AIHint>();
+                } else if (Type == 8) {
+                    gameObject.AddComponent<LevelEnter>();
+                } else if (Type == 9) {
+                    gameObject.AddComponent<Continuous>();
+                } else if (Type == 10) {
+                    gameObject.AddComponent<Repulsor>();
+                } else if (Type == 11) {
+                    gameObject.AddComponent<Ecology>();
+                } else if (Type == 12) {
+                    gameObject.AddComponent<Shodan>();
+                }
+            } else if (SubClass == 2) { // Trip beam
+                if (Type == 0) {
+                    // Trip beam
+                }
+            } else if (SubClass == 3) { // Markers
+                if (Type == 0) {
+                    // Bio hazard mark
                 } else if (Type == 1) {
-                    // Energy recharge station
+                    // Radiation hazard mark
+                } else if (Type == 2) {
+                    // Chemical hazard mark
+                } else if (Type == 3) {
+                    // Map note
+                } else if (Type == 4) {
+                    // Music marker
                 }
-            } else if(SubClass == 3) {
-                if (Type == 0 || Type == 1 || Type == 2 || Type == 3) {
-                    gameObject.AddComponent<CircuitAccess>();
-                } else if (Type == 4 || Type == 5 || Type == 6) {
-                    gameObject.AddComponent<ElevatorPanel>();
-                } else if (Type == 7 || Type == 8) {
-                    gameObject.AddComponent<KeyPad>();
-                } else if (Type == 9 || Type == 10) {
-                    gameObject.AddComponent<WireAccess>();
-                }
-            } else {
-                UseAsTrigger();
             }
-        }
 
-        private void UseAsTrigger() {
-            if (ClassData.Action == ActionType.Transport) {
+            if (ClassData.Action == ActionType.NoOp) {
+                // Nothing
+            } else if (ClassData.Action == ActionType.Transport) {
                 gameObject.AddComponent<Transport>();
             } else if (ClassData.Action == ActionType.Resurrect) {
                 gameObject.AddComponent<Resurrect>();

@@ -42,6 +42,8 @@ namespace SystemShock {
         }
 
         private void OnEnable() {
+            // TODO create material, add to indices
+
             Material[] sharedMaterials = Renderer.sharedMaterials;
 
             foreach (int nullMaterialIndex in MaterialIndices) {

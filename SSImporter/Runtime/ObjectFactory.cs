@@ -12,7 +12,7 @@ namespace SystemShock.Resource {
 
         private Dictionary<string, ScriptableObject> LibraryMap;
 
-        public LevelInfo levelInfo { get; private set; }
+        public LevelInfo LevelInfo { get; private set; }
 
         private void Awake() {
             UpdateLevelInfo();
@@ -33,7 +33,7 @@ namespace SystemShock.Resource {
         }
 
         public void UpdateLevelInfo() {
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
+            LevelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
 
         public void AddLibrary<T>(AbstractResourceLibrary<T> library) where T : AbstractResourceLibrary<T> {
@@ -58,13 +58,17 @@ namespace SystemShock.Resource {
         }
 
         public void OnBeforeSerialize() { }
-        
-        public GameObject Instantiate(ObjectInstance objectInstance, object instanceData) {
+        /*
+        public SystemShockObject Instantiate(ObjectInstance objectInstance, object instanceData) {
+            return Instantiate(objectInstance, instanceData, levelInfo.Objects.Count);
+        }
+        */
+        public SystemShockObject Instantiate(ObjectInstance objectInstance, object instanceData, uint objectIndex) {
             if (objectInstance.InUse == 0) {
                 Debug.LogWarning(@"Instance not in use.");
                 return null;
             }
-            
+
             PrefabLibrary prefabLibrary = GetLibrary<PrefabLibrary>(@"objprefabs");
 
             GameObject prefab = prefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
@@ -80,28 +84,16 @@ namespace SystemShock.Resource {
             GameObject gameObject = GameObject.Instantiate(prefab);
 #endif
 
-            gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * levelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
+            gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * LevelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
             gameObject.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
             gameObject.transform.localScale = Vector3.one;
 
             SystemShockObject ssObject = gameObject.AddComponent(Type.GetType(@"SystemShock.InstanceObjects." + objectInstance.Class + @", Assembly-CSharp")) as SystemShockObject;
-            ssObject.Class = (SystemShock.Object.ObjectClass)objectInstance.Class;
-            ssObject.SubClass = objectInstance.SubClass;
-            ssObject.Type = objectInstance.Type;
+            ssObject.Setup(objectInstance, instanceData);
 
-            ssObject.AIIndex = objectInstance.AIIndex;
-            ssObject.Hitpoints = objectInstance.Hitpoints;
-            ssObject.AnimationState = objectInstance.AnimationState;
+            LevelInfo.Objects.Add(objectIndex, ssObject);
 
-            ssObject.Unknown1 = objectInstance.Unknown1;
-            ssObject.Unknown2 = objectInstance.Unknown2;
-            ssObject.Unknown3 = objectInstance.Unknown3;
-
-            ssObject.SetClassData(instanceData);
-
-            ssObject.InitializeInstance();
-
-            return gameObject;
+            return ssObject;
         }
     }
 }

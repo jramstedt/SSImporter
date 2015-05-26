@@ -19,16 +19,30 @@ namespace SystemShock.Object {
         public byte Unknown2;
         public byte Unknown3;
 
-        public virtual void SetClassData(object classData) { }
+        public void Setup(ObjectInstance objectInstance, object instanceData) {
+            Class = (SystemShock.Object.ObjectClass)objectInstance.Class;
+            SubClass = objectInstance.SubClass;
+            Type = objectInstance.Type;
 
-        public virtual void InitializeInstance() { }
+            AIIndex = objectInstance.AIIndex;
+            Hitpoints = objectInstance.Hitpoints;
+            Unknown1 = objectInstance.Unknown1;
+            AnimationState = objectInstance.AnimationState;
+
+            Unknown2 = objectInstance.Unknown2;
+            Unknown3 = objectInstance.Unknown3;
+
+            SetClassData(instanceData);
+
+            InitializeInstance();
+        }
+
+        protected virtual void SetClassData(object classData) { }
+
+        protected virtual void InitializeInstance() { }
     }
     public abstract class SystemShockObject<T> : SystemShockObject {
         public T ClassData;
-    }
-
-    public interface ISystemShockObjectPrefab {
-        void Setup(byte classIndex, byte subclassIndex, byte typeIndex);
     }
 
     public abstract class SystemShockObjectProperties : MonoBehaviour {
@@ -62,15 +76,15 @@ namespace SystemShock.Object {
     }
 
     public enum ActionType : byte {
-        Toggle = 0x00,
+        NoOp = 0x00,
         Transport = 0x01,
-        Resurrection = 0x02,
+        Resurrect = 0x02,
         Clone = 0x03,
         SetVariable = 0x04,
         Unknown0x05 = 0x05,
         Propagate = 0x06,
         Lighting = 0x07,
-        Effext = 0x08,
+        Effect = 0x08,
         MovePlatform = 0x09,
         Unknown0x0A = 0x0A,
         Unknown0x0B = 0x0B,
@@ -287,10 +301,10 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class NumberPad {
+            public class KeyPad {
                 public ushort Combination;
-                public ushort FirstObjectToTrigger;
-                public ushort SecondObjectToTrigger;
+                public ushort ObjectToTrigger1;
+                public ushort ObjectToTrigger2;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
                 public byte[] Data;
@@ -298,7 +312,7 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Block {
+            public class CircuitAccess {
                 public ushort ObjectToTrigger;
                 public ushort Unknown1;
 
@@ -313,7 +327,7 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Wire {
+            public class WireAccess {
                 public ushort ObjectToTrigger;
                 public ushort Unknown1;
                 public byte Size;
@@ -344,11 +358,22 @@ namespace SystemShock.Object {
             public class Elevator {
                 public ushort TargetPanel1;
                 public ushort TargetPanel2;
-                public ushort Unknown1;
+                public ushort TargetPanel3;
                 public ushort TargetPanel4;
                 public uint Unknown2;
                 public ushort LevelsVisible;
                 public ushort LevelsAccessible;
+                public ushort Unknown3;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class ChargeStation {
+                public uint Charge;
+                public uint SecurityLimit;
+
+                public uint Unknown1;
+                public uint Unknown2;
                 public ushort Unknown3;
             }
         }
@@ -378,21 +403,154 @@ namespace SystemShock.Object {
             public Link Link;
 
             public ActionType Action;
-            public byte Unknown;
-            public uint Condition;
+            public byte OnceOnly;
+            public ushort ConditionVariable;
+            public ushort ConditionValue;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
             public byte[] Data;
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class MovingPlatform {
+            public class Transport {
+                public uint TileX;
+                public uint TileY;
+                public uint Z;
+                public byte Pitch;
+                public byte Yaw;
+                public byte Roll;
+                public byte Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Resurrect {
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Clone {
+                // TODO FIXME
+
+                public ushort ObjectToClone;
+                public ushort Unknown;
+                public ushort X;
+                public ushort Y;
+                public ushort Z;
+                public ushort Pitch;
+                public ushort Yaw;
+                public ushort Roll;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class SetVariable {
+                public ushort Variable;
+                public ushort Value;
+                public ushort Action;
+                public ushort Message;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Propagate {
+                public ushort ObjectToTrigger1;
+                public ushort Delay1;
+
+                public ushort ObjectToTrigger2;
+                public ushort Delay2;
+
+                public ushort ObjectToTrigger3;
+                public ushort Delay3;
+
+                public ushort ObjectToTrigger4;
+                public ushort Delay4;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Lighting {
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Effect {
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class MovePlatform {
                 public uint TileX;
                 public uint TileY;
                 public ushort TargetFloorHeight;
                 public ushort TargetCeilingHeight;
                 public ushort Speed;
                 public ushort Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class EmailPlayer {
+                public ushort Message;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 14)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class RadiationTreatment {
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class ChangeState {
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Message {
+                public ushort Success;
+                public ushort Fail;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Spawn {
+                public uint ObjectId;
+                public ushort TargetId1;
+                public ushort TargetId2;
+                public ushort TargetId3;
+                public ushort TargetId4;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class ChangeType {
+                public uint ObjectId;
+                public byte NewType;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11)]
+                public byte[] Unknown;
             }
         }
 

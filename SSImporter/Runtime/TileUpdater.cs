@@ -36,5 +36,5 @@ public class TileUpdater : MonoBehaviour {
 
             GetComponent<Renderer>().SetPropertyBlock(materialPropertyBlock);
         }
-	}
+    }
 }

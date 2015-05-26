@@ -5,16 +5,16 @@ using System.Collections.Generic;
 using SystemShock.Object;
 using SystemShock.Resource;
 using System;
+using System.Linq;
 
 namespace SystemShock.InstanceObjects {
     public partial class Decoration : SystemShockObject<ObjectInstance.Decoration> {
-        public override void InitializeInstance() {
+        protected override void InitializeInstance() {
             SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
             if (properties.Base.DrawType == Resource.DrawType.NoDraw)
                 return;
 
-            SystemShockObject ssobject = GetComponent<SystemShockObject>();
             MeshProjector meshProjector = GetComponent<MeshProjector>();
             MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
 
@@ -23,10 +23,10 @@ namespace SystemShock.InstanceObjects {
 
             ObjectFactory objectFactory = ObjectFactory.GetController();
 
-            if (ssobject.SubClass == 2) {
-                if (ssobject.Type == 6 || ssobject.Type == 7 || ssobject.Type == 8 || ssobject.Type == 9 || ssobject.Type == 10) {
+            if (SubClass == 2) {
+                if (Type == 6 || Type == 7 || Type == 8 || Type == 9 || Type == 10) {
                     // Nothing
-                } else if (ssobject.Type == 3) { // Text
+                } else if (Type == 3) { // Text
                     PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary(@"gamepal.res");
                     StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
                     FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
@@ -43,14 +43,67 @@ namespace SystemShock.InstanceObjects {
 
                     CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.DecalWords);
 
-                    TextMesh textMesh = gameObject.GetComponent<TextMesh>();
-                    textMesh.font = font;
-                    textMesh.color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
-                    textMesh.characterSize = sizeMap[(text.Font & 0x00F0) >> 4];
-                    textMesh.text = decalWords[text.TextIndex];
+                    MeshText meshText = GetComponent<MeshText>();
+                    meshText.Color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
+                    meshText.Font = Font.CreateDynamicFontFromOSFont("Helvetica", 16); //font;
+                    meshText.Text = decalWords[text.TextIndex];
 
-                    meshRenderer.sharedMaterial = font.material;
+                    float scale = sizeMap[(text.Font & 0x00F0) >> 4];
+                    meshText.transform.localScale = new Vector3(scale, scale, scale);
 
+                    /*
+                    TextGenerationSettings settings = new TextGenerationSettings();
+                    settings.color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
+                    settings.font = font;
+                    //settings.fontSize = Mathf.FloorToInt(14f * sizeMap[(text.Font & 0x00F0) >> 4]);
+                    settings.fontSize = 12;
+                    settings.fontStyle = FontStyle.Normal;
+                    settings.generateOutOfBounds = true;
+                    settings.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    settings.lineSpacing = 1f;
+                    settings.pivot = Vector2.zero;
+                    settings.resizeTextForBestFit = false;
+                    settings.richText = false;
+                    settings.textAnchor = TextAnchor.MiddleCenter;
+                    settings.updateBounds = true;
+                    settings.verticalOverflow = VerticalWrapMode.Overflow;
+
+                    TextGenerator generator = new TextGenerator();
+                    generator.Populate(decalWords[text.TextIndex], settings);
+
+                    MeshFilter meshFilter = GetComponent<MeshFilter>();
+                    Mesh mesh = new Mesh();
+                    mesh.name = decalWords[text.TextIndex];
+
+                    Debug.LogFormat(gameObject, "Verts {0} {1}", decalWords[text.TextIndex], generator.vertexCount);
+
+                    //mesh.colors32 = generator.verts.Select(v => v.color).ToArray();
+                    //mesh.normals = generator.verts.Select(v => v.normal).ToArray();
+                    mesh.vertices = generator.verts.Select(v => v.position).ToArray();
+                    //mesh.tangents = generator.verts.Select(v => v.tangent).ToArray();
+                    mesh.uv = generator.verts.Select(v => v.uv0).ToArray();
+                    //mesh.uv2 = generator.verts.Select(v => v.uv1).ToArray();
+
+                    int[] triangles = new int[(generator.vertexCount / 4) * 6];
+                    for (int triangleIndex = 0, vertexIndex = 0; triangleIndex < triangles.Length; vertexIndex += 4) {
+                        triangles[triangleIndex++] = vertexIndex;
+                        triangles[triangleIndex++] = vertexIndex + 1;
+                        triangles[triangleIndex++] = vertexIndex + 2;
+                        triangles[triangleIndex++] = vertexIndex;
+                        triangles[triangleIndex++] = vertexIndex + 2;
+                        triangles[triangleIndex++] = vertexIndex + 3;
+                    }
+
+                    mesh.triangles = triangles;
+
+                    //mesh.RecalculateNormals();
+                    //mesh.RecalculateTangents();
+                    //mesh.Optimize();
+                    //mesh.RecalculateBounds();
+
+                    meshFilter.sharedMesh = mesh;
+                    meshRenderer.sharedMaterial = settings.font.material;
+                    */
                 } else { // Sprite
                     SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
                     SpriteLibrary objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
@@ -59,21 +112,21 @@ namespace SystemShock.InstanceObjects {
                     SpriteLibrary selectedLibrary = null;
 
                     ushort spriteIndex = 0;
-                    uint animationIndex = ssobject.AnimationState;
+                    uint animationIndex = AnimationState;
 
-                    if (ssobject.Type == 1) { // Icon
+                    if (Type == 1) { // Icon
                         selectedLibrary = objart3Library;
                         spriteIndex = 311;
-                    } else if (ssobject.Type == 2) { // Graffiti
+                    } else if (Type == 2) { // Graffiti
                         selectedLibrary = objart3Library;
                         spriteIndex = 312;
-                    } else if (ssobject.Type == 10) { // Repulsor
+                    } else if (Type == 10) { // Repulsor
                         selectedLibrary = objart3Library;
                         spriteIndex = 313;
                     } else { // Sign
                         selectedLibrary = objartLibrary;
 
-                        animationIndex += objectPropertyLibrary.GetSpriteOffset(ssobject.Class, ssobject.SubClass, ssobject.Type);
+                        animationIndex += objectPropertyLibrary.GetSpriteOffset(Class, SubClass, Type);
                         animationIndex += 1; // World sprite
                     }
 
@@ -84,9 +137,9 @@ namespace SystemShock.InstanceObjects {
                     meshProjector.UVRect = sprite.Rect;
                     meshRenderer.sharedMaterial = material;
                 }
-            } else if (ssobject.SubClass == 7) { // Bridges, catwalks etc.
+            } else if (SubClass == 7) { // Bridges, catwalks etc.
                 if (properties.Base.DrawType == DrawType.Special) {
-                    ushort[] textureMap = objectFactory.levelInfo.TextureMap;
+                    ushort[] textureMap = objectFactory.LevelInfo.TextureMap;
 
                     TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
 
@@ -99,7 +152,7 @@ namespace SystemShock.InstanceObjects {
                     float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : properties.Base.Size.y;
                     float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 1f / 32f;
 
-                    if (ssobject.Type == 1) { // FIXME 
+                    if (Type == 1) { // FIXME 
                         width = 0.5f;
                         length = 1f;
                     }
@@ -107,7 +160,7 @@ namespace SystemShock.InstanceObjects {
                     MeshFilter meshFilter = GetComponent<MeshFilter>();
                     meshFilter.sharedMesh = MeshUtils.CreateCubeTopPivot(width, length, height);
 
-                    if (ssobject.Type == 7 || ssobject.Type == 9) {
+                    if (Type == 7 || Type == 9) {
                         Color color = new Color(0.5f, 0f, 0f, 0.75f);
                         Color emission = new Color(0.25f, 0f, 0f, 1f);
 
@@ -167,8 +220,8 @@ namespace SystemShock.InstanceObjects {
 
                     GetComponent<MeshCollider>().sharedMesh = meshFilter.sharedMesh;
                 }
-            } else if (ssobject.SubClass == 5) {
-                if (ssobject.Type == 4) { // Camera
+            } else if (SubClass == 5) {
+                if (Type == 4) { // Camera
                     ObjectInstance.Decoration.Camera camera = ClassData.Data.Read<ObjectInstance.Decoration.Camera>();
                     if (camera.Rotating != 0)
                         gameObject.AddComponent<RotatingCamera>();
@@ -192,7 +245,7 @@ namespace SystemShock.InstanceObjects {
                 bool isAnimated = false;
                 bool isSurveillance = materialOverride.StartFrameIndex >= 0x00F8 && materialOverride.StartFrameIndex <= 0x00FF;
 
-                if (isSurveillance && objectFactory.levelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
+                if (isSurveillance && objectFactory.LevelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
                     materialOverride.StartFrameIndex = 0x00F7; // Override with noise.
                     isSurveillance = false;
                 }
@@ -254,9 +307,9 @@ namespace SystemShock.InstanceObjects {
                     overridingMaterial.SetColor(@"_EmissionColor", Color.white);
                     overridingMaterial.EnableKeyword(@"_EMISSION");
                 } else { // Model texture
-                    if (ssobject.Type == 7) {
+                    if (Type == 7) {
                         TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
-                        ushort[] textureMap = objectFactory.levelInfo.TextureMap;
+                        ushort[] textureMap = objectFactory.LevelInfo.TextureMap;
                         overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
                     } else {
                         overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
@@ -264,7 +317,7 @@ namespace SystemShock.InstanceObjects {
                 }
 
                 if (isSurveillance) {
-                    Camera camera = objectFactory.levelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07];
+                    Camera camera = objectFactory.LevelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07];
                     //overridingMaterial.mainTexture = camera.targetTexture;
                     overridingMaterial.color = Color.black;
 
@@ -279,6 +332,10 @@ namespace SystemShock.InstanceObjects {
 
                 if (meshProjector != null) {
                     Texture projectedTexture = overridingMaterial.mainTexture ?? overridingMaterial.GetTexture(@"_EmissionMap");
+
+                    if (projectedTexture == null)
+                        Debug.Log("ARGH", gameObject);
+
                     meshProjector.Size = properties.Base.GetRenderSize(projectedTexture.GetSize());
                 }
 

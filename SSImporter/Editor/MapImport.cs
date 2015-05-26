@@ -105,7 +105,7 @@ namespace SSImporter.Resource {
 
             foreach (ObjectInstance.Trigger trigger in instanceDatas[(byte)ObjectClass.Trigger]) {
                 if (trigger.Action == ActionType.MovePlatform) {
-                    ObjectInstance.Trigger.MovingPlatform movingPlatform = trigger.Data.Read<ObjectInstance.Trigger.MovingPlatform>();
+                    ObjectInstance.Trigger.MovePlatform movingPlatform = trigger.Data.Read<ObjectInstance.Trigger.MovePlatform>();
 
                     if (movingPlatform.TargetFloorHeight <= Tile.MAX_HEIGHT) {
                         int[] floorRange = movingFloorHeightRange[movingPlatform.TileX, movingPlatform.TileY];
@@ -123,7 +123,7 @@ namespace SSImporter.Resource {
 
             foreach (ObjectInstance.Interface @interface in instanceDatas[(byte)ObjectClass.Interface]) {
                 if (@interface.Action == ActionType.MovePlatform) {
-                    ObjectInstance.Trigger.MovingPlatform movingPlatform = @interface.Data.Read<ObjectInstance.Trigger.MovingPlatform>();
+                    ObjectInstance.Trigger.MovePlatform movingPlatform = @interface.Data.Read<ObjectInstance.Trigger.MovePlatform>();
 
                     if (movingPlatform.TargetFloorHeight <= Tile.MAX_HEIGHT) {
                         int[] floorRange = movingFloorHeightRange[movingPlatform.TileX, movingPlatform.TileY];
@@ -322,21 +322,23 @@ namespace SSImporter.Resource {
             ObjectFactory objectFactory = ObjectFactory.GetController();
             objectFactory.UpdateLevelInfo();
 
-            foreach (ObjectInstance objectInstance in objectInstances) {
+            for(uint instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
+                ObjectInstance objectInstance = objectInstances[instanceIndex];
+
                 if (objectInstance.InUse == 0)
                     continue;
 
-                GameObject instanceGO = objectFactory.Instantiate(objectInstance, instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex]);
+                SystemShockObject ssObject = objectFactory.Instantiate(objectInstance, instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex], instanceIndex);
 
-                if (instanceGO == null)
+                if (ssObject == null)
                     continue;
 
-                EditorUtility.SetDirty(instanceGO);
+                EditorUtility.SetDirty(ssObject.gameObject);
             }
             #endregion
 
             StaticOcclusionCulling.smallestOccluder = 0.5f;
-            StaticOcclusionCulling.smallestHole = 0.1f;
+            StaticOcclusionCulling.smallestHole = levelInfoRuntime.HeightFactor;
             StaticOcclusionCulling.Compute();
 
             AssetDatabase.SaveAssets();

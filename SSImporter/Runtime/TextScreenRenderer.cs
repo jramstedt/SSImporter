@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 namespace SystemShock {
     public class TextScreenRenderer : MonoBehaviour {
-        private Camera camera;
+        new private Camera camera;
         private CanvasScaler canvasScaler;
         private Text text;
 

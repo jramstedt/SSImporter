@@ -160,7 +160,7 @@ namespace SSImporter.Resource {
                     for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
                         ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
-                        uint idBase = classIndex << 24 | subclassIndex << 16;
+                        uint idBase = classIndex << 16 | subclassIndex << 8;
 
                         string typeName = @"SystemShock.DataObjects." + objectDataType.GetGenericType().Name + objectDataType.GetSpecificType().Name + @", Assembly-CSharp";
 
@@ -193,8 +193,8 @@ namespace SSImporter.Resource {
 
                     for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
                         ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
-                        
-                        uint idBase = classIndex << 24 | subclassIndex << 16;
+
+                        uint idBase = classIndex << 16 | subclassIndex << 8;
 
                         #region Specific data
                         for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
@@ -214,7 +214,7 @@ namespace SSImporter.Resource {
                     for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
                         ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
-                        uint idBase = classIndex << 24 | subclassIndex << 16;
+                        uint idBase = classIndex << 16 | subclassIndex << 8;
 
                         for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
                             ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
