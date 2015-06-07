@@ -15,8 +15,6 @@ namespace SystemShock.InstanceObjects {
             ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
             SpriteLibrary objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
 
-            SystemShockObject ssobject = GetComponent<SystemShockObject>();
-
             MeshFilter meshFilter = GetComponent<MeshFilter>();
             MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
 
@@ -56,11 +54,11 @@ namespace SystemShock.InstanceObjects {
                 meshRenderer.sharedMaterial = colorMaterial;
             } else {
                 int startIndex = objectPropertyLibrary.GetIndex(ObjectClass.DoorAndGrating, 0, 0);
-                int spriteIndex = objectPropertyLibrary.GetIndex(ssobject.Class, ssobject.SubClass, ssobject.Type);
+                int spriteIndex = objectPropertyLibrary.GetIndex(Class, SubClass, Type);
 
                 SpriteAnimation spriteAnimation = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)));
 
-                SpriteDefinition sprite = spriteAnimation[ssobject.AnimationState];
+                SpriteDefinition sprite = spriteAnimation[AnimationState];
                 Material material = objart3Library.GetMaterial();
 
                 meshRenderer.sharedMaterial = material;
@@ -73,7 +71,9 @@ namespace SystemShock.InstanceObjects {
 
                     Door door = gameObject.AddComponent<Door>();
                     door.Frames = spriteAnimation.Sprites;
-                    door.CurrentFrame = ssobject.AnimationState;
+                    door.CurrentFrame = AnimationState;
+
+                    gameObject.AddComponent<TriggerOnMouseDown>();
                 } else {
                     meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
                         sprite.Pivot,

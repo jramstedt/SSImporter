@@ -14,9 +14,14 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public static class PrefabFactory {
-        [MenuItem("Assets/System Shock/9. Create Object Prefabs")]
+        [MenuItem("Assets/System Shock/9. Create Object Prefabs", false, 1009)]
         public static void Init() {
             CreateObjectPrefabs();
+        }
+
+        [MenuItem("Assets/System Shock/9. Create Object Prefabs", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         private static ModelLibrary modelLibrary;
@@ -32,198 +37,202 @@ namespace SSImporter.Resource {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                 AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Prefabs");
-            AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Animations");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            modelLibrary = ModelLibrary.GetLibrary(@"obj3d.res");
-            objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
-            objart2Library = SpriteLibrary.GetLibrary(@"objart2.res");
-            objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
-            objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
-            nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
+                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Prefabs");
+                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Animations");
 
-            PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
-            AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
+                modelLibrary = ModelLibrary.GetLibrary(@"obj3d.res");
+                objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
+                objart2Library = SpriteLibrary.GetLibrary(@"objart2.res");
+                objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
+                objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
+                nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
 
-            CalculateAnimationIndices();
+                PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
+                AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
 
-            uint nameIndex = 0;
+                ObjectFactory.GetController().AddLibrary(prefabLibrary);
 
-            for (byte classIndex = 0; classIndex < ObjectPropertyImport.ObjectDeclarations.Length; ++classIndex) {
-                ObjectDeclaration[] objectDataSubclass = ObjectPropertyImport.ObjectDeclarations[classIndex];
+                CalculateAnimationIndices();
 
-                for (byte subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
-                    ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+                uint nameIndex = 0;
 
-                    for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                        uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
+                for (byte classIndex = 0; classIndex < ObjectPropertyImport.ObjectDeclarations.Length; ++classIndex) {
+                    ObjectDeclaration[] objectDataSubclass = ObjectPropertyImport.ObjectDeclarations[classIndex];
 
-                        ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
-                        BaseProperties baseProperties = objectData.Base;
+                    for (byte subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                        ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
-                        string fileName = string.Format(@"{0} {1}.prefab", ++nameIndex, objectData.FullName);
-                        fileName = Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
+                        for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                            uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
-                        string assetPath = string.Format(@"Assets/SystemShock/Prefabs/{0}", fileName);
-                        UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(assetPath);
+                            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
+                            BaseProperties baseProperties = objectData.Base;
 
-                        GameObject gameObject = new GameObject(objectData.FullName);
-                        gameObject.transform.localPosition = Vector3.zero;
-                        gameObject.transform.localRotation = Quaternion.identity;
-                        gameObject.transform.localScale = Vector3.one;
+                            string fileName = string.Format(@"{0} {1}.prefab", ++nameIndex, objectData.FullName);
+                            fileName = Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
 
-                        SystemShockObjectProperties properties = gameObject.AddComponent(Type.GetType(objectData.GetType().FullName + @"MonoBehaviour, Assembly-CSharp")) as SystemShockObjectProperties;
-                        properties.SetProperties(objectData);
+                            string assetPath = string.Format(@"Assets/SystemShock/Prefabs/{0}", fileName);
+                            UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(assetPath);
 
-                        if (baseProperties.DrawType == DrawType.Model)
-                            AddModel(combinedId, baseProperties, gameObject);
-                        else if (baseProperties.DrawType == DrawType.Sprite)
-                            AddSprite(combinedId, baseProperties, gameObject, prefabAsset);
-                        else if (baseProperties.DrawType == DrawType.Screen)
-                            AddScreen(combinedId, baseProperties, gameObject);
-                        else if (baseProperties.DrawType == DrawType.Enemy)
-                            AddEnemy(combinedId, baseProperties, gameObject, prefabAsset);
-                        else if (baseProperties.DrawType == DrawType.T5)
-                            Debug.LogWarning("DrawType.T5 not supported", gameObject);
-                        else if (baseProperties.DrawType == DrawType.Fragments)
-                            Debug.LogWarning("DrawType.Fragments not supported", gameObject);
-                        else if (baseProperties.DrawType == DrawType.NoDraw)
-                            Debug.Log("DrawType.NoDraw", gameObject);
-                        else if (baseProperties.DrawType == DrawType.Decal)
-                            AddDecal(combinedId, baseProperties, gameObject);
-                        else if (baseProperties.DrawType == DrawType.T9)
-                            Debug.LogWarning("DrawType.T9 not supported", gameObject);
-                        else if (baseProperties.DrawType == DrawType.T10)
-                            Debug.LogWarning("DrawType.T10 not supported", gameObject);
-                        else if (baseProperties.DrawType == DrawType.Special)
-                            AddSpecial(combinedId, baseProperties, gameObject);
-                        else if (baseProperties.DrawType == DrawType.ForceDoor)
-                            AddForceDoor(combinedId, baseProperties, gameObject);
+                            GameObject gameObject = new GameObject(objectData.FullName);
+                            gameObject.transform.localPosition = Vector3.zero;
+                            gameObject.transform.localRotation = Quaternion.identity;
+                            gameObject.transform.localScale = Vector3.one;
 
-                        StaticEditorFlags staticFlags = 0;
+                            SystemShockObjectProperties properties = gameObject.AddComponent(Type.GetType(objectData.GetType().FullName + @"MonoBehaviour, Assembly-CSharp")) as SystemShockObjectProperties;
+                            properties.SetProperties(objectData);
 
-                        if (baseProperties.DrawType == DrawType.Decal || baseProperties.DrawType == DrawType.Screen)
-                            staticFlags |= StaticEditorFlags.BatchingStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.NavigationStatic;
+                            if (baseProperties.DrawType == DrawType.Model)
+                                AddModel(combinedId, baseProperties, gameObject);
+                            else if (baseProperties.DrawType == DrawType.Sprite)
+                                AddSprite(combinedId, baseProperties, gameObject, prefabAsset);
+                            else if (baseProperties.DrawType == DrawType.Screen)
+                                AddScreen(combinedId, baseProperties, gameObject);
+                            else if (baseProperties.DrawType == DrawType.Enemy)
+                                AddEnemy(combinedId, baseProperties, gameObject, prefabAsset);
+                            else if (baseProperties.DrawType == DrawType.T5)
+                                Debug.LogWarning("DrawType.T5 not supported", gameObject);
+                            else if (baseProperties.DrawType == DrawType.Fragments)
+                                Debug.LogWarning("DrawType.Fragments not supported", gameObject);
+                            else if (baseProperties.DrawType == DrawType.NoDraw)
+                                Debug.Log("DrawType.NoDraw", gameObject);
+                            else if (baseProperties.DrawType == DrawType.Decal)
+                                AddDecal(combinedId, baseProperties, gameObject);
+                            else if (baseProperties.DrawType == DrawType.T9)
+                                Debug.LogWarning("DrawType.T9 not supported", gameObject);
+                            else if (baseProperties.DrawType == DrawType.T10)
+                                Debug.LogWarning("DrawType.T10 not supported", gameObject);
+                            else if (baseProperties.DrawType == DrawType.Special)
+                                AddSpecial(combinedId, baseProperties, gameObject);
+                            else if (baseProperties.DrawType == DrawType.ForceDoor)
+                                AddForceDoor(combinedId, baseProperties, gameObject);
 
-                        {
-                            MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
-                            if (meshFilter && meshFilter.sharedMesh)
-                                AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
-                        }
+                            StaticEditorFlags staticFlags = 0;
 
-                        bool HasPhysics = baseProperties.Rigidbody != 0;
+                            if (baseProperties.DrawType == DrawType.Decal || baseProperties.DrawType == DrawType.Screen)
+                                staticFlags |= StaticEditorFlags.BatchingStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.NavigationStatic;
 
-                        #region Flags
-                        if (((Flags)baseProperties.Flags & Flags.Collider) == Flags.Collider) {
-                            MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
-                            Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-
-                            if (meshFilter != null) {
-                                MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
-                                meshCollider.sharedMesh = meshFilter.sharedMesh;
-
-                                if (HasPhysics)
-                                    meshCollider.convex = true;
-                            } else if (renderer != null) {
-                                SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
-                                sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
-                                sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
-                            } else {
-                                Debug.LogWarning("Marked for collider, but has no mesh or renderer!" + gameObject.name, gameObject);
-                            }
-                        }
-
-                        if (((Flags)baseProperties.Flags & Flags.Raycastable) == Flags.Raycastable ||
-                            ((Flags)baseProperties.Flags & Flags.Touchable) == Flags.Touchable ||
-                            ((Flags)baseProperties.Flags & Flags.UsefulItem) == Flags.UsefulItem) {
-                            Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-
-                            if (renderer == null) {
-                                Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
-                            } else if (gameObject.GetComponent<Collider>() == null) {
-                                BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-                                boxCollider.isTrigger = baseProperties.DrawType == DrawType.Screen ||
-                                                        baseProperties.DrawType == DrawType.Decal ||
-                                                        baseProperties.DrawType == DrawType.Sprite;
-                                boxCollider.center = renderer.bounds.center;
-                                boxCollider.size = renderer.bounds.size;
-                            }
-                        }
-
-                        if (((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed ||
-                            ((Flags)baseProperties.Flags & Flags.Activable) == Flags.Activable) {
-                            Collider collider = gameObject.GetComponent<Collider>();
-                            if (collider == null) {
-                                BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-
-                                Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-                                if (renderer == null) {
-                                    Debug.LogWarning("Marked for collider, but has no renderer!" + gameObject.name, gameObject);
-                                } else {
-                                    boxCollider.center = renderer.bounds.center;
-                                    boxCollider.size = renderer.bounds.size;
-                                }
-
-                                collider = boxCollider;
+                            {
+                                MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
+                                if (meshFilter && meshFilter.sharedMesh)
+                                    AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
                             }
 
-                            collider.isTrigger = false;
+                            bool HasPhysics = baseProperties.Rigidbody != 0;
 
-                            staticFlags |= StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic;
-                        }
-
-                        if (!HasPhysics &&
-                            baseProperties.DrawType != DrawType.Sprite &&
-                            (((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup || baseProperties.Vulnerabilities == DamageType.None || baseProperties.DrawType == DrawType.Special))
-                            staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
-                        #endregion
-
-                        if (HasPhysics) {
-                            Rigidbody rigidbody = gameObject.AddComponent<Rigidbody>();
-                            rigidbody.mass = baseProperties.Mass / 10f;
-
-                            if (baseProperties.DrawType == DrawType.Sprite || baseProperties.DrawType == DrawType.Enemy)
-                                rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-
-                            if (gameObject.GetComponent<Collider>() == null) { // Rigidbody always needs collider
+                            #region Flags
+                            if (((Flags)baseProperties.Flags & Flags.Collider) == Flags.Collider) {
+                                MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
                                 Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
 
-                                if (renderer == null) {
-                                    Debug.LogWarning("Rigidbody needs collider, but object has no renderer!" + gameObject.name, gameObject);
-                                } else {
+                                if (meshFilter != null) {
+                                    MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
+                                    meshCollider.sharedMesh = meshFilter.sharedMesh;
+
+                                    if (HasPhysics)
+                                        meshCollider.convex = true;
+                                } else if (renderer != null) {
                                     SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
                                     sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
                                     sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
+                                } else {
+                                    Debug.LogWarning("Marked for collider, but has no mesh or renderer!" + gameObject.name, gameObject);
                                 }
                             }
+
+                            if (((Flags)baseProperties.Flags & Flags.Raycastable) == Flags.Raycastable ||
+                                ((Flags)baseProperties.Flags & Flags.Touchable) == Flags.Touchable ||
+                                ((Flags)baseProperties.Flags & Flags.UsefulItem) == Flags.UsefulItem) {
+                                Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
+
+                                if (renderer == null) {
+                                    Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
+                                } else if (gameObject.GetComponent<Collider>() == null) {
+                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+                                    boxCollider.isTrigger = baseProperties.DrawType == DrawType.Screen ||
+                                                            baseProperties.DrawType == DrawType.Decal ||
+                                                            baseProperties.DrawType == DrawType.Sprite;
+                                    boxCollider.center = renderer.bounds.center;
+                                    boxCollider.size = renderer.bounds.size;
+                                }
+                            }
+
+                            if (((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed ||
+                                ((Flags)baseProperties.Flags & Flags.Activable) == Flags.Activable) {
+                                Collider collider = gameObject.GetComponent<Collider>();
+                                if (collider == null) {
+                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+
+                                    Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
+                                    if (renderer == null) {
+                                        Debug.LogWarning("Marked for collider, but has no renderer!" + gameObject.name, gameObject);
+                                    } else {
+                                        boxCollider.center = renderer.bounds.center;
+                                        boxCollider.size = renderer.bounds.size;
+                                    }
+
+                                    collider = boxCollider;
+                                }
+
+                                collider.isTrigger = false;
+
+                                staticFlags |= StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic;
+                            }
+
+                            if (!HasPhysics &&
+                                baseProperties.DrawType != DrawType.Sprite &&
+                                baseProperties.Vulnerabilities == DamageType.None && 
+                                baseProperties.SpecialVulnerabilities == 0x00 &&
+                                (((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup || baseProperties.DrawType == DrawType.Special))
+                                staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
+                            #endregion
+
+                            if (HasPhysics) {
+                                Rigidbody rigidbody = gameObject.AddComponent<Rigidbody>();
+                                rigidbody.mass = baseProperties.Mass / 10f;
+
+                                if (baseProperties.DrawType == DrawType.Sprite || baseProperties.DrawType == DrawType.Enemy)
+                                    rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+
+                                if (gameObject.GetComponent<Collider>() == null) { // Rigidbody always needs collider
+                                    Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
+
+                                    if (renderer == null) {
+                                        Debug.LogWarning("Rigidbody needs collider, but object has no renderer!" + gameObject.name, gameObject);
+                                    } else {
+                                        SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
+                                        sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
+                                        sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
+                                    }
+                                }
+                            }
+
+                            GameObjectUtility.SetStaticEditorFlags(gameObject, staticFlags);
+                            foreach(Transform child in gameObject.transform)
+                                GameObjectUtility.SetStaticEditorFlags(child.gameObject, staticFlags);
+
+                            PostProcess(properties, (ObjectClass)classIndex, subclassIndex, typeIndex);
+
+                            EditorUtility.SetDirty(gameObject);
+                            GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
+
+                            prefabLibrary.AddPrefab(combinedId, prefabGameObject);
+
+                            GameObject.DestroyImmediate(gameObject);
                         }
-
-                        GameObjectUtility.SetStaticEditorFlags(gameObject, staticFlags);
-                        foreach(Transform child in gameObject.transform)
-                            GameObjectUtility.SetStaticEditorFlags(child.gameObject, staticFlags);
-
-                        PostProcess(properties, (ObjectClass)classIndex, subclassIndex, typeIndex);
-
-                        EditorUtility.SetDirty(gameObject);
-                        GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
-
-                        prefabLibrary.AddPrefab(combinedId, prefabGameObject);
-
-                        GameObject.DestroyImmediate(gameObject);
                     }
                 }
+
+                EditorUtility.SetDirty(prefabLibrary);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
 
-            EditorUtility.SetDirty(prefabLibrary);
-
-            ObjectFactory.GetController().AddLibrary(prefabLibrary);
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
-
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
 
         private static void PostProcess(SystemShockObjectProperties properties, ObjectClass objectClass, byte subclassIndex, byte typeIndex) {

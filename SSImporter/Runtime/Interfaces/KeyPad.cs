@@ -5,12 +5,12 @@ using SystemShock.Object;
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
     public class KeyPad : Triggerable<ObjectInstance.Interface.KeyPad> {
-        public ITriggerable Target1;
-        public ITriggerable Target2;
+        public Triggerable Target1;
+        public Triggerable Target2;
 
         private LevelInfo levelInfo;
 
-        private void Awake() {
+        protected override void Awake() {
             base.Awake();
 
             levelInfo = GameObject.FindObjectOfType<LevelInfo>();
@@ -19,7 +19,7 @@ namespace SystemShock.Interfaces {
         private void Start() {
             SystemShockObject ssObject;
             if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger1, out ssObject)) {
-                Target1 = ssObject.GetComponent<ITriggerable>();
+                Target1 = ssObject.GetComponent<Triggerable>();
 
                 if (Target1 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);
@@ -28,7 +28,7 @@ namespace SystemShock.Interfaces {
             }
 
             if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger2, out ssObject)) {
-                Target2 = ssObject.GetComponent<ITriggerable>();
+                Target2 = ssObject.GetComponent<Triggerable>();
 
                 if (Target2 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);

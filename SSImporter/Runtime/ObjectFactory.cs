@@ -84,7 +84,8 @@ namespace SystemShock.Resource {
             GameObject gameObject = GameObject.Instantiate(prefab);
 #endif
 
-            gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * LevelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
+            //gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * LevelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
+            gameObject.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * LevelInfo.HeightFactor, objectInstance.Y / 256f);
             gameObject.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
             gameObject.transform.localScale = Vector3.one;
 

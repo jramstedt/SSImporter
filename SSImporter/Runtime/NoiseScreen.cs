@@ -3,7 +3,9 @@ using System.Collections;
 
 namespace SystemShock {
     public class NoiseScreen : MonoBehaviour {
+        private Material Material;
         private Texture2D NoiseTexture;
+
         private byte[] Hash;
 
         private Renderer Renderer;
@@ -25,6 +27,8 @@ namespace SystemShock {
         [HideInInspector]
         public int[] MaterialIndices;
 
+        
+
         private void Awake() {
             Renderer = GetComponentInChildren<Renderer>();
 
@@ -32,6 +36,13 @@ namespace SystemShock {
                 NoiseTexture = new Texture2D(Resolution, Resolution, TextureFormat.RGB24, false, true);
                 NoiseTexture.name = @"Noise";
                 NoiseTexture.anisoLevel = 9;
+
+                Material = new Material(Shader.Find(@"Standard"));
+                Material.color = Color.black;
+                Material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
+                Material.SetTexture(@"_EmissionMap", NoiseTexture);
+                Material.SetColor(@"_EmissionColor", Color.white);
+                Material.EnableKeyword(@"_EMISSION");
             } else if (NoiseTexture.width != Resolution || NoiseTexture.height != Resolution) {
                 NoiseTexture.Resize(Resolution, Resolution);
             }
@@ -42,18 +53,14 @@ namespace SystemShock {
         }
 
         private void OnEnable() {
-            // TODO create material, add to indices
-
             Material[] sharedMaterials = Renderer.sharedMaterials;
 
-            foreach (int nullMaterialIndex in MaterialIndices) {
-                Material material = sharedMaterials[nullMaterialIndex];
-                material.SetTexture(@"_EmissionMap", NoiseTexture);
-                material.SetColor(@"_EmissionColor", Color.white);
-                material.EnableKeyword(@"_EMISSION");
-            }
+            for (int i = 0; i < MaterialIndices.Length; ++i)
+                sharedMaterials[MaterialIndices[i]] = Material;
 
             Renderer.sharedMaterials = sharedMaterials;
+
+            DynamicGI.UpdateMaterials(Renderer);
         }
 
         private void Update() {
@@ -81,8 +88,6 @@ namespace SystemShock {
                 }
 
                 NoiseTexture.Apply();
-
-                DynamicGI.UpdateMaterials(Renderer);
             }
         }
 

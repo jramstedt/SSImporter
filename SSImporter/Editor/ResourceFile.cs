@@ -152,6 +152,8 @@ namespace SSImporter.Resource {
 
                 ms.Position = font.xOffset;
 
+                // TODO Add padding per character.
+
                 //ushort[] coordinates = new ushort[coordinatesCount];
                 Rect[] characterRects = new Rect[charactersCount];
                 Rect characterRect = new Rect(PADDING + msbr.ReadUInt16(), PADDING, 0, font.Height);
@@ -184,16 +186,17 @@ namespace SSImporter.Resource {
                         style = FontStyle.Normal,
                         width = rect.width,
                         uv = new Rect(rect.x / (float)texture.width, rect.y / (float)texture.height, rect.width / (float)texture.width, rect.height / (float)texture.height),
-                        vert = new Rect(0, -rect.height, rect.width, rect.height),
+                        vert = new Rect(0, 0, rect.width, -rect.height),
                     };
                 }
 
                 Font unityFont = new Font(chunkInfo.info.Id.ToString());
                 unityFont.characterInfo = characterInfo;
 
+                int lastY = pixelHeight - 1;
                 if (font.DataType == BitmapFont.BitmapDataType.BlackWhite) {
                     for (int y = 0; y < pixelHeight; ++y) {
-                        int pixelOffset = y * font.Width;
+                        int pixelOffset = (lastY - y) * font.Width;
                         for (int x = 0; x < pixelWidth; ++x) {
                             byte block = pixelData[pixelOffset + (x >> 3)];
                             bool white = (block & (1 << (7 - (x & 7)))) != 0;
@@ -205,7 +208,7 @@ namespace SSImporter.Resource {
                 } else if (font.DataType == BitmapFont.BitmapDataType.Color) {
                     for (int y = 0; y < pixelHeight; ++y) {
                         for (int x = 0; x < pixelWidth; ++x) {
-                            byte paletteIndex = pixelData[(y * pixelWidth) + x];
+                            byte paletteIndex = pixelData[((lastY - y) * pixelWidth) + x];
                             texture.SetPixel(x + PADDING, y + PADDING, palette[paletteIndex]);
                         }
                     }
@@ -213,8 +216,8 @@ namespace SSImporter.Resource {
                     throw new ArgumentException("Unsupported font bitmap type.");
                 }
 
-                texture.Apply(true, true);
-                EditorUtility.CompressTexture(texture, TextureFormat.DXT5, TextureCompressionQuality.Best);
+                texture.Apply(true, false);
+                //EditorUtility.CompressTexture(texture, TextureFormat.DXT5, TextureCompressionQuality.Best);
 
                 return new FontSet() {
                     Font = unityFont,

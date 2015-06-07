@@ -5,11 +5,11 @@ using SystemShock.Object;
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
     public class WireAccess : Triggerable<ObjectInstance.Interface.WireAccess> {
-        public ITriggerable Target;
+        public Triggerable Target;
 
         private LevelInfo levelInfo;
 
-        private void Awake() {
+        protected override void Awake() {
             base.Awake();
 
             levelInfo = GameObject.FindObjectOfType<LevelInfo>();
@@ -18,7 +18,7 @@ namespace SystemShock.Interfaces {
         private void Start() {
             SystemShockObject ssObject;
             if (ActionData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger, out ssObject)) {
-                Target = ssObject.GetComponent<ITriggerable>();
+                Target = ssObject.GetComponent<Triggerable>();
 
                 if (Target == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);

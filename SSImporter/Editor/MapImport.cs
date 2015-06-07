@@ -15,17 +15,20 @@ using InstanceObjects = SystemShock.InstanceObjects;
 
 namespace SSImporter.Resource {
     public static class MapImport {
-        [MenuItem("Assets/System Shock/10. Import Maps")]
+        [MenuItem("Assets/System Shock/10. Import Maps", false, 1010)]
         public static void Init() {
             CreateMapAssets();
         }
 
-        private delegate void ObjectFactoryDelegate(ObjectInstance objectInstance, ObjectData objectData, GameObject gameObject);
+        [MenuItem("Assets/System Shock/10. Import Maps", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
+        }
 
         private static void CreateMapAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
-            string mapLibraryPath = filePath + @"\DATA\archive.dat";
+            string mapLibraryPath = filePath + @"\DATA\ARCHIVE.DAT";
 
             if (!File.Exists(mapLibraryPath))
                 return;
@@ -41,21 +44,11 @@ namespace SSImporter.Resource {
         private static TextureLibrary textureLibrary;
 
         private static void LoadLevel(KnownChunkId mapId, ResourceFile mapLibrary) {
-            //AssetDatabase.StartAssetEditing();
-
+            
             levelInfo = ReadLevelInfo(mapId, mapLibrary);
             textureMap = ReadTextureList(mapId, mapLibrary);
             Tile[,] tileMap = ReadTiles(mapId, mapLibrary, levelInfo);
             TileMesh[,] tileMeshes = new TileMesh[levelInfo.Width, levelInfo.Height];
-
-            #region Create LevelInfo
-            GameObject levelInfoGO = new GameObject(@"LevelInfo");
-            SystemShock.LevelInfo levelInfoRuntime = levelInfoGO.AddComponent<SystemShock.LevelInfo>();
-            levelInfoRuntime.HeightFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightPower) * 256f);
-            levelInfoRuntime.TextureMap = textureMap;
-            #endregion
-
-            textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
 
             #region Read class tables
             object[][] instanceDatas = new object[][] {
@@ -65,8 +58,8 @@ namespace SSImporter.Resource {
                 mapLibrary.ReadArrayOf<ObjectInstance.Explosive>(mapId + 0x000D),
                 mapLibrary.ReadArrayOf<ObjectInstance.DermalPatch>(mapId + 0x000E),
                 mapLibrary.ReadArrayOf<ObjectInstance.Hardware>(mapId + 0x000F),
-                new ObjectInstance.SoftwareAndLog[0],
-                new ObjectInstance.Decoration[0],
+                mapLibrary.ReadArrayOf<ObjectInstance.SoftwareAndLog>(mapId + 0x0010),
+                mapLibrary.ReadArrayOf<ObjectInstance.Decoration>(mapId + 0x0011),
                 mapLibrary.ReadArrayOf<ObjectInstance.Item>(mapId + 0x0012),
                 mapLibrary.ReadArrayOf<ObjectInstance.Interface>(mapId + 0x0013),
                 mapLibrary.ReadArrayOf<ObjectInstance.DoorAndGrating>(mapId + 0x0014),
@@ -75,20 +68,6 @@ namespace SSImporter.Resource {
                 mapLibrary.ReadArrayOf<ObjectInstance.Container>(mapId + 0x0017),
                 mapLibrary.ReadArrayOf<ObjectInstance.Enemy>(mapId + 0x0018)
             };
-
-            if (mapId == KnownChunkId.ShodanCyberspaceStart || mapId == KnownChunkId.Cyberspace12Start || mapId == KnownChunkId.Cyberspace39Start) {
-                ObjectInstance.SoftwareAndLog[] SoftwareAndLogsA = mapLibrary.ReadArrayOf<ObjectInstance.SoftwareAndLog>(mapId + 0x0010);
-                ObjectInstance.SoftwareAndLog[] SoftwareAndLogsB = mapLibrary.ReadArrayOf<ObjectInstance.SoftwareAndLog>(mapId + 0x0011);
-
-                object[] SoftwareAndLogs = new ObjectInstance.SoftwareAndLog[SoftwareAndLogsA.Length + SoftwareAndLogsB.Length];
-                SoftwareAndLogsA.CopyTo(SoftwareAndLogs, 0);
-                SoftwareAndLogsB.CopyTo(SoftwareAndLogs, SoftwareAndLogsA.Length);
-
-                instanceDatas[(byte)ObjectClass.SoftwareAndLog] = SoftwareAndLogs;
-            } else {
-                instanceDatas[(byte)ObjectClass.SoftwareAndLog] = mapLibrary.ReadArrayOf<ObjectInstance.SoftwareAndLog>(mapId + 0x0010);
-                instanceDatas[(byte)ObjectClass.Decoration] = mapLibrary.ReadArrayOf<ObjectInstance.Decoration>(mapId + 0x0011);
-            }
             #endregion
 
             #region Find moving tiles
@@ -98,8 +77,8 @@ namespace SSImporter.Resource {
             for (uint y = 0; y < levelInfo.Width; ++y) {
                 for (uint x = 0; x < levelInfo.Height; ++x) {
                     Tile tile = tileMap[x, y];
-                    movingFloorHeightRange[x, y] = new int[] { tile.FloorHeight, tile.FloorHeight  };
-                    movingCeilingHeightRange[x, y] = new int[] { tile.CeilingHeight, tile.CeilingHeight  };
+                    movingFloorHeightRange[x, y] = new int[] { tile.FloorHeight, tile.FloorHeight };
+                    movingCeilingHeightRange[x, y] = new int[] { tile.CeilingHeight, tile.CeilingHeight };
                 }
             }
 
@@ -140,211 +119,262 @@ namespace SSImporter.Resource {
             }
             #endregion
 
-            #region Create Tiles
-            for (uint y = 0; y < levelInfo.Width; ++y) {
-                for (uint x = 0; x < levelInfo.Height; ++x) {
-                    tileMeshes[x, y] = new TileMesh(levelInfo, tileMap[x, y], x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
+            try {
+                AssetDatabase.StartAssetEditing();
+
+                #region Create LevelInfo
+                GameObject levelInfoGO = new GameObject(@"LevelInfo");
+                SystemShock.LevelInfo levelInfoRuntime = levelInfoGO.AddComponent<SystemShock.LevelInfo>();
+                levelInfoRuntime.Type = levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace ? SystemShock.LevelInfo.LevelType.Cyberspace : SystemShock.LevelInfo.LevelType.Normal;
+                levelInfoRuntime.HeightFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightPower) * 256f);
+                levelInfoRuntime.MapScale = 1f / (float)(1 << (int)levelInfo.HeightPower);
+                levelInfoRuntime.TextureMap = textureMap;
+                levelInfoRuntime.Tile = new GameObject[levelInfo.Width, levelInfo.Height];
+                #endregion
+
+                textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
+
+                #region Create Tiles
+                for (uint y = 0; y < levelInfo.Width; ++y) {
+                    for (uint x = 0; x < levelInfo.Height; ++x) {
+                        tileMeshes[x, y] = new TileMesh(levelInfo, tileMap[x, y], x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
+                    }
                 }
-            }
-            #endregion
+                #endregion
 
-            #region Construct Tiles
-            for (uint y = 0; y < levelInfo.Width; ++y) {
-                for (uint x = 0; x < levelInfo.Height; ++x) {
-                    Tile tile = tileMap[x, y];
+                #region Construct Tiles
+                for (uint y = 0; y < levelInfo.Width; ++y) {
+                    for (uint x = 0; x < levelInfo.Height; ++x) {
+                        Tile tile = tileMap[x, y];
 
-                    if (tile.Type != TileType.Solid) {
+                        if (tile.Type != TileType.Solid) {
+                            TileMesh tileMesh = tileMeshes[x, y];
+                            GameObject tileGO = CreateGameObject(CombineTile(tileMesh, tileMeshes), @"Tile " + x.ToString() + " " + y.ToString());
+                            levelInfoRuntime.Tile[x, y] = tileGO;
+
+                            /*
+                            byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
+                            byte shadeLower = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeLower) >> 16) & 0x0F);
+                        
+                            MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
+                            meshRenderer.GetPropertyBlock(materialPropertyBlock);
+                            materialPropertyBlock.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - (shadeUpper + shadeLower) / 2) / 15f));
+                            meshRenderer.SetPropertyBlock(materialPropertyBlock);
+                            */
+
+                            /*
+                            byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
+                            byte shadeLower = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeLower) >> 16) & 0x0F);
+                        
+                            Material floorMaterial = meshRenderer.materials[0];
+                            floorMaterial.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - shadeLower) / 15f));
+                            floorMaterial.SetColor(@"_EmissionColorUI", Color.white);
+                            floorMaterial.SetColor(@"_EmissionColorWithMapUI", Color.white);
+                            floorMaterial.SetFloat(@"_EmissionScaleUI", (float)(0x0F - shadeLower) / 15f);
+
+                            Material ceilingMaterial = meshRenderer.materials[1];
+                            ceilingMaterial.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - shadeUpper) / 15f));
+                            ceilingMaterial.SetColor(@"_EmissionColorUI", Color.white);
+                            ceilingMaterial.SetColor(@"_EmissionColorWithMapUI", Color.white);
+                            ceilingMaterial.SetFloat(@"_EmissionScaleUI", (float)(0x0F - shadeUpper) / 15f);
+                            */
+
+                            if (tileMesh.FloorMoving) {
+                                MovingTileMesh movingFloor = new MovingTileMesh(MovingTileMesh.Type.Floor, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
+
+                                GameObject floorGo = CreateGameObject(CombineTile(movingFloor, tileMeshes, true), "Moving floor", true);
+                                floorGo.transform.SetParent(tileGO.transform, false);
+
+                                Rigidbody rigidbody = floorGo.AddComponent<Rigidbody>();
+                                rigidbody.isKinematic = true;
+
+                                MovablePlatform platform = floorGo.AddComponent<MovableFloor>();
+                                platform.OriginHeight = movingFloorHeightRange[x, y][1];
+                                platform.Height = tile.FloorHeight;
+                            }
+
+                            if (tileMesh.CeilingMoving) {
+                                MovingTileMesh movingCeiling = new MovingTileMesh(MovingTileMesh.Type.Ceiling, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
+
+                                GameObject ceilingGo = CreateGameObject(CombineTile(movingCeiling, tileMeshes, true), "Moving ceiling", true);
+                                ceilingGo.transform.SetParent(tileGO.transform, false);
+
+                                Rigidbody rigidbody = ceilingGo.AddComponent<Rigidbody>();
+                                rigidbody.isKinematic = true;
+
+                                MovablePlatform platform = ceilingGo.AddComponent<MovableCeiling>();
+                                platform.OriginHeight = movingCeilingHeightRange[x, y][0];
+                                platform.Height = tile.CeilingHeight;
+                            }
+
+                            tileGO.transform.localPosition = new Vector3(x, 0, y); // start from bottom left
+
+                            EditorUtility.SetDirty(tileGO);
+                        }
+                    }
+                }
+                #endregion
+
+                #region Light probes
+                GameObject lightProbesGameObject = new GameObject(@"Light probes");
+                lightProbesGameObject.isStatic = true;
+                LightProbeGroup lightProbeGroub = lightProbesGameObject.AddComponent<LightProbeGroup>();
+                List<Vector3> lightProbes = new List<Vector3>();
+                for (uint y = 0; y < levelInfo.Width; ++y) {
+                    for (uint x = 0; x < levelInfo.Height; ++x) {
                         TileMesh tileMesh = tileMeshes[x, y];
-                        GameObject tileGO = CreateGameObject(CombineTile(tileMesh, tileMeshes), @"Tile " + x.ToString() + " " + y.ToString());
 
-                        /*
-                        byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
-                        byte shadeLower = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeLower) >> 16) & 0x0F);
-                        
-                        MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
-                        meshRenderer.GetPropertyBlock(materialPropertyBlock);
-                        materialPropertyBlock.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - (shadeUpper + shadeLower) / 2) / 15f));
-                        meshRenderer.SetPropertyBlock(materialPropertyBlock);
-                        */
-                        
-                        /*
-                        byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
-                        byte shadeLower = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeLower) >> 16) & 0x0F);
-                        
-                        Material floorMaterial = meshRenderer.materials[0];
-                        floorMaterial.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - shadeLower) / 15f));
-                        floorMaterial.SetColor(@"_EmissionColorUI", Color.white);
-                        floorMaterial.SetColor(@"_EmissionColorWithMapUI", Color.white);
-                        floorMaterial.SetFloat(@"_EmissionScaleUI", (float)(0x0F - shadeLower) / 15f);
+                        if (tileMesh.tile.Type != TileType.Solid) {
+                            float xOffset = 0.5f, yOffset = 0.15f, zOffset = 0.5f;
 
-                        Material ceilingMaterial = meshRenderer.materials[1];
-                        ceilingMaterial.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - shadeUpper) / 15f));
-                        ceilingMaterial.SetColor(@"_EmissionColorUI", Color.white);
-                        ceilingMaterial.SetColor(@"_EmissionColorWithMapUI", Color.white);
-                        ceilingMaterial.SetFloat(@"_EmissionScaleUI", (float)(0x0F - shadeUpper) / 15f);
-                        */
-                        
-                        if (tileMesh.FloorMoving) {
-                            MovingTileMesh movingFloor = new MovingTileMesh(MovingTileMesh.Type.Floor, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
+                            if (tileMesh.tile.Type == TileType.OpenDiagonalNE) {
+                                zOffset = 0.75f;
+                                xOffset = 0.75f;
+                            } else if (tileMesh.tile.Type == TileType.OpenDiagonalNW) {
+                                zOffset = 0.75f;
+                                xOffset = 0.25f;
+                            } else if (tileMesh.tile.Type == TileType.OpenDiagonalSE) {
+                                zOffset = 0.25f;
+                                xOffset = 0.75f;
+                            } else if (tileMesh.tile.Type == TileType.OpenDiagonalSW) {
+                                zOffset = 0.25f;
+                                xOffset = 0.25f;
+                            }
 
-                            GameObject floorGo = CreateGameObject(CombineTile(movingFloor, tileMeshes, true), "Moving floor", true);
-                            floorGo.transform.SetParent(tileGO.transform, false);
+                            if (!tileMesh.FloorMoving)
+                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) + yOffset, y + zOffset));
+
+                            if (!tileMesh.CeilingMoving)
+                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) - yOffset, y + zOffset));
                         }
-
-                        if (tileMesh.CeilingMoving) {
-                            MovingTileMesh movingCeiling = new MovingTileMesh(MovingTileMesh.Type.Ceiling, levelInfo, tile, x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
-
-                            GameObject ceilingGo = CreateGameObject(CombineTile(movingCeiling, tileMeshes, true), "Moving ceiling", true);
-                            ceilingGo.transform.SetParent(tileGO.transform, false);
-                        }
-
-                        tileGO.transform.localPosition = new Vector3(x, 0, y); // start from bottom left
-
-                        EditorUtility.SetDirty(tileGO);
                     }
                 }
-            }
-            #endregion
+                lightProbeGroub.probePositions = lightProbes.ToArray();
+                #endregion
 
-            #region Light probes
-            GameObject lightProbesGameObject = new GameObject(@"Light probes");
-            lightProbesGameObject.isStatic = true;
-            LightProbeGroup lightProbeGroub = lightProbesGameObject.AddComponent<LightProbeGroup>();
-            List<Vector3> lightProbes = new List<Vector3>();
-            for (uint y = 0; y < levelInfo.Width; ++y) {
-                for (uint x = 0; x < levelInfo.Height; ++x) {
-                    TileMesh tileMesh = tileMeshes[x, y];
+                #region Reflection probes
+                //lightProbesGameObject.AddComponent<ReflectionProbe>();
 
-                    if (tileMesh.tile.Type != TileType.Solid) {
-                        float xOffset = 0.5f, yOffset = 0.15f, zOffset = 0.5f;
+                #endregion
 
-                        if(tileMesh.tile.Type == TileType.OpenDiagonalNE) {
-                            zOffset = 0.75f;
-                            xOffset = 0.75f;
-                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalNW) {
-                            zOffset = 0.75f;
-                            xOffset = 0.25f;
-                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalSE) {
-                            zOffset = 0.25f;
-                            xOffset = 0.75f;
-                        } else if(tileMesh.tile.Type == TileType.OpenDiagonalSW) {
-                            zOffset = 0.25f;
-                            xOffset = 0.25f;
-                        }
+                ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
 
-                        if (!tileMesh.FloorMoving)
-                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) + yOffset, y + zOffset));
+                #region Surveillance nodes
+                ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
+                List<Camera> surveillanceCamera = new List<Camera>(surveillanceNodeIndices.Length);
+                for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
+                    ushort instanceIndex = surveillanceNodeIndices[nodeIndex];
 
-                        if (!tileMesh.CeilingMoving)
-                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) - yOffset, y + zOffset));
-                    }
+                    if (instanceIndex == 0)
+                        surveillanceCamera.Add(null);
+                    else
+                        surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
                 }
+
+                levelInfoRuntime.SurveillanceCamera = surveillanceCamera.ToArray();
+                #endregion
+
+                #region Text screen
+                {
+                    FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
+
+                    GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
+                    textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");
+                    levelInfoRuntime.TextScreenRenderer = textScreenRendererGO.AddComponent<TextScreenRenderer>();
+
+                    GameObject cameraGO = new GameObject(@"Camera");
+                    cameraGO.layer = LayerMask.NameToLayer(@"UI");
+                    cameraGO.transform.SetParent(textScreenRendererGO.transform, false);
+                    Camera camera = cameraGO.AddComponent<Camera>();
+                    camera.backgroundColor = Color.black;
+                    camera.clearFlags = CameraClearFlags.SolidColor;
+                    camera.orthographic = true;
+                    camera.orthographicSize = 0.5f;
+                    camera.nearClipPlane = 0.1f;
+                    camera.farClipPlane = 2f;
+                    camera.cullingMask = LayerMask.GetMask(@"UI");
+                    camera.useOcclusionCulling = false;
+                    camera.enabled = false;
+
+                    GameObject canvasGO = new GameObject(@"Canvas");
+                    canvasGO.layer = LayerMask.NameToLayer(@"UI");
+                    canvasGO.transform.SetParent(textScreenRendererGO.transform, false);
+                    Canvas canvas = canvasGO.AddComponent<Canvas>();
+                    canvas.referencePixelsPerUnit = 64f;
+                    canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                    canvas.planeDistance = 1f;
+                    canvas.worldCamera = camera;
+                    CanvasScaler canvasScaler = canvasGO.AddComponent<CanvasScaler>();
+                    canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+                    canvasScaler.scaleFactor = 1f;
+
+                    GameObject textGO = new GameObject(@"Text");
+                    textGO.layer = LayerMask.NameToLayer(@"UI");
+                    textGO.transform.SetParent(canvasGO.transform, false);
+                    Text text = textGO.AddComponent<Text>();
+                    text.rectTransform.anchorMin = Vector2.zero;
+                    text.rectTransform.anchorMax = Vector2.one;
+                    text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                    text.rectTransform.offsetMin = Vector2.zero;
+                    text.rectTransform.offsetMax = Vector2.zero;
+                    text.alignment = TextAnchor.MiddleLeft;
+                    text.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    text.verticalOverflow = VerticalWrapMode.Overflow;
+                    text.supportRichText = false;
+                    text.color = Color.red; //TODO Get color from palette
+                    text.font = fontLibrary.GetFont((KnownChunkId)605);
+                    text.text = "GENERAL\nSYSTEM\nSTATUS";
+                }
+                #endregion
+
+                #region Objects
+                ObjectFactory objectFactory = ObjectFactory.GetController();
+                objectFactory.UpdateLevelInfo();
+
+                for (uint instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
+                    ObjectInstance objectInstance = objectInstances[instanceIndex];
+
+                    if (objectInstance.InUse == 0)
+                        continue;
+
+                    object instanceData = instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex];
+
+                    if (objectInstance.Class == ObjectClass.Decoration && levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace) {
+                        ObjectInstance.Decoration decoration = (ObjectInstance.Decoration)instanceData;
+                        ObjectInstance.Decoration.SoftwareAndLogExtra data = decoration.Data.Read<ObjectInstance.Decoration.SoftwareAndLogExtra>();
+
+                        objectInstance.Class = ObjectClass.SoftwareAndLog;
+                        objectInstance.SubClass = (byte)data.Subclass;
+                        objectInstance.Type = (byte)data.Type;
+
+                        instanceData = new ObjectInstance.SoftwareAndLog() {
+                            Link = decoration.Link,
+                            Version = (byte)data.Version,
+                            LogIndex = 0,
+                            LevelIndex = (byte)data.LevelIndex
+                        };
+                    }
+
+                    SystemShockObject ssObject = objectFactory.Instantiate(objectInstance, instanceData, instanceIndex);
+
+                    if (ssObject == null)
+                        continue;
+
+                    EditorUtility.SetDirty(ssObject.gameObject);
+                }
+                #endregion
+
+                StaticOcclusionCulling.smallestOccluder = 0.5f;
+                StaticOcclusionCulling.smallestHole = levelInfoRuntime.HeightFactor;
+                StaticOcclusionCulling.Compute();
+            } catch(Exception e) {
+                Debug.LogException(e);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
-            lightProbeGroub.probePositions = lightProbes.ToArray();
-            #endregion
 
-            #region Reflection probes
-            //lightProbesGameObject.AddComponent<ReflectionProbe>();
-
-            #endregion
-
-            ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
-
-            #region Surveillance nodes
-            ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
-            List<Camera> surveillanceCamera = new List<Camera>(surveillanceNodeIndices.Length);
-            for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
-                ushort instanceIndex = surveillanceNodeIndices[nodeIndex];
-
-                if (instanceIndex == 0)
-                    surveillanceCamera.Add(null);
-                else
-                    surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
-            }
-
-            levelInfoRuntime.SurveillanceCamera = surveillanceCamera.ToArray();
-            #endregion
-
-            #region Text screen
-            {
-                FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
-
-                GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
-                textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");
-                levelInfoRuntime.TextScreenRenderer = textScreenRendererGO.AddComponent<TextScreenRenderer>();
-
-                GameObject cameraGO = new GameObject(@"Camera");
-                cameraGO.layer = LayerMask.NameToLayer(@"UI");
-                cameraGO.transform.SetParent(textScreenRendererGO.transform, false);
-                Camera camera = cameraGO.AddComponent<Camera>();
-                camera.backgroundColor = Color.black;
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.orthographic = true;
-                camera.orthographicSize = 0.5f;
-                camera.nearClipPlane = 0.1f;
-                camera.farClipPlane = 2f;
-                camera.cullingMask = LayerMask.GetMask(@"UI");
-                camera.useOcclusionCulling = false;
-                camera.enabled = false;
-
-                GameObject canvasGO = new GameObject(@"Canvas");
-                canvasGO.layer = LayerMask.NameToLayer(@"UI");
-                canvasGO.transform.SetParent(textScreenRendererGO.transform, false);
-                Canvas canvas = canvasGO.AddComponent<Canvas>();
-                canvas.referencePixelsPerUnit = 64f;
-                canvas.renderMode = RenderMode.ScreenSpaceCamera;
-                canvas.planeDistance = 1f;
-                canvas.worldCamera = camera;
-                CanvasScaler canvasScaler = canvasGO.AddComponent<CanvasScaler>();
-                canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-                canvasScaler.scaleFactor = 1f;
-
-                GameObject textGO = new GameObject(@"Text");
-                textGO.layer = LayerMask.NameToLayer(@"UI");
-                textGO.transform.SetParent(canvasGO.transform, false);
-                Text text = textGO.AddComponent<Text>();
-                text.rectTransform.anchorMin = Vector2.zero;
-                text.rectTransform.anchorMax = Vector2.one;
-                text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                text.rectTransform.offsetMin = Vector2.zero;
-                text.rectTransform.offsetMax = Vector2.zero;
-                text.alignment = TextAnchor.MiddleLeft;
-                text.horizontalOverflow = HorizontalWrapMode.Overflow;
-                text.verticalOverflow = VerticalWrapMode.Overflow;
-                text.supportRichText = false;
-                text.color = Color.red; //TODO Get color from palette
-                text.font = fontLibrary.GetFont((KnownChunkId)605);
-                text.text = "GENERAL\nSYSTEM\nSTATUS";
-            }
-            #endregion
-
-            #region Objects
-            ObjectFactory objectFactory = ObjectFactory.GetController();
-            objectFactory.UpdateLevelInfo();
-
-            for(uint instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
-                ObjectInstance objectInstance = objectInstances[instanceIndex];
-
-                if (objectInstance.InUse == 0)
-                    continue;
-
-                SystemShockObject ssObject = objectFactory.Instantiate(objectInstance, instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex], instanceIndex);
-
-                if (ssObject == null)
-                    continue;
-
-                EditorUtility.SetDirty(ssObject.gameObject);
-            }
-            #endregion
-
-            StaticOcclusionCulling.smallestOccluder = 0.5f;
-            StaticOcclusionCulling.smallestHole = levelInfoRuntime.HeightFactor;
-            StaticOcclusionCulling.Compute();
-
-            AssetDatabase.SaveAssets();
-            //AssetDatabase.StopAssetEditing();
-
-            Resources.UnloadUnusedAssets();
+            AssetDatabase.Refresh();
         }
 
         private static GameObject CreateGameObject(CombinedTileMesh combinedTileMesh, string name, bool moving = false) {

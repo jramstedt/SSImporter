@@ -4,9 +4,11 @@ using System.Collections;
 namespace SystemShock.Triggers {
     [RequireComponent(typeof(BoxCollider))]
     public class Floor : MonoBehaviour {
-        private ITriggerable triggerable;
+        private Triggerable triggerable;
 
         private void Awake() {
+            triggerable = GetComponent<Triggerable>();
+
             // TODO Collider for floor
         }
 

@@ -11,14 +11,18 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public static class TextureImport {
-        [MenuItem("Assets/System Shock/7. Import Textures")]
+        [MenuItem("Assets/System Shock/7. Import Textures", false, 1007)]
         public static void Init() {
             CreateTextureAssets();
         }
 
+        [MenuItem("Assets/System Shock/7. Import Textures", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
+        }
+
         private static void CreateTextureAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
-            PlayerPrefs.SetString(@"SSHOCKRES", filePath);
 
             string gamePalettePath = filePath + @"\DATA\gamepal.res";
             string texturePropertiesLibraryPath = filePath + @"\DATA\textprop.dat";
@@ -49,10 +53,6 @@ namespace SSImporter.Resource {
                 return;
             }
             */
-            StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
-            CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
-
-            //AssetDatabase.StartAssetEditing();
 
             #region Read texture properties
             List<TextureProperties> textureProperties = new List<TextureProperties>();
@@ -60,7 +60,8 @@ namespace SSImporter.Resource {
             using (FileStream fs = new FileStream(texturePropertiesLibraryPath, FileMode.Open)) {
                 BinaryReader br = new BinaryReader(fs, Encoding.ASCII);
 
-                /*uint unknownHeader =*/ br.ReadUInt32();
+                /*uint unknownHeader =*/
+                br.ReadUInt32();
 
                 int dataSize = Marshal.SizeOf(typeof(TextureProperties));
 
@@ -75,210 +76,213 @@ namespace SSImporter.Resource {
             }
             #endregion
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            #region Texture palette
-            ResourceFile paletteResource = new ResourceFile(gamePalettePath);
-            PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
+                StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
+                CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
 
-            PaletteLibrary paletteLibrary = ScriptableObject.CreateInstance<PaletteLibrary>();
-            AssetDatabase.CreateAsset(paletteLibrary, @"Assets/SystemShock/gamepal.res.asset");
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            foreach (KnownChunkId chunkId in paletteResource.GetChunkList())
-                paletteLibrary.AddPalette(chunkId, paletteResource.ReadPalette(chunkId).Colors);
+                #region Texture palette
+                ResourceFile paletteResource = new ResourceFile(gamePalettePath);
+                PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
 
-            EditorUtility.SetDirty(paletteLibrary);
+                PaletteLibrary paletteLibrary = ScriptableObject.CreateInstance<PaletteLibrary>();
+                AssetDatabase.CreateAsset(paletteLibrary, @"Assets/SystemShock/gamepal.res.asset");
 
-            { // Create png for palettes
-                ICollection<KnownChunkId> palettes = paletteResource.GetChunkList();
-                IEnumerator<KnownChunkId> palettesEnumerator = palettes.GetEnumerator();
-                Texture2D paletteTexture = new Texture2D(256, palettes.Count, TextureFormat.RGBA32, false, true);
-                for (int y = 0; y < paletteTexture.height; ++y) {
-                    palettesEnumerator.MoveNext();
-                    PaletteChunk palette = paletteResource.ReadPalette(palettesEnumerator.Current);
-                    paletteTexture.SetPixels(0, y, paletteTexture.width, 1, palette.Colors);
+                foreach (KnownChunkId chunkId in paletteResource.GetChunkList())
+                    paletteLibrary.AddPalette(chunkId, paletteResource.ReadPalette(chunkId).Colors);
+
+                EditorUtility.SetDirty(paletteLibrary);
+
+                { // Create png for palettes
+                    ICollection<KnownChunkId> palettes = paletteResource.GetChunkList();
+                    IEnumerator<KnownChunkId> palettesEnumerator = palettes.GetEnumerator();
+                    Texture2D paletteTexture = new Texture2D(256, palettes.Count, TextureFormat.RGBA32, false, true);
+                    for (int y = 0; y < paletteTexture.height; ++y) {
+                        palettesEnumerator.MoveNext();
+                        PaletteChunk palette = paletteResource.ReadPalette(palettesEnumerator.Current);
+                        paletteTexture.SetPixels(0, y, paletteTexture.width, 1, palette.Colors);
+                    }
+
+                    File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", paletteTexture.EncodeToPNG());
                 }
 
-                File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", paletteTexture.EncodeToPNG());
-            }
+                ObjectFactory.GetController().AddLibrary(paletteLibrary);
+                #endregion
 
-            ObjectFactory.GetController().AddLibrary(paletteLibrary);
-            #endregion
+                #region Create object sprites
+                {
+                    ResourceFile spritesResource = new ResourceFile(objartPath);
 
-            #region Create object sprites
-            {
-                ResourceFile spritesResource = new ResourceFile(objartPath);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette);
+                }
+                #endregion
 
-                CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette);
-            }
-            #endregion
+                #region Create object sprites
+                {
+                    ResourceFile spritesResource = new ResourceFile(objart2Path);
 
-            #region Create object sprites
-            {
-                ResourceFile spritesResource = new ResourceFile(objart2Path);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette);
+                }
+                #endregion
 
-                CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette);
-            }
-            #endregion
+                #region Create object sprites
+                {
+                    ResourceFile spritesResource = new ResourceFile(objart3Path);
 
-            #region Create object sprites
-            {
-                ResourceFile spritesResource = new ResourceFile(objart3Path);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart3.res.asset", gamePalette);
+                }
+                #endregion
 
-                CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart3.res.asset", gamePalette);
-            }
-            #endregion
+                #region Create map texture assets
+                {
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"texture.res");
 
-            #region Create map texture assets
-            {
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"texture.res");
+                    ResourceFile textureResource = new ResourceFile(textureLibraryPath);
 
-                ResourceFile textureResource = new ResourceFile(textureLibraryPath);
+                    List<TextureSet> textures = new List<TextureSet>();
+                    for (ushort i = 0; i < 273; ++i)
+                        textures.Add(CreateTexture(i, textureResource, gamePalette));
 
-                List<TextureSet> textures = new List<TextureSet>();
-                for (ushort i = 0; i < 273; ++i)
-                    textures.Add(CreateTexture(i, textureResource, gamePalette));
+                    TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
+                    AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.asset");
 
-                TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.asset");
+                    for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
+                        TextureSet texture = textures[textureId];
 
-                for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
-                    TextureSet texture = textures[textureId];
+                        string assetPath = string.Format(@"Assets/SystemShock/texture.res/{0}.asset", textureId + " (" + textureNames[textureId] + ")");
+                        AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
+                        if (texture.Emission != null)
+                            AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
 
-                    string assetPath = string.Format(@"Assets/SystemShock/texture.res/{0}.asset", textureId + " (" + textureNames[textureId] + ")");
-                    AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
-                    if (texture.Emission != null)
-                        AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
+                        Material material = new Material(Shader.Find(@"Standard"));
+                        material.name = textureNames[textureId];
+                        material.mainTexture = texture.Diffuse;
+                        material.SetFloat(@"_Glossiness", 0f);
 
-                    Material material = new Material(Shader.Find(@"Standard"));
-                    material.name = textureNames[textureId];
-                    material.mainTexture = texture.Diffuse;
-                    material.SetFloat(@"_Glossiness", 0f);
+                        Texture2D emissiveTexture = texture.Emission ?? AssetDatabase.LoadAssetAtPath(string.Format(@"Assets/SSImporter/Emission/{0:000}.png", textureId), typeof(Texture2D)) as Texture2D;
+                        if (emissiveTexture != null) {
+                            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive | MaterialGlobalIlluminationFlags.BakedEmissive;
+                            material.SetTexture(@"_EmissionMap", emissiveTexture);
+                            material.SetColor(@"_EmissionColor", Color.white);
+                            material.EnableKeyword(@"_EMISSION");
+                        }
 
-                    Texture2D emissiveTexture = texture.Emission ?? AssetDatabase.LoadAssetAtPath(string.Format(@"Assets/SSImporter/Emission/{0:000}.png", textureId), typeof(Texture2D)) as Texture2D;
-                    if (emissiveTexture != null) {
-                        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive | MaterialGlobalIlluminationFlags.BakedEmissive;
-                        material.SetTexture(@"_EmissionMap", emissiveTexture);
+                        EditorUtility.SetDirty(material);
+
+                        AssetDatabase.AddObjectToAsset(material, assetPath);
+
+                        textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
+                    }
+
+                    EditorUtility.SetDirty(textureLibrary);
+
+                    ObjectFactory.GetController().AddLibrary(textureLibrary);
+                }
+                #endregion
+
+                TextureProperties emptyTextureProperties = new TextureProperties();
+
+                #region Create animation texture assets
+                {
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"texture.res.anim");
+
+                    ResourceFile textureResource = new ResourceFile(textureLibraryPath);
+
+                    List<TextureSet> textures = new List<TextureSet>();
+                    for (ushort i = 0; textureResource.HasChunk(KnownChunkId.AnimationsStart + i); ++i)
+                        textures.Add(textureResource.ReadBitmap(KnownChunkId.AnimationsStart + i, gamePalette, i.ToString()));
+
+                    TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
+                    AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.anim.asset");
+
+                    for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
+                        TextureSet texture = textures[textureId];
+
+                        string assetPath = string.Format(@"Assets/SystemShock/texture.res.anim/{0}.asset", textureId);
+                        AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
+
+                        Material material = new Material(Shader.Find(@"Standard"));
+                        material.name = textureNames[textureId];
+                        //material.mainTexture = texture.Diffuse;
+                        material.color = Color.black;
+                        material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
+
+                        //Screens are blacklit, so use diffuse texture as emission!
+                        material.SetTexture(@"_EmissionMap", texture.Diffuse);
                         material.SetColor(@"_EmissionColor", Color.white);
                         material.EnableKeyword(@"_EMISSION");
+
+                        EditorUtility.SetDirty(material);
+
+                        AssetDatabase.AddObjectToAsset(material, assetPath);
+
+                        textureLibrary.SetTexture(textureId, material, emptyTextureProperties);
                     }
 
-                    EditorUtility.SetDirty(material);
+                    EditorUtility.SetDirty(textureLibrary);
 
-                    AssetDatabase.AddObjectToAsset(material, assetPath);
-
-                    textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
+                    ObjectFactory.GetController().AddLibrary(textureLibrary);
                 }
+                #endregion
 
-                EditorUtility.SetDirty(textureLibrary);
+                #region Create model texture assets
+                {
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"citmat.res");
 
-                ObjectFactory.GetController().AddLibrary(textureLibrary);
-            }
-            #endregion
+                    ResourceFile materialResource = new ResourceFile(citmatPath);
 
-            TextureProperties emptyTextureProperties = new TextureProperties();
+                    TextureLibrary materialLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
+                    AssetDatabase.CreateAsset(materialLibrary, @"Assets/SystemShock/citmat.res.asset");
 
-            #region Create animation texture assets
-            {
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"texture.res.anim");
+                    ushort materialId = 0;
+                    foreach (KnownChunkId chunkId in materialResource.GetChunkList()) {
+                        TextureSet texture = materialResource.ReadBitmap(chunkId, gamePalette, materialId.ToString());
 
-                ResourceFile textureResource = new ResourceFile(textureLibraryPath);
+                        texture.Diffuse.Apply();
+                        //EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
 
-                List<TextureSet> textures = new List<TextureSet>();
-                for (ushort i = 0; textureResource.HasChunk(KnownChunkId.AnimationsStart + i); ++i)
-                    textures.Add(textureResource.ReadBitmap(KnownChunkId.AnimationsStart + i, gamePalette, i.ToString()));
+                        if (texture.Emission != null) {
+                            texture.Emission.Apply();
+                            //EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        }
 
-                TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.anim.asset");
+                        string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", materialId);
 
-                for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
-                    TextureSet texture = textures[textureId];
+                        AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
+                        if (texture.Emission != null)
+                            AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
 
-                    string assetPath = string.Format(@"Assets/SystemShock/texture.res.anim/{0}.asset", textureId);
-                    AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
+                        Material material = new Material(Shader.Find(@"Standard"));
+                        material.mainTexture = texture.Diffuse;
+                        material.SetFloat(@"_Glossiness", 0f);
+                        if (texture.Emission != null) {
+                            material.SetTexture(@"_EmissionMap", texture.Emission);
+                            material.SetColor(@"_EmissionColor", Color.white);
+                            material.EnableKeyword(@"_EMISSION");
+                        }
 
-                    Material material = new Material(Shader.Find(@"Standard"));
-                    material.name = textureNames[textureId];
-                    //material.mainTexture = texture.Diffuse;
-                    material.color = Color.black;
-                    material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
+                        AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                    //Screens are blacklit, so use diffuse texture as emission!
-                    material.SetTexture(@"_EmissionMap", texture.Diffuse);
-                    material.SetColor(@"_EmissionColor", Color.white);
-                    material.EnableKeyword(@"_EMISSION");
+                        materialLibrary.SetTexture(materialId, material, emptyTextureProperties);
 
-                    EditorUtility.SetDirty(material);
-
-                    AssetDatabase.AddObjectToAsset(material, assetPath);
-
-                    textureLibrary.SetTexture(textureId, material, emptyTextureProperties);
-                }
-
-                EditorUtility.SetDirty(textureLibrary);
-
-                ObjectFactory.GetController().AddLibrary(textureLibrary);
-            }
-            #endregion
-
-            #region Create model texture assets
-            {
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"citmat.res");
-
-                ResourceFile materialResource = new ResourceFile(citmatPath);
-
-                TextureLibrary materialLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                AssetDatabase.CreateAsset(materialLibrary, @"Assets/SystemShock/citmat.res.asset");
-
-                ushort materialId = 0;
-                foreach (KnownChunkId chunkId in materialResource.GetChunkList()) {
-                    TextureSet texture = materialResource.ReadBitmap(chunkId, gamePalette, materialId.ToString());
-
-                    texture.Diffuse.Apply();
-                    EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
-
-                    if (texture.Emission != null) {
-                        texture.Emission.Apply();
-                        EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        ++materialId;
                     }
 
-                    string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", materialId);
+                    EditorUtility.SetDirty(materialLibrary);
 
-                    AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
-                    if (texture.Emission != null)
-                        AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
-
-                    Material material = new Material(Shader.Find(@"Standard"));
-                    material.mainTexture = texture.Diffuse;
-                    material.SetFloat(@"_Glossiness", 0f);
-                    if (texture.Emission != null) {
-                        material.SetTexture(@"_EmissionMap", texture.Emission);
-                        material.SetColor(@"_EmissionColor", Color.white);
-                        material.EnableKeyword(@"_EMISSION");
-                    }
-
-                    AssetDatabase.AddObjectToAsset(material, assetPath);
-
-                    materialLibrary.SetTexture(materialId, material, emptyTextureProperties);
-
-                    ++materialId;
+                    ObjectFactory.GetController().AddLibrary(materialLibrary);
                 }
-
-                EditorUtility.SetDirty(materialLibrary);
-
-                ObjectFactory.GetController().AddLibrary(materialLibrary);
+                #endregion
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
-            #endregion
-
-            //AssetDatabase.StopAssetEditing();
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
 
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
 
         private static void CreateSpriteLibrary(ResourceFile spritesResource, string libraryAssetPath, PaletteChunk gamePalette) {
@@ -312,7 +316,7 @@ namespace SSImporter.Resource {
             atlasDiffuse.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Diffuse";
             atlasDiffuse.alphaIsTransparency = true;
             atlasDiffuse.Apply(true, false);
-            EditorUtility.CompressTexture(atlasDiffuse, TextureFormat.DXT5, TextureCompressionQuality.Best);
+            //EditorUtility.CompressTexture(atlasDiffuse, TextureFormat.DXT5, TextureCompressionQuality.Best);
 
             Texture2D atlasEmission = new Texture2D(atlasDiffuse.width, atlasDiffuse.height, TextureFormat.RGB24, true, true);
             if (hasEmission) {
@@ -331,7 +335,7 @@ namespace SSImporter.Resource {
                 }
                 atlasEmission.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Emission";
                 atlasEmission.Apply(true, false);
-                EditorUtility.CompressTexture(atlasEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                //EditorUtility.CompressTexture(atlasEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
             }
 
             /*
@@ -516,14 +520,14 @@ namespace SSImporter.Resource {
             #endregion
 
             completeDiffuse.Apply(false);
-            EditorUtility.CompressTexture(completeDiffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+            //EditorUtility.CompressTexture(completeDiffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
             
             if (!emissionHasPixels) {
                 Texture2D.DestroyImmediate(completeEmission);
                 completeEmission = null;
             } else {
                 completeEmission.Apply(false);
-                EditorUtility.CompressTexture(completeEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                //EditorUtility.CompressTexture(completeEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
             }
 
             return new TextureSet() {

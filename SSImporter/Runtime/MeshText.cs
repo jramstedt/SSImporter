@@ -7,8 +7,8 @@ using System.Collections.Generic;
 namespace SystemShock.Resource {
     [RequireComponent(typeof(MeshFilter)), RequireComponent(typeof(MeshRenderer)), ExecuteInEditMode]
     public sealed class MeshText : MonoBehaviour {
-        protected MeshFilter meshFilter;
-        protected MeshRenderer meshRenderer;
+        private MeshFilter meshFilter;
+        private MeshRenderer meshRenderer;
 
         private Mesh mesh;
 
@@ -18,7 +18,9 @@ namespace SystemShock.Resource {
 
             meshFilter.sharedMesh = mesh = new Mesh();
 
-            Material material = new Material(Shader.Find(@"Standard")); // TODO should be screen blendmode?
+            //Material material = new Material(Shader.Find(@"UI/Default Font"));
+
+            Material material = new Material(Shader.Find(@"Standard"));
             material.color = Color.white;
             material.SetFloat(@"_Mode", 2f); // Fade
             material.SetFloat(@"_Glossiness", 0f);
@@ -31,7 +33,9 @@ namespace SystemShock.Resource {
             material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             material.renderQueue = 3000;
 
-            meshRenderer.material = material;
+            material.EnableKeyword(@"_EMISSION");
+
+            meshRenderer.sharedMaterial = material;
         }
 
         private void Start() {
@@ -52,7 +56,9 @@ namespace SystemShock.Resource {
             if (Font == null)
                 return;
 
-            meshRenderer.material.mainTexture = Font.material.mainTexture;
+            meshRenderer.sharedMaterial.mainTexture = Font.material.mainTexture;
+            meshRenderer.sharedMaterial.color = Color;
+            meshRenderer.sharedMaterial.SetColor(@"_EmissionColor", Color * 0.15f);
 
             textGenerator.Invalidate();
 
@@ -60,7 +66,21 @@ namespace SystemShock.Resource {
             mesh.name = text;
 
             //Debug.LogFormat(gameObject, "Verts {0} {1}", text, textGenerator.vertexCount);
+            /*
+            Rect extents = textGenerator.rectExtents;
+            Vector2 refPoint = Vector2.zero;
 
+            Vector3[] vertices = new Vector3[textGenerator.verts.Count];
+            for(int vertexIndex = 0; vertexIndex < vertices.Length; ++vertexIndex) {
+                Vector3 position = textGenerator.verts[vertexIndex].position;
+                position.x -= extents.width / 2f;
+                position.y -= extents.height / 2f;
+                vertices[vertexIndex] = position;
+            }
+
+            mesh.vertices = vertices;
+            */
+            
             mesh.vertices = textGenerator.verts.Select(v => v.position).ToArray();
             mesh.colors32 = textGenerator.verts.Select(v => v.color).ToArray();
             mesh.normals = textGenerator.verts.Select(v => v.normal).ToArray();
@@ -88,16 +108,17 @@ namespace SystemShock.Resource {
 
         private TextGenerationSettings GetTextGenerationSettings() {
             TextGenerationSettings settings = new TextGenerationSettings();
+
+            settings.textAnchor = TextAnchor.LowerLeft;
             settings.color = Color;
             settings.font = Font;
+            settings.pivot = new Vector2(0.5f, 0.5f);
+            settings.richText = false;
+            settings.lineSpacing = 1f;
+            settings.resizeTextForBestFit = false;
+            settings.updateBounds = true;
             settings.generateOutOfBounds = true;
             settings.horizontalOverflow = HorizontalWrapMode.Overflow;
-            settings.lineSpacing = 1f;
-            settings.pivot = Vector2.zero;
-            settings.resizeTextForBestFit = false;
-            settings.richText = false;
-            settings.textAnchor = TextAnchor.MiddleCenter;
-            settings.updateBounds = true;
             settings.verticalOverflow = VerticalWrapMode.Overflow;
 
             if (Font.dynamic) {

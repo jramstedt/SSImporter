@@ -12,9 +12,14 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class StringImport {
-        [MenuItem("Assets/System Shock/2. Import Strings")]
+        [MenuItem("Assets/System Shock/2. Import Strings", false, 1002)]
         public static void Init() {
             CreateStringAssets();
+        }
+
+        [MenuItem("Assets/System Shock/2. Import Strings", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         private static void CreateStringAssets() {
@@ -27,27 +32,29 @@ namespace SSImporter.Resource {
 
             ResourceFile stringResource = new ResourceFile(stringResourcePath);
 
-            Dictionary<uint, string[]> stringDictionary = new Dictionary<uint, string[]>();
-            foreach (KnownChunkId chunkId in stringResource.GetChunkList())
-                stringDictionary.Add((uint)chunkId, stringResource.ReadStrings(chunkId));
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            StringLibrary stringLibrary = ScriptableObject.CreateInstance<StringLibrary>();
-            stringLibrary.SetStrings(stringDictionary);
+                Dictionary<uint, string[]> stringDictionary = new Dictionary<uint, string[]>();
+                foreach (KnownChunkId chunkId in stringResource.GetChunkList())
+                    stringDictionary.Add((uint)chunkId, stringResource.ReadStrings(chunkId));
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+                StringLibrary stringLibrary = ScriptableObject.CreateInstance<StringLibrary>();
+                stringLibrary.SetStrings(stringDictionary);
 
-            AssetDatabase.CreateAsset(stringLibrary, @"Assets/SystemShock/cybstrng.res.asset");
-            EditorUtility.SetDirty(stringLibrary);
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            ObjectFactory.GetController().AddLibrary(stringLibrary);
+                AssetDatabase.CreateAsset(stringLibrary, @"Assets/SystemShock/cybstrng.res.asset");
+                EditorUtility.SetDirty(stringLibrary);
 
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
+                ObjectFactory.GetController().AddLibrary(stringLibrary);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
+            }
 
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
     }
 }

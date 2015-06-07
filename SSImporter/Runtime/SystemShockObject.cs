@@ -215,6 +215,16 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class SoftwareAndLogExtra {
+                public ushort Version;
+                public ushort Subclass;
+                public ushort LevelIndex;
+                public ushort Type;
+                public ushort Fill;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Text {
                 public ushort TextIndex;
                 public ushort Font;
@@ -447,13 +457,18 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class SetVariable {
-                public ushort Variable;
+                public uint Variable;
                 public ushort Value;
-                public ushort Action;
+                public VariableAction Action;
                 public ushort Message;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Unknown;
+
+                public enum VariableAction : ushort {
+                    Set,
+                    Add
+                }
             }
 
             [Serializable]

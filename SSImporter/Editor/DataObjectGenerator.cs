@@ -12,37 +12,40 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class DataObjectGenerator {
-        [MenuItem("Assets/System Shock/3. Generate DataObject Classes")]
+        [MenuItem("Assets/System Shock/3. Generate DataObject Classes", false, 1003)]
         public static void Init() {
             ObjectDeclaration[][] ObjectDeclarations = ObjectPropertyImport.ObjectDeclarations;
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock/DataObjects"))
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"DataObjects");
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            //AssetDatabase.StartAssetEditing();
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock/DataObjects"))
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"DataObjects");
 
-            for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
-                ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
+                for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
+                    ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
 
-                for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
-                    ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+                    for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                        ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
-                    GenerateDataObjectClass(objectDataType.GetGenericType(), objectDataType.GetSpecificType());
-                    GenerateMonoBehaviourClass(objectDataType.GetGenericType(), objectDataType.GetSpecificType());
+                        GenerateDataObjectClass(objectDataType.GetGenericType(), objectDataType.GetSpecificType());
+                        GenerateMonoBehaviourClass(objectDataType.GetGenericType(), objectDataType.GetSpecificType());
+                    }
                 }
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
 
-            //AssetDatabase.StopAssetEditing();
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
-
             AssetDatabase.Refresh();
+        }
 
-            Resources.UnloadUnusedAssets();
+        [MenuItem("Assets/System Shock/3. Generate DataObject Classes", true)]
+        public static bool Validate() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         public static void GenerateDataObjectClass(Type genericType, Type specificType) {

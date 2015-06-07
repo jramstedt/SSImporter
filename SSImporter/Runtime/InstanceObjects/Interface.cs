@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections;
 
 using SystemShock.Object;
@@ -9,11 +10,26 @@ using SystemShock.Interfaces;
 namespace SystemShock.InstanceObjects {
     public partial class Interface : SystemShockObject<ObjectInstance.Interface>, ITriggerActionProvider {
         protected override void InitializeInstance() {
-            SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
+            //SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
-            SystemShockObject ssobject = GetComponent<SystemShockObject>();
+            if (SubClass == 0) {
+                ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
+                SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
 
-            if (SubClass == 2) {
+                uint spriteIndex = objectPropertyLibrary.GetSpriteOffset((uint)Class << 16 | (uint)SubClass << 8 | Type);
+
+                SpriteDefinition[] Frames = new SpriteDefinition[3];
+                Array.Copy(objartLibrary.GetSpriteAnimation(0).Sprites, spriteIndex, Frames, 0, Frames.Length);
+
+                MeshProjector meshProjector = gameObject.GetComponentInChildren<MeshProjector>();
+                meshProjector.UVRect = new Rect(0f, 0f, 1f, 1f);
+
+                ToggleSprite toggleSprite = gameObject.AddComponent<ToggleSprite>();
+                toggleSprite.Frames = Frames;
+                toggleSprite.SetFrame(AnimationState + 1);
+
+                UseAsTrigger();
+            } else if (SubClass == 2) {
                 if (Type == 0) {
                     // Cyberspace terminal
                 } else if (Type == 1) {

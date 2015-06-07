@@ -5,10 +5,10 @@ using SystemShock.Object;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class PropagateConditional : Triggerable<ObjectInstance.Trigger.Propagate> {
-        public ITriggerable Target1;
-        public ITriggerable Target2;
-        public ITriggerable Target3;
-        public ITriggerable Target4;
+        public Triggerable Target1;
+        public Triggerable Target2;
+        public Triggerable Target3;
+        public Triggerable Target4;
 
         public bool condition;
 
@@ -25,7 +25,7 @@ namespace SystemShock.TriggerActions {
         private void Start() {
             SystemShockObject ssObject;
             if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger1, out ssObject)) {
-                Target1 = ssObject.GetComponent<ITriggerable>();
+                Target1 = ssObject.GetComponent<Triggerable>();
 
                 if (Target1 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);
@@ -34,7 +34,7 @@ namespace SystemShock.TriggerActions {
             }
 
             if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger2, out ssObject)) {
-                Target2 = ssObject.GetComponent<ITriggerable>();
+                Target2 = ssObject.GetComponent<Triggerable>();
 
                 if (Target2 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);
@@ -43,7 +43,7 @@ namespace SystemShock.TriggerActions {
             }
 
             if (ActionData.ObjectToTrigger3 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger3, out ssObject)) {
-                Target3 = ssObject.GetComponent<ITriggerable>();
+                Target3 = ssObject.GetComponent<Triggerable>();
 
                 if (Target3 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);
@@ -52,7 +52,7 @@ namespace SystemShock.TriggerActions {
             }
 
             if (ActionData.ObjectToTrigger4 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger4, out ssObject)) {
-                Target4 = ssObject.GetComponent<ITriggerable>();
+                Target4 = ssObject.GetComponent<Triggerable>();
 
                 if (Target4 == null)
                     Debug.Log("Tried to link trigger! " + ssObject, ssObject);
@@ -64,19 +64,16 @@ namespace SystemShock.TriggerActions {
         public override void Trigger() {
             condition = !condition;
 
-            if (!condition)
-                return;
-
-            if (Target1 != null)
+            if (Target1 != null && condition)
                 StartCoroutine(WaitAndTrigger(Target1, ActionData.Delay1));
 
-            if (Target2 != null)
+            if (Target2 != null && !condition)
                 StartCoroutine(WaitAndTrigger(Target2, ActionData.Delay2));
 
-            if (Target3 != null)
+            if (Target3 != null && condition)
                 StartCoroutine(WaitAndTrigger(Target3, ActionData.Delay3));
 
-            if (Target4 != null)
+            if (Target4 != null && !condition)
                 StartCoroutine(WaitAndTrigger(Target4, ActionData.Delay4));
         }
 

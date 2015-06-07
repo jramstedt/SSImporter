@@ -33,6 +33,7 @@ namespace SystemShock.InstanceObjects {
                 } else if (Type == 8) {
                     gameObject.AddComponent<LevelEnter>();
                 } else if (Type == 9) {
+                    Debug.Log("Continuous", this);
                     gameObject.AddComponent<Continuous>();
                 } else if (Type == 10) {
                     gameObject.AddComponent<Repulsor>();
@@ -58,6 +59,9 @@ namespace SystemShock.InstanceObjects {
                     // Music marker
                 }
             }
+
+            //if (ClassData.ConditionVariable != 0)
+            //    Debug.LogFormat(this, "{0} == {1}", ClassData.ConditionVariable, ClassData.ConditionValue);
 
             if (ClassData.Action == ActionType.NoOp) {
                 // Nothing

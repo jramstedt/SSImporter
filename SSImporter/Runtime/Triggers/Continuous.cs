@@ -4,13 +4,13 @@ using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
     public class Continuous : MonoBehaviour {
-        private ITriggerable triggerable;
+        private Triggerable triggerable;
 
         private double timeAccumulator;
         private double interval;
 
         private void Awake() {
-            triggerable = GetComponent<ITriggerable>();
+            triggerable = GetComponent<Triggerable>();
         }
 
         private void Start() {

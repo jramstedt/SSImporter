@@ -120,7 +120,6 @@ namespace SystemShock.Resource {
             }
 
             int[] targetTriangles = targetMesh.triangles;
-            Vector3[] targetNormals = targetMesh.normals;
             Vector3[] targetVertices = targetMesh.vertices;
 
             Vector3 back = boxToMesh.MultiplyVector(Vector3.back);

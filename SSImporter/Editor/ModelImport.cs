@@ -11,9 +11,15 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class ModelImport {
-        [MenuItem("Assets/System Shock/8. Import Models")]
+        [MenuItem("Assets/System Shock/8. Import Models", false, 1008)]
         public static void Init() {
             CreateMeshAssets();
+        }
+
+
+        [MenuItem("Assets/System Shock/8. Import Models", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         private static void CreateMeshAssets() {
@@ -29,72 +35,71 @@ namespace SSImporter.Resource {
 
             TextureLibrary textureLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/citmat.res.asset", typeof(TextureLibrary)) as TextureLibrary;
 
-            AssetDatabase.StartAssetEditing();
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            ResourceFile obj3dResource = new ResourceFile(obj3dPath);
+                ResourceFile obj3dResource = new ResourceFile(obj3dPath);
 
-            #region Create assets
-            AssetDatabase.CreateFolder(@"Assets/SystemShock", @"obj3d.res");
+                #region Create assets
+                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"obj3d.res");
 
-            ModelLibrary modelLibrary = ScriptableObject.CreateInstance<ModelLibrary>();
-            AssetDatabase.CreateAsset(modelLibrary, @"Assets/SystemShock/obj3d.res.asset");
+                ModelLibrary modelLibrary = ScriptableObject.CreateInstance<ModelLibrary>();
+                AssetDatabase.CreateAsset(modelLibrary, @"Assets/SystemShock/obj3d.res.asset");
 
-            foreach (KnownChunkId chunkId in obj3dResource.GetChunkList()) {
-                ushort modelId = chunkId - KnownChunkId.ModelsStart;
+                foreach (KnownChunkId chunkId in obj3dResource.GetChunkList()) {
+                    ushort modelId = chunkId - KnownChunkId.ModelsStart;
 
-                string assetPath = string.Format(@"Assets/SystemShock/obj3d.res/{0}.prefab", modelId);
+                    string assetPath = string.Format(@"Assets/SystemShock/obj3d.res/{0}.prefab", modelId);
 
-                MeshInfo meshInfo = ReadMesh(chunkId, obj3dResource);
+                    MeshInfo meshInfo = ReadMesh(chunkId, obj3dResource);
 
-                UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(assetPath);
-                AssetDatabase.AddObjectToAsset(meshInfo.mesh, assetPath);
+                    UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(assetPath);
+                    AssetDatabase.AddObjectToAsset(meshInfo.mesh, assetPath);
 
-                Material[] materials = new Material[meshInfo.textureIds.Length];
-                for (int i = 0; i < materials.Length; ++i) {
-                    bool isColored = ((meshInfo.textureIds[i] >> 24) & 0x80) == 0x80;
-                    ushort textureId = (ushort)meshInfo.textureIds[i];
-                    byte color = (byte)(meshInfo.textureIds[i] >> 16);
+                    Material[] materials = new Material[meshInfo.textureIds.Length];
+                    for (int i = 0; i < materials.Length; ++i) {
+                        bool isColored = ((meshInfo.textureIds[i] >> 24) & 0x80) == 0x80;
+                        ushort textureId = (ushort)meshInfo.textureIds[i];
+                        byte color = (byte)(meshInfo.textureIds[i] >> 16);
 
-                    materials[i] = textureLibrary.GetMaterial(textureId);
-
-                    if (isColored) {
-                        Material colorMaterial = materials[i] = new Material(Shader.Find(@"Standard"));
-                        colorMaterial.color = gamePalette[color];
-                        AssetDatabase.AddObjectToAsset(colorMaterial, assetPath);
-                    } else {
                         materials[i] = textureLibrary.GetMaterial(textureId);
+
+                        if (isColored) {
+                            Material colorMaterial = materials[i] = new Material(Shader.Find(@"Standard"));
+                            colorMaterial.color = gamePalette[color];
+                            AssetDatabase.AddObjectToAsset(colorMaterial, assetPath);
+                        } else {
+                            materials[i] = textureLibrary.GetMaterial(textureId);
+                        }
                     }
+
+                    GameObject gameObject = new GameObject();
+
+                    MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+                    meshFilter.sharedMesh = meshInfo.mesh;
+
+                    MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+                    meshRenderer.materials = materials;
+
+                    PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
+
+                    string guid = AssetDatabase.AssetPathToGUID(assetPath);
+
+                    modelLibrary.SetModel(modelId, guid);
+
+                    GameObject.DestroyImmediate(gameObject);
                 }
 
-                GameObject gameObject = new GameObject();
+                EditorUtility.SetDirty(modelLibrary);
 
-                MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
-                meshFilter.sharedMesh = meshInfo.mesh;
-
-                MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
-                meshRenderer.materials = materials;
-
-                PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
-
-                string guid = AssetDatabase.AssetPathToGUID(assetPath);
-
-                modelLibrary.SetModel(modelId, guid);
-
-                GameObject.DestroyImmediate(gameObject);
+                ObjectFactory.GetController().AddLibrary(modelLibrary);
+                #endregion
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
 
-            EditorUtility.SetDirty(modelLibrary);
-
-            ObjectFactory.GetController().AddLibrary(modelLibrary);
-            #endregion
-
-            AssetDatabase.StopAssetEditing();
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
-
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
 
         private static MeshInfo ReadMesh(KnownChunkId modelChunkId, ResourceFile obj3dResource) {

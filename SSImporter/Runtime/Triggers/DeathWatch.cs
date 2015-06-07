@@ -7,14 +7,14 @@ namespace SystemShock.Triggers {
     [ExecuteInEditMode]
     public class DeathWatch : MonoBehaviour {
         private InstanceObjects.Trigger trigger;
-        private ITriggerable triggerable;
+        private Triggerable triggerable;
         private SystemShockObject watchedObject;
 
         private bool triggered;
 
         private void Awake() {
             trigger = GetComponent<InstanceObjects.Trigger>();
-            triggerable = GetComponent<ITriggerable>();
+            triggerable = GetComponent<Triggerable>();
 
             LevelInfo levelInfo = GameObject.FindObjectOfType<LevelInfo>();
 

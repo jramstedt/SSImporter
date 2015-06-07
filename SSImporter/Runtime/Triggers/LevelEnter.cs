@@ -4,10 +4,10 @@ using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
     public class LevelEnter : MonoBehaviour {
-        private ITriggerable triggerable;
+        private Triggerable triggerable;
 
         private void Awake() {
-            triggerable = GetComponent<ITriggerable>();
+            triggerable = GetComponent<Triggerable>();
         }
 
         private void Start() {

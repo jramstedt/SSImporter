@@ -35,9 +35,9 @@ namespace SystemShock.InstanceObjects {
 
                     Palette gamePalette = paletteLibrary.GetPalette(KnownChunkId.Palette);
 
-                    ushort[] fontMap = new ushort[] { 606, 609, 602, 605, 607 };
+                    ushort[] fontMap = new ushort[] { 606, 609, 602, 605, 606 };
 
-                    float[] sizeMap = new float[] { 0.155f, 0.01925f/*0.0775f*/, 0.0385f, 0.08f, 0.15f, 0.15f };
+                    float[] sizeMap = new float[] { 1f, 0.125f, 0.25f, 0.5f, 1f, 2f };
 
                     Font font = fontLibrary.GetFont((KnownChunkId)fontMap[text.Font & 0x000F]);
 
@@ -45,10 +45,10 @@ namespace SystemShock.InstanceObjects {
 
                     MeshText meshText = GetComponent<MeshText>();
                     meshText.Color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
-                    meshText.Font = Font.CreateDynamicFontFromOSFont("Helvetica", 16); //font;
+                    meshText.Font = font;
                     meshText.Text = decalWords[text.TextIndex];
 
-                    float scale = sizeMap[(text.Font & 0x00F0) >> 4];
+                    float scale = 1f/64f * sizeMap[(text.Font & 0x00F0) >> 4];
                     meshText.transform.localScale = new Vector3(scale, scale, scale);
 
                     /*
@@ -250,7 +250,9 @@ namespace SystemShock.InstanceObjects {
                     isSurveillance = false;
                 }
 
-                if (materialOverride.StartFrameIndex < 0x007F && materialOverride.Frames > 0) { // Animated texture
+                bool isScreen = SubClass == 2 && (Type == 6 || Type == 8 || Type == 9); // Special case for broken screens where Frames == 0
+
+                if (materialOverride.StartFrameIndex < 0x007F && (materialOverride.Frames > 0 || isScreen)) { // Animated texture
                     isAnimated = true;
                     overridingMaterial = animationLibrary.GetMaterial(materialOverride.StartFrameIndex);
                 } else if (materialOverride.StartFrameIndex == 0x00F6) { // Noise + shodan
@@ -277,7 +279,7 @@ namespace SystemShock.InstanceObjects {
 
                     int stringIndex = materialOverride.StartFrameIndex & 0x7F;
                     bool scrollVertically = (materialOverride.StartFrameIndex & 0x80) == 0x80;
-                    bool isRandomScreen = stringIndex == 0x7F;
+                    bool isRandomScreen = stringIndex == 0x7F || stringIndex == 0x7E;
 
                     if (isRandomScreen) { // Random number in level before CPU is destroyed
                         materialOverride.Frames = 10;
@@ -307,7 +309,7 @@ namespace SystemShock.InstanceObjects {
                     overridingMaterial.SetColor(@"_EmissionColor", Color.white);
                     overridingMaterial.EnableKeyword(@"_EMISSION");
                 } else { // Model texture
-                    if (Type == 7) {
+                    if (SubClass == 2 && Type == 7) {
                         TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
                         ushort[] textureMap = objectFactory.LevelInfo.TextureMap;
                         overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
@@ -332,10 +334,6 @@ namespace SystemShock.InstanceObjects {
 
                 if (meshProjector != null) {
                     Texture projectedTexture = overridingMaterial.mainTexture ?? overridingMaterial.GetTexture(@"_EmissionMap");
-
-                    if (projectedTexture == null)
-                        Debug.Log("ARGH", gameObject);
-
                     meshProjector.Size = properties.Base.GetRenderSize(projectedTexture.GetSize());
                 }
 

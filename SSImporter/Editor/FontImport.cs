@@ -12,9 +12,14 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class FontImport {
-        [MenuItem("Assets/System Shock/6. Import Fonts")]
+        [MenuItem("Assets/System Shock/6. Import Fonts", false, 1006)]
         public static void Init() {
             CreateObjectFontAssets();
+        }
+
+        [MenuItem("Assets/System Shock/6. Import Fonts", true)]
+        public static bool Validate() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         private static void CreateObjectFontAssets() {
@@ -27,62 +32,67 @@ namespace SSImporter.Resource {
                 !File.Exists(gamePalettePath))
                 return;
 
-            //ssetDatabase.StartAssetEditing();
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            #region Texture palette
-            ResourceFile paletteResource = new ResourceFile(gamePalettePath);
-            PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
-            #endregion
 
-            AssetDatabase.CreateFolder(@"Assets/SystemShock", @"gamescr.res");
+                #region Texture palette
+                ResourceFile paletteResource = new ResourceFile(gamePalettePath);
+                PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
+                #endregion
 
-            Dictionary<uint, Font> fonts = new Dictionary<uint, Font>();
+                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"gamescr.res");
+                AssetDatabase.CreateFolder(@"Assets/SystemShock/gamescr.res", @"Materials");
 
-            ResourceFile gamescrResource = new ResourceFile(gamescrPath);
-            foreach (KnownChunkId chunkId in gamescrResource.GetChunkList()) {
-                ChunkInfo chunkInfo = gamescrResource.GetChunkInfo(chunkId);
+                Dictionary<uint, Font> fonts = new Dictionary<uint, Font>();
 
-                if (chunkInfo.info.ContentType == ContentType.Font) {
-                    FontSet fontSet = gamescrResource.ReadFont(chunkInfo, gamePalette);
+                ResourceFile gamescrResource = new ResourceFile(gamescrPath);
+                foreach (KnownChunkId chunkId in gamescrResource.GetChunkList()) {
+                    ChunkInfo chunkInfo = gamescrResource.GetChunkInfo(chunkId);
 
-                    Material material = new Material(Shader.Find(@"UI/Default Font"));
-                    material.mainTexture = fontSet.Texture;
+                    if (chunkInfo.info.ContentType == ContentType.Font) {
+                        FontSet fontSet = gamescrResource.ReadFont(chunkInfo, gamePalette);
 
-                    fontSet.Font.material = material;
+                        Material material = new Material(Shader.Find(@"UI/Default Font"));
+                        material.mainTexture = fontSet.Texture;
 
-                    string assetPath = string.Format(@"Assets/SystemShock/gamescr.res/{0}.fontsettings", chunkId);
-                    AssetDatabase.CreateAsset(fontSet.Font, assetPath);
-                    AssetDatabase.AddObjectToAsset(fontSet.Texture, assetPath);
-                    AssetDatabase.AddObjectToAsset(material, assetPath);
+                        fontSet.Font.material = material;
 
-                    EditorUtility.SetDirty(fontSet.Font);
-                    EditorUtility.SetDirty(fontSet.Texture);
-                    EditorUtility.SetDirty(material);
+                        string assetPath = string.Format(@"Assets/SystemShock/gamescr.res/{0}.fontsettings", chunkId);
+                        AssetDatabase.CreateAsset(fontSet.Font, assetPath);
 
-                    fonts.Add((uint)chunkId, fontSet.Font);
+                        assetPath = string.Format(@"Assets/SystemShock/gamescr.res/Materials/{0} material.asset", chunkId);
+                        AssetDatabase.CreateAsset(fontSet.Texture, assetPath);
+                        AssetDatabase.AddObjectToAsset(material, assetPath);
+
+                        //AssetDatabase.AddObjectToAsset(fontSet.Texture, assetPath);
+                        //AssetDatabase.AddObjectToAsset(material, assetPath);
+
+                        EditorUtility.SetDirty(fontSet.Font);
+                        EditorUtility.SetDirty(fontSet.Texture);
+                        EditorUtility.SetDirty(material);
+
+                        fonts.Add((uint)chunkId, fontSet.Font);
+                    }
+                    //Debug.Log(chunkId + " " + chunkInfo.info);
                 }
-                //Debug.Log(chunkId + " " + chunkInfo.info);
+
+                FontLibrary fontLibrary = ScriptableObject.CreateInstance<FontLibrary>();
+                fontLibrary.SetFonts(fonts);
+
+                AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
+                EditorUtility.SetDirty(fontLibrary);
+
+                ObjectFactory.GetController().AddLibrary(fontLibrary);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
 
-            FontLibrary fontLibrary = ScriptableObject.CreateInstance<FontLibrary>();
-            fontLibrary.SetFonts(fonts);
-
-            AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
-            EditorUtility.SetDirty(fontLibrary);
-
-            ObjectFactory.GetController().AddLibrary(fontLibrary);
-
-            //AssetDatabase.StopAssetEditing();
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
-
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
     }
 }

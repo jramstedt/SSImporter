@@ -7,10 +7,10 @@ using SystemShock.Object;
 using SystemShock.Resource;
 
 namespace SystemShock {
-    public abstract class Triggerable : MonoBehaviour, ITriggerable {
+    public abstract class Triggerable: MonoBehaviour {
         public abstract void Trigger();
 
-        protected static IEnumerator WaitAndTrigger(ITriggerable target, ushort delay) {
+        protected static IEnumerator WaitAndTrigger(Triggerable target, ushort delay) {
             yield return new WaitForSeconds(delay / 65536f);
             target.Trigger();
         }
@@ -28,11 +28,5 @@ namespace SystemShock {
 
     public interface ITriggerActionProvider {
         byte[] TriggerData { get; }
-    }
-
-    public interface ITriggerable {
-        void Trigger();
-
-        Transform transform { get; }
     }
 }

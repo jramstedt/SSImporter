@@ -14,9 +14,14 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class ObjectPropertyImport {
-        [MenuItem("Assets/System Shock/5. Import Object Properties")]
+        [MenuItem("Assets/System Shock/5. Import Object Properties", false, 1005)]
         public static void Init() {
             CreateObjectPropertyAssets();
+        }
+
+        [MenuItem("Assets/System Shock/5. Import Object Properties", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         /*
@@ -134,115 +139,117 @@ namespace SSImporter.Resource {
             if (!File.Exists(objpropPath))
                 return;
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
-            CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
-            CyberString objectShortNames = stringLibrary.GetStrings(KnownChunkId.ShortObjectNames);
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            ObjectPropertyLibrary objectPropertyLibrary = ScriptableObject.CreateInstance<ObjectPropertyLibrary>();
-            AssetDatabase.CreateAsset(objectPropertyLibrary, @"Assets/SystemShock/objprop.dat.asset");
+                StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
+                CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
+                CyberString objectShortNames = stringLibrary.GetStrings(KnownChunkId.ShortObjectNames);
 
-            using (FileStream fileStream = new FileStream(objpropPath, FileMode.Open, FileAccess.Read)) {
-                BinaryReader binaryReader = new BinaryReader(fileStream, Encoding.ASCII);
+                ObjectPropertyLibrary objectPropertyLibrary = ScriptableObject.CreateInstance<ObjectPropertyLibrary>();
+                AssetDatabase.CreateAsset(objectPropertyLibrary, @"Assets/SystemShock/objprop.dat.asset");
 
-                uint header = binaryReader.ReadUInt32();
+                using (FileStream fileStream = new FileStream(objpropPath, FileMode.Open, FileAccess.Read)) {
+                    BinaryReader binaryReader = new BinaryReader(fileStream, Encoding.ASCII);
 
-                if (header != 0x0000002D)
-                    throw new ArgumentException(string.Format(@"File type is not supported ({0})", header));
+                    uint header = binaryReader.ReadUInt32();
 
-                uint nameIndex = 0;
+                    if (header != 0x0000002D)
+                        throw new ArgumentException(string.Format(@"File type is not supported ({0})", header));
 
-                for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
-                    ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
+                    uint nameIndex = 0;
 
-                    for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
-                        ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+                    for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
+                        ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
 
-                        uint idBase = classIndex << 16 | subclassIndex << 8;
+                        for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                            ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
-                        string typeName = @"SystemShock.DataObjects." + objectDataType.GetGenericType().Name + objectDataType.GetSpecificType().Name + @", Assembly-CSharp";
+                            uint idBase = classIndex << 16 | subclassIndex << 8;
 
-                        for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                            string fullName = objectNames[nameIndex];
-                            string shortName = objectShortNames[nameIndex];
+                            string typeName = @"SystemShock.DataObjects." + objectDataType.GetGenericType().Name + objectDataType.GetSpecificType().Name + @", Assembly-CSharp";
 
-                            Type unityType = Type.GetType(typeName);
-                            if (unityType == null)
-                                throw new Exception(@"Type " + typeName + @" not found.");
+                            for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                                string fullName = objectNames[nameIndex];
+                                string shortName = objectShortNames[nameIndex];
 
-                            ObjectData objectData = ScriptableObject.CreateInstance(unityType) as ObjectData;
-                            objectData.name = fullName.ToLowerInvariant();
-                            objectData.FullName = fullName;
-                            objectData.ShortName = shortName;
-                            objectData.hideFlags = HideFlags.HideInHierarchy;
+                                Type unityType = Type.GetType(typeName);
+                                if (unityType == null)
+                                    throw new Exception(@"Type " + typeName + @" not found.");
 
-                            objectPropertyLibrary.AddObject(idBase | typeIndex, objectData);
+                                ObjectData objectData = ScriptableObject.CreateInstance(unityType) as ObjectData;
+                                objectData.name = fullName.ToLowerInvariant();
+                                objectData.FullName = fullName;
+                                objectData.ShortName = shortName;
+                                objectData.hideFlags = HideFlags.HideInHierarchy;
 
-                            ++nameIndex;
+                                objectPropertyLibrary.AddObject(idBase | typeIndex, objectData);
+
+                                ++nameIndex;
+                            }
+
+                            #region Generic data
+                            for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                objectData.SetGeneric(binaryReader.Read(objectDataType.GetGenericType()));
+                            }
+                            #endregion
                         }
 
-                        #region Generic data
-                        for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
-                            objectData.SetGeneric(binaryReader.Read(objectDataType.GetGenericType()));
+                        for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                            ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+
+                            uint idBase = classIndex << 16 | subclassIndex << 8;
+
+                            #region Specific data
+                            for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                objectData.SetSpecific(binaryReader.Read(objectDataType.GetSpecificType()));
+                            }
+                            #endregion
                         }
-                        #endregion
                     }
 
-                    for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
-                        ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+                    binaryReader.ReadByte(); // Padding?
 
-                        uint idBase = classIndex << 16 | subclassIndex << 8;
+                    #region Base data
+                    for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
+                        ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
 
-                        #region Specific data
-                        for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
-                            objectData.SetSpecific(binaryReader.Read(objectDataType.GetSpecificType()));
+                        for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
+                            ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
+
+                            uint idBase = classIndex << 16 | subclassIndex << 8;
+
+                            for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
+                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                //objectData.SetBase(binaryReader.Read(objectDataType.GetBaseType()));
+                                objectData.Base = binaryReader.Read<BaseProperties>();
+
+                                //if ((objectData.Base.Flags & (ushort)Flags.F12) != 0)
+                                //    Debug.Log(classIndex + ":" + subclassIndex + ":" + typeIndex + " " + objectData.FullName + " " + Convert.ToString(objectData.Base.Flags, 2).PadLeft(16, '0'));
+
+                                AssetDatabase.AddObjectToAsset(objectData, objectPropertyLibrary);
+
+                                EditorUtility.SetDirty(objectData);
+                            }
                         }
-                        #endregion
                     }
+                    #endregion
+
+                    EditorUtility.SetDirty(objectPropertyLibrary);
                 }
 
-                binaryReader.ReadByte(); // Padding?
-
-                #region Base data
-                for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
-                    ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
-
-                    for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
-                        ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
-
-                        uint idBase = classIndex << 16 | subclassIndex << 8;
-
-                        for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
-                            //objectData.SetBase(binaryReader.Read(objectDataType.GetBaseType()));
-                            objectData.Base = binaryReader.Read<BaseProperties>();
-
-                            //if ((objectData.Base.Flags & (ushort)Flags.F12) != 0)
-                            //    Debug.Log(classIndex + ":" + subclassIndex + ":" + typeIndex + " " + objectData.FullName + " " + Convert.ToString(objectData.Base.Flags, 2).PadLeft(16, '0'));
-
-                            AssetDatabase.AddObjectToAsset(objectData, objectPropertyLibrary);
-
-                            EditorUtility.SetDirty(objectData);
-                        }
-                    }
-                }
-                #endregion
-
-                EditorUtility.SetDirty(objectPropertyLibrary);
+                ObjectFactory.GetController().AddLibrary(objectPropertyLibrary);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
 
-            ObjectFactory.GetController().AddLibrary(objectPropertyLibrary);
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
-
             AssetDatabase.Refresh();
-
-            Resources.UnloadUnusedAssets();
         }
     }
 

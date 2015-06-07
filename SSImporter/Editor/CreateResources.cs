@@ -8,45 +8,57 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public static class CreateResources {
-        [MenuItem("Assets/System Shock/1. Create Object Factory")]
+        [MenuItem("Assets/System Shock/1. Create Object Factory", false, 1001)]
         public static void CreateGameController() {
-            if(!PlayerPrefs.HasKey(@"SSHOCKRES"))
-                PlayerPrefs.SetString(@"SSHOCKRES", EditorUtility.OpenFolderPanel(@"System Shock folder with DATA", string.Empty, string.Empty));
+            GameObject gameControllerPrefab = null;
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock/Resources"))
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Resources");
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            GameObject prefab = Resources.Load<GameObject>(@"GameController");
-            if (prefab == null) {
-                prefab = new GameObject(@"GameController");
-                prefab.tag = @"GameController";
-                prefab.isStatic = true;
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock/Resources"))
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Resources");
 
-                UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(@"Assets/SystemShock/Resources/GameController.prefab");
-                PrefabUtility.ReplacePrefab(prefab, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
+                gameControllerPrefab = Resources.Load<GameObject>(@"GameController");
+                if (gameControllerPrefab == null) {
+                    gameControllerPrefab = new GameObject(@"GameController");
+                    gameControllerPrefab.tag = @"GameController";
+                    gameControllerPrefab.isStatic = true;
+
+                    UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(@"Assets/SystemShock/Resources/GameController.prefab");
+                    PrefabUtility.ReplacePrefab(gameControllerPrefab, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
+                }
+
+                ObjectFactory objectFactory = gameControllerPrefab.GetComponent<ObjectFactory>() ?? gameControllerPrefab.AddComponent<ObjectFactory>();
+                objectFactory.Reset();
+
+                PrefabUtility.ReplacePrefab(gameControllerPrefab, PrefabUtility.GetPrefabParent(gameControllerPrefab), ReplacePrefabOptions.ConnectToPrefab);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
             }
-
-            ObjectFactory objectFactory = prefab.GetComponent<ObjectFactory>() ?? prefab.AddComponent<ObjectFactory>();
-            objectFactory.Reset();
-
-            PrefabUtility.ReplacePrefab(prefab, PrefabUtility.GetPrefabParent(prefab), ReplacePrefabOptions.ConnectToPrefab);
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
 
             AssetDatabase.Refresh();
 
-            Resources.UnloadUnusedAssets();
-
-            GameObject.DestroyImmediate(prefab);
+            if (gameControllerPrefab != null)
+                GameObject.DestroyImmediate(gameControllerPrefab);
         }
 
-        [MenuItem("Assets/System Shock/0. Clear RES path")]
+        [MenuItem("Assets/System Shock/1. Create Object Factory", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
+        }
+
+        [MenuItem("Assets/System Shock/0. Set RES path", false, 1000)]
         public static void ClearResourcePath() {
             PlayerPrefs.DeleteKey(@"SSHOCKRES");
+
+            string resPath = EditorUtility.OpenFolderPanel(@"System Shock folder with DATA", string.Empty, string.Empty);
+
+            if(resPath != string.Empty)
+                PlayerPrefs.SetString(@"SSHOCKRES", resPath);
         }
     }
 }

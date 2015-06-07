@@ -11,27 +11,31 @@ using SystemShock.Object;
 
 namespace SSImporter.Resource {
     public class SystemShockObjectGenerator : MonoBehaviour {
-        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes")]
+        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes", false, 1004)]
         public static void Init() {
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
-                AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
+            try {
+                AssetDatabase.StartAssetEditing();
 
-            if (!Directory.Exists(Application.dataPath + @"/SystemShock/InstanceObjects"))
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"InstanceObjects");
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-            //AssetDatabase.StartAssetEditing();
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock/InstanceObjects"))
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"InstanceObjects");
 
-            foreach (string className in Enum.GetNames(typeof(ObjectClass)))
-                GenerateInstanceClass(className);
 
-            //AssetDatabase.StopAssetEditing();
-
-            AssetDatabase.SaveAssets();
-            EditorApplication.SaveAssets();
+                foreach (string className in Enum.GetNames(typeof(ObjectClass)))
+                    GenerateInstanceClass(className);
+            } finally {
+                AssetDatabase.StopAssetEditing();
+                EditorApplication.SaveAssets();
+            }
 
             AssetDatabase.Refresh();
+        }
 
-            Resources.UnloadUnusedAssets();
+        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes", true)]
+        public static bool ValidateCreateGameController() {
+            return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
         public static void GenerateInstanceClass(string Name) {

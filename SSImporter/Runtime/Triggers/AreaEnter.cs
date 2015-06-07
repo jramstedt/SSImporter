@@ -6,7 +6,7 @@ namespace SystemShock.Triggers {
     [RequireComponent(typeof(BoxCollider))]
     public class AreaEnter : MonoBehaviour {
         private BoxCollider boxCollider;
-        private ITriggerable triggerable;
+        private Triggerable triggerable;
 
         private void Awake() {
             LevelInfo levelInfo = ObjectFactory.GetController().LevelInfo;
@@ -15,7 +15,7 @@ namespace SystemShock.Triggers {
             boxCollider.isTrigger = true;
             boxCollider.size = new Vector3(1f, 256.0f * levelInfo.HeightFactor, 1f); // TODO area size
 
-            triggerable = GetComponent<ITriggerable>();
+            triggerable = GetComponent<Triggerable>();
         }
 
         private void OnCollisionEnter(Collision collision) {

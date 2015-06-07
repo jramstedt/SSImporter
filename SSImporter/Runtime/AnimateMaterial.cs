@@ -55,7 +55,7 @@ namespace SystemShock {
                 if (AnimationType == 0) {
                     loopComplete = nextFrame == Frames.Length;
                     currentFrame = nextFrame % (uint)Frames.Length;
-                } else {
+                } else if(AnimationType == 1) {
                     loopComplete = nextFrame == (Frames.Length << 1);
                     uint bounceFrame = nextFrame % (uint)(Frames.Length << 1);
 
@@ -63,6 +63,9 @@ namespace SystemShock {
                         currentFrame = (uint)(Frames.Length - 1u) - (uint)(bounceFrame % Frames.Length);
                     else
                         currentFrame = nextFrame % (uint)Frames.Length;
+                } else if(AnimationType == 2) {
+                    loopComplete = nextFrame == Frames.Length;
+                    currentFrame = ((uint)Frames.Length - 1) - (nextFrame % (uint)Frames.Length);
                 }
 
                 if (currentFrame != previousFrame) {

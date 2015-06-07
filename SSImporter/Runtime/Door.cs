@@ -5,7 +5,7 @@ using System;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class Door : StateMachine<Door.DoorState>, ITriggerable {
+    public class Door : TriggerableStateMachine<Door.DoorState> {
         public enum DoorState {
             Closed,
             Closing,
@@ -20,14 +20,14 @@ namespace SystemShock {
         private MaterialPropertyBlock propertyBlock;
 
         private double timeAccumulator;
-        
+
         public float FPS = 10f;
         public SpriteDefinition[] Frames;
 
         public event Action OnOpened;
         public event Action OnClosed;
 
-        private void Awake() {
+        protected virtual void Awake() {
             Renderer = GetComponent<Renderer>();
             Collider = GetComponent<Collider>();
             propertyBlock = new MaterialPropertyBlock();
@@ -60,44 +60,52 @@ namespace SystemShock {
                 else if (State == DoorState.Closing)
                     --CurrentFrame;
             }
-
-            if (State == DoorState.Opening && currentFrame >= (Frames.Length - 1))
-                State = DoorState.Open;
-            else if (State == DoorState.Closing && currentFrame <= 0)
-                State = DoorState.Closed;
         }
 
         private void UpdateFrame() {
-            int clampedFrame = Mathf.Clamp(currentFrame, 0, Frames.Length - 1);
-
             SpriteDefinition currentSprite = Frames[currentFrame];
             Rect rect = currentSprite.Rect;
+
+            if (propertyBlock == null)
+                propertyBlock = new MaterialPropertyBlock();
 
             Renderer.GetPropertyBlock(propertyBlock);
             propertyBlock.SetVector(propertyId, new Vector4(rect.width, rect.height, rect.x, rect.y));
             Renderer.SetPropertyBlock(propertyBlock);
 
             DynamicGI.UpdateMaterials(Renderer);
+
+            if (currentFrame >= (Frames.Length - 1))
+                State = DoorState.Open;
+            else if (currentFrame <= 0)
+                State = DoorState.Closed;
         }
 
-        public void Trigger() {
-            if(State == DoorState.Closed || State == DoorState.Closing)
+        public override void Trigger() {
+            if (State == DoorState.Closed || State == DoorState.Closing)
                 State = DoorState.Opening;
-            else if(State == DoorState.Open || State == DoorState.Opening)
+            else if (State == DoorState.Open || State == DoorState.Opening)
                 State = DoorState.Closing;
         }
 
-        protected override void ShowState(Door.DoorState previousState) {
+        protected override void ShowState(DoorState previousState) {
             if (State == DoorState.Open) {
                 Collider.isTrigger = true;
+
+                if (OnOpened != null)
+                    OnOpened();
+
             } else if (State == DoorState.Closed) {
                 Collider.isTrigger = false;
+
+                if (OnClosed != null)
+                    OnClosed();
             } else if (State == DoorState.Opening || State == DoorState.Closing) {
                 timeAccumulator = 0.0;
             }
         }
 
-        protected override void HideState(Door.DoorState nextState) { }
+        protected override void HideState(DoorState nextState) { }
 
         [SerializeField, HideInInspector]
         private int currentFrame = -1;
@@ -110,10 +118,6 @@ namespace SystemShock {
                     UpdateFrame();
                 }
             }
-        }
-
-        private void OnMouseDown() {
-            Trigger();
         }
     }
 }
