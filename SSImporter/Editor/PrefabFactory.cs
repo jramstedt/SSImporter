@@ -152,9 +152,10 @@ namespace SSImporter.Resource {
                                     Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
                                 } else if (gameObject.GetComponent<Collider>() == null) {
                                     BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-                                    boxCollider.isTrigger = baseProperties.DrawType == DrawType.Screen ||
+                                    boxCollider.isTrigger = !HasPhysics &&
+                                                            (baseProperties.DrawType == DrawType.Screen ||
                                                             baseProperties.DrawType == DrawType.Decal ||
-                                                            baseProperties.DrawType == DrawType.Sprite;
+                                                            baseProperties.DrawType == DrawType.Sprite);
                                     boxCollider.center = renderer.bounds.center;
                                     boxCollider.size = renderer.bounds.size;
                                 }

@@ -13,6 +13,8 @@ namespace SystemShock.InstanceObjects {
         protected override void InitializeInstance() {
             //Debug.LogFormat(gameObject, "Trigger {0}", ClassData.Action);
 
+            bool ignoreAction = false;
+
             if (SubClass == 0) { // Triggers
                 if (Type == 0) {
                     gameObject.AddComponent<Entry>();
@@ -33,10 +35,10 @@ namespace SystemShock.InstanceObjects {
                 } else if (Type == 8) {
                     gameObject.AddComponent<LevelEnter>();
                 } else if (Type == 9) {
-                    Debug.Log("Continuous", this);
                     gameObject.AddComponent<Continuous>();
                 } else if (Type == 10) {
                     gameObject.AddComponent<Repulsor>();
+                    ignoreAction = true;
                 } else if (Type == 11) {
                     gameObject.AddComponent<Ecology>();
                 } else if (Type == 12) {
@@ -63,40 +65,42 @@ namespace SystemShock.InstanceObjects {
             //if (ClassData.ConditionVariable != 0)
             //    Debug.LogFormat(this, "{0} == {1}", ClassData.ConditionVariable, ClassData.ConditionValue);
 
-            if (ClassData.Action == ActionType.NoOp) {
-                // Nothing
-            } else if (ClassData.Action == ActionType.Transport) {
-                gameObject.AddComponent<Transport>();
-            } else if (ClassData.Action == ActionType.Resurrect) {
-                gameObject.AddComponent<Resurrect>();
-            } else if (ClassData.Action == ActionType.Clone) {
-                gameObject.AddComponent<Clone>();
-            } else if (ClassData.Action == ActionType.SetVariable) {
-                gameObject.AddComponent<SetVariable>();
-            } else if (ClassData.Action == ActionType.Propagate) {
-                gameObject.AddComponent<Propagate>();
-            } else if (ClassData.Action == ActionType.Lighting) {
-                gameObject.AddComponent<Lighting>();
-            } else if (ClassData.Action == ActionType.Effect) {
-                gameObject.AddComponent<Effect>();
-            } else if (ClassData.Action == ActionType.MovePlatform) {
-                gameObject.AddComponent<MovePlatform>();
-            } else if (ClassData.Action == ActionType.PropagateConditional) {
-                gameObject.AddComponent<PropagateConditional>();
-            } else if (ClassData.Action == ActionType.EmailPlayer) {
-                gameObject.AddComponent<EmailPlayer>();
-            } else if (ClassData.Action == ActionType.RadiationTreatment) {
-                gameObject.AddComponent<RadiationTreatment>();
-            } else if (ClassData.Action == ActionType.ChangeState) {
-                gameObject.AddComponent<ChangeState>();
-            } else if (ClassData.Action == ActionType.Message) {
-                gameObject.AddComponent<Message>();
-            } else if (ClassData.Action == ActionType.Spawn) {
-                gameObject.AddComponent<Spawn>();
-            } else if (ClassData.Action == ActionType.ChangeType) {
-                gameObject.AddComponent<ChangeType>();
-            } else {
-                Debug.LogWarning(ClassData.Action, gameObject);
+            if (!ignoreAction) {
+                if (ClassData.Action == ActionType.NoOp) {
+                    // Nothing
+                } else if (ClassData.Action == ActionType.Transport) {
+                    gameObject.AddComponent<Transport>();
+                } else if (ClassData.Action == ActionType.Resurrect) {
+                    gameObject.AddComponent<Resurrect>();
+                } else if (ClassData.Action == ActionType.Clone) {
+                    gameObject.AddComponent<Clone>();
+                } else if (ClassData.Action == ActionType.SetVariable) {
+                    gameObject.AddComponent<SetVariable>();
+                } else if (ClassData.Action == ActionType.Propagate) {
+                    gameObject.AddComponent<Propagate>();
+                } else if (ClassData.Action == ActionType.Lighting) {
+                    gameObject.AddComponent<Lighting>();
+                } else if (ClassData.Action == ActionType.Effect) {
+                    gameObject.AddComponent<Effect>();
+                } else if (ClassData.Action == ActionType.MovePlatform) {
+                    gameObject.AddComponent<MovePlatform>();
+                } else if (ClassData.Action == ActionType.PropagateConditional) {
+                    gameObject.AddComponent<PropagateConditional>();
+                } else if (ClassData.Action == ActionType.EmailPlayer) {
+                    gameObject.AddComponent<EmailPlayer>();
+                } else if (ClassData.Action == ActionType.RadiationTreatment) {
+                    gameObject.AddComponent<RadiationTreatment>();
+                } else if (ClassData.Action == ActionType.ChangeState) {
+                    gameObject.AddComponent<ChangeState>();
+                } else if (ClassData.Action == ActionType.Message) {
+                    gameObject.AddComponent<Message>();
+                } else if (ClassData.Action == ActionType.Spawn) {
+                    gameObject.AddComponent<Spawn>();
+                } else if (ClassData.Action == ActionType.ChangeType) {
+                    gameObject.AddComponent<ChangeType>();
+                } else {
+                    Debug.LogWarning(ClassData.Action, gameObject);
+                }
             }
         }
 

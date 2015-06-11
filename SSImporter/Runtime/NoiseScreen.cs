@@ -27,29 +27,32 @@ namespace SystemShock {
         [HideInInspector]
         public int[] MaterialIndices;
 
-        
-
         private void Awake() {
             Renderer = GetComponentInChildren<Renderer>();
 
-            if (NoiseTexture == null) {
-                NoiseTexture = new Texture2D(Resolution, Resolution, TextureFormat.RGB24, false, true);
-                NoiseTexture.name = @"Noise";
-                NoiseTexture.anisoLevel = 9;
-
-                Material = new Material(Shader.Find(@"Standard"));
-                Material.color = Color.black;
-                Material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
-                Material.SetTexture(@"_EmissionMap", NoiseTexture);
-                Material.SetColor(@"_EmissionColor", Color.white);
-                Material.EnableKeyword(@"_EMISSION");
-            } else if (NoiseTexture.width != Resolution || NoiseTexture.height != Resolution) {
+            if (NoiseTexture == null)
+                SetupMaterial();
+            else if (NoiseTexture.width != Resolution || NoiseTexture.height != Resolution)
                 NoiseTexture.Resize(Resolution, Resolution);
-            }
 
             Hash = new byte[256];
             for (int i = 0; i < 256; ++i)
                 Hash[i] = (byte)(Random.value * 256);
+        }
+
+        public Material SetupMaterial() {
+            NoiseTexture = new Texture2D(Resolution, Resolution, TextureFormat.RGB24, false, true);
+            NoiseTexture.name = @"Noise";
+            NoiseTexture.anisoLevel = 9;
+
+            Material = new Material(Shader.Find(@"Standard"));
+            Material.color = Color.black;
+            Material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
+            Material.SetTexture(@"_EmissionMap", NoiseTexture);
+            Material.SetColor(@"_EmissionColor", Color.white);
+            Material.EnableKeyword(@"_EMISSION");
+
+            return Material;
         }
 
         private void OnEnable() {

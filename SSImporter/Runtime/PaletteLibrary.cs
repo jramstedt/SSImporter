@@ -8,8 +8,7 @@ namespace SystemShock.Resource {
         [SerializeField]
         private List<Palette> palettes;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<ushort> chunkIdMap;
 
         public PaletteLibrary() {

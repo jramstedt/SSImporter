@@ -141,7 +141,7 @@ namespace SSImporter.Resource {
                     mesh.CombineMeshes(partInstances.ToArray(), true, false);
             }
             
-            return mesh.triangles.Length > 0 ? mesh : null;
+            return mesh.vertices.Length > 0 ? mesh : null;
         }
 
         public bool FloorMoving {

@@ -148,14 +148,17 @@ namespace SystemShock.InstanceObjects {
                     int bridgeWidth = bridge.Size & (byte)ObjectInstance.Decoration.Bridge.SizeMask.X;
                     int bridgeLength = (bridge.Size & (byte)ObjectInstance.Decoration.Bridge.SizeMask.Y) >> 4;
 
-                    float width = bridgeWidth > 0 ? (float)bridgeWidth / (float)0x04 : properties.Base.Size.x;
-                    float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : properties.Base.Size.y;
-                    float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 1f / 32f;
+                    float defaultWidth = properties.Base.Size.x;
+                    float defaultLength = properties.Base.Size.y;
 
-                    if (Type == 1) { // FIXME 
-                        width = 0.5f;
-                        length = 1f;
+                    if (Type == 1) { // Strange override
+                        defaultWidth = 0.5f;
+                        defaultLength = 1f;
                     }
+
+                    float width = bridgeWidth > 0 ? (float)bridgeWidth / (float)0x04 : defaultWidth;
+                    float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : defaultLength;
+                    float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 1f / 32f;
 
                     MeshFilter meshFilter = GetComponent<MeshFilter>();
                     meshFilter.sharedMesh = MeshUtils.CreateCubeTopPivot(width, length, height);
@@ -269,8 +272,8 @@ namespace SystemShock.InstanceObjects {
 
                     gameObject.AddComponent<ShodanScreen>();
                 } else if (materialOverride.StartFrameIndex == 0x00F7) { // Noise
-                    overridingMaterial = new Material(Shader.Find(@"Standard"));
                     NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
+                    overridingMaterial = noiseScreen.SetupMaterial();
                     noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
                 } else if (isSurveillance) { // Surveillance
                     overridingMaterial = new Material(Shader.Find(@"Standard"));

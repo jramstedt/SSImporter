@@ -11,7 +11,7 @@ namespace SystemShock.Resource {
         AnimationsStart = 0x0141,
         Textures64x64Start = 0x02C3,
         Textures128x128Start = 0x03E8,
-        Palette = 0x02BD,
+        Palette = 0x02BC,
         ObjectSprites = 0x0546,
 
         EnemyAnimationStart = 0x0578,
