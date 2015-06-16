@@ -68,12 +68,12 @@ namespace SystemShock.InstanceObjects {
             if (!ignoreAction) {
                 if (ClassData.Action == ActionType.NoOp) {
                     // Nothing
-                } else if (ClassData.Action == ActionType.Transport) {
-                    gameObject.AddComponent<Transport>();
-                } else if (ClassData.Action == ActionType.Resurrect) {
-                    gameObject.AddComponent<Resurrect>();
-                } else if (ClassData.Action == ActionType.Clone) {
-                    gameObject.AddComponent<Clone>();
+                } else if (ClassData.Action == ActionType.TeleportPlayer) {
+                    gameObject.AddComponent<TeleportPlayer>();
+                } else if (ClassData.Action == ActionType.ResurrectPlayer) {
+                    gameObject.AddComponent<ResurrectPlayer>();
+                } else if (ClassData.Action == ActionType.SetPosition) {
+                    gameObject.AddComponent<SetPosition>();
                 } else if (ClassData.Action == ActionType.SetVariable) {
                     gameObject.AddComponent<SetVariable>();
                 } else if (ClassData.Action == ActionType.Propagate) {
@@ -86,6 +86,8 @@ namespace SystemShock.InstanceObjects {
                     gameObject.AddComponent<MovePlatform>();
                 } else if (ClassData.Action == ActionType.PropagateConditional) {
                     gameObject.AddComponent<PropagateConditional>();
+                } else if (ClassData.Action == ActionType.Destroy) {
+                    gameObject.AddComponent<Destroy>();
                 } else if (ClassData.Action == ActionType.EmailPlayer) {
                     gameObject.AddComponent<EmailPlayer>();
                 } else if (ClassData.Action == ActionType.RadiationTreatment) {

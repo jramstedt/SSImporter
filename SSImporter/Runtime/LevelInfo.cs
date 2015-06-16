@@ -21,7 +21,7 @@ namespace SystemShock {
         public Dictionary<uint, SystemShockObject> Objects = new Dictionary<uint, SystemShockObject>();
         public TextScreenRenderer TextScreenRenderer;
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private List<SSKvp> serializedObjectsDictionary;
 
         [SerializeField, HideInInspector]

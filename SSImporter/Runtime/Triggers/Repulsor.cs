@@ -42,8 +42,8 @@ namespace SystemShock.Triggers {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct RepulsorData {
             public enum Direction : byte {
-                Up,
-                Down
+                Down,
+                Up
             }
 
             public uint Unknown;

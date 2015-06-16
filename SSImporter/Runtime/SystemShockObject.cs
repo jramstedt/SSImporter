@@ -77,9 +77,9 @@ namespace SystemShock.Object {
 
     public enum ActionType : byte {
         NoOp = 0x00,
-        Transport = 0x01,
-        Resurrect = 0x02,
-        Clone = 0x03,
+        TeleportPlayer = 0x01,
+        ResurrectPlayer = 0x02,
+        SetPosition = 0x03,
         SetVariable = 0x04,
         Unknown0x05 = 0x05,
         Propagate = 0x06,
@@ -89,7 +89,7 @@ namespace SystemShock.Object {
         Unknown0x0A = 0x0A,
         Unknown0x0B = 0x0B,
         PropagateConditional = 0x0C,
-        Unknown0x0D = 0x0D,
+        Destroy = 0x0D,
         Unknown0x0E = 0x0E,
         EmailPlayer = 0x0F,
         RadiationTreatment = 0x10,
@@ -422,7 +422,7 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Transport {
+            public class TeleportPlayer {
                 public uint TileX;
                 public uint TileY;
                 public uint Z;
@@ -441,17 +441,12 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Clone {
-                // TODO FIXME
-
-                public ushort ObjectToClone;
-                public ushort Unknown;
-                public ushort X;
-                public ushort Y;
-                public ushort Z;
-                public ushort Pitch;
-                public ushort Yaw;
-                public ushort Roll;
+            public class SetPosition {
+                public ushort ObjectId;
+                public ushort Scale;
+                public uint TileX;
+                public uint TileY;
+                public uint Z;
             }
 
             [Serializable]
@@ -565,6 +560,15 @@ namespace SystemShock.Object {
                 public byte NewType;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11)]
+                public byte[] Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Disable {
+                public ushort ObjectId;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 14)]
                 public byte[] Unknown;
             }
         }

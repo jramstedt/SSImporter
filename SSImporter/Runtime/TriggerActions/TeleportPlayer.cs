@@ -6,7 +6,7 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Transport : Triggerable<ObjectInstance.Trigger.Transport> {
+    public class TeleportPlayer : Triggerable<ObjectInstance.Trigger.TeleportPlayer> {
         private Vector3 targetPosition;
         private Quaternion targetRotation;
 
@@ -21,19 +21,21 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
-            Rigidbody rigidbody = GetComponent<Rigidbody>();
+            GameObject player = GameObject.FindGameObjectWithTag(@"Player");
+
+            Rigidbody rigidbody = player.GetComponent<Rigidbody>();
             if(rigidbody != null) {
                 rigidbody.position = targetPosition;
                 rigidbody.rotation = targetRotation;
             } else {
-                transform.position = targetPosition;
-                transform.rotation = targetRotation;
+                player.transform.position = targetPosition;
+                player.transform.rotation = targetRotation;
             }
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
-            Gizmos.DrawLine(transform.position, targetPosition);
+            Gizmos.DrawSphere(targetPosition, 0.25f);
             Gizmos.DrawRay(targetPosition, targetRotation * Vector3.forward);
         }
 #endif

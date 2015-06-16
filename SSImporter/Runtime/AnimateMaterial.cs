@@ -84,16 +84,16 @@ namespace SystemShock {
             }
         }
 
-#if UNITY_EDITOR
         public void AddAnimation(int[] materialIndices, Material[] frames, ushort animationType, float fps) {
-            ArrayUtility.Add(ref animationSets, new AnimationSet {
+            int index = animationSets.Length;
+            Array.Resize(ref animationSets, index + 1);
+            animationSets[index] = new AnimationSet {
                 MaterialIndices = materialIndices,
                 Frames = frames,
                 AnimationType = animationType,
                 FPS = fps
-            });
+            };
         }
-#endif
 
         [Serializable]
         private struct AnimationSet {

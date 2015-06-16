@@ -193,10 +193,10 @@ namespace SystemShock.Resource {
             Vector3 worldSize = Size;
 
             if (DrawType != Resource.DrawType.Screen) {
-                if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapWidth) == SystemShock.Resource.SizeFlags.UseBitmapWidth)
+                if (DrawType == Resource.DrawType.Decal || ((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapWidth) == SystemShock.Resource.SizeFlags.UseBitmapWidth)
                     worldSize.x = graphicSize.x / 64f;
 
-                if (((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapHeight) == SystemShock.Resource.SizeFlags.UseBitmapHeight)
+                if (DrawType == Resource.DrawType.Decal || ((SizeFlags)SizeFlags & SystemShock.Resource.SizeFlags.UseBitmapHeight) == SystemShock.Resource.SizeFlags.UseBitmapHeight)
                     worldSize.y = graphicSize.y / 64f;
             }
 

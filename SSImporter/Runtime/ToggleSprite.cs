@@ -5,7 +5,7 @@ using System;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class ToggleSprite : TriggerableStateMachine<ToggleSprite.ToggleState> {
+    public class ToggleSprite : StateMachine<ToggleSprite.ToggleState> {
         public enum ToggleState {
             Closed,
             Open,
@@ -27,7 +27,7 @@ namespace SystemShock {
 
         protected virtual void Awake() {
             Renderer = GetComponent<Renderer>();
-            Triggerable = GetComponentInChildren<Triggerable>();
+            Triggerable = GetComponent<Triggerable>();
 
             propertyId = Shader.PropertyToID(@"_MainTex_ST");
             propertyBlock = new MaterialPropertyBlock();
@@ -54,12 +54,14 @@ namespace SystemShock {
             DynamicGI.UpdateMaterials(Renderer);
         }
 
+        /*
         public override void Trigger() {
             if (State == ToggleState.Closed)
                 State = ToggleState.Open;
             else if (State == ToggleState.Open)
                 State = ToggleState.Active;
         }
+        */
 
         protected override void ShowState(ToggleState previousState) {
             UpdateFrame();
@@ -90,7 +92,9 @@ namespace SystemShock {
             else if (State == ToggleState.Active)
                 State = ToggleState.Open;
 
-            if (State == ToggleState.Open || State == ToggleState.Active || Triggerable!= null)
+            Debug.Log(Triggerable);
+
+            if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
                 Triggerable.Trigger();
         }
     }

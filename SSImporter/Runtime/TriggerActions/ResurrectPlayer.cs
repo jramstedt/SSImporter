@@ -3,7 +3,7 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class Resurrect : Triggerable<ObjectInstance.Trigger.Resurrect> {
+    public class ResurrectPlayer : Triggerable<ObjectInstance.Trigger.Resurrect> {
         public override void Trigger() {
 
         }

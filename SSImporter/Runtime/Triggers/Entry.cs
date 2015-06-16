@@ -18,10 +18,10 @@ namespace SystemShock.Triggers {
             triggerable = GetComponent<Triggerable>();
         }
 
-        private void OnCollisionEnter(Collision collision) {
+        private void OnTriggerEnter(Collider collider) {
             // TODO Better check if player
 
-            if(collision.gameObject.tag == "Player")
+            if (collider.tag == "Player")
                 triggerable.Trigger();
         }
     }
