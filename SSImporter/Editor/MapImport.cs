@@ -21,7 +21,7 @@ namespace SSImporter.Resource {
         }
 
         [MenuItem("Assets/System Shock/10. Import Maps", true)]
-        public static bool ValidateCreateGameController() {
+        public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
@@ -35,7 +35,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;

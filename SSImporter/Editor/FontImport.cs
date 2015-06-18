@@ -38,7 +38,6 @@ namespace SSImporter.Resource {
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-
                 #region Texture palette
                 ResourceFile paletteResource = new ResourceFile(gamePalettePath);
                 PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);

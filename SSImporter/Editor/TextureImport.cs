@@ -17,7 +17,7 @@ namespace SSImporter.Resource {
         }
 
         [MenuItem("Assets/System Shock/7. Import Textures", true)]
-        public static bool ValidateCreateGameController() {
+        public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 

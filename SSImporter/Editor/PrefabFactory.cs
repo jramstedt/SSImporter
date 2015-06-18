@@ -20,7 +20,7 @@ namespace SSImporter.Resource {
         }
 
         [MenuItem("Assets/System Shock/9. Create Object Prefabs", true)]
-        public static bool ValidateCreateGameController() {
+        public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
@@ -32,6 +32,8 @@ namespace SSImporter.Resource {
         private static Material nullMaterial;
 
         private static EnemyAnimations[] enemyAnimations;
+
+        private static Material spriteMaterial;
 
         private static void CreateObjectPrefabs() {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
@@ -49,6 +51,10 @@ namespace SSImporter.Resource {
                 objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
                 objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
                 nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
+
+                spriteMaterial = new Material(Shader.Find(@"Sprites/Diffuse"));
+                spriteMaterial.name = @"SpriteMaterial";
+                AssetDatabase.CreateAsset(spriteMaterial, @"Assets/SystemShock/SpriteMaterial.asset");
 
                 PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
                 AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
@@ -359,6 +365,7 @@ namespace SSImporter.Resource {
             spriteRenderer.receiveShadows = true;
             spriteRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
             spriteRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+            spriteRenderer.sharedMaterial = spriteMaterial;
 
             int enemyIndex =    objectPropertyLibrary.GetIndex(combinedId) -
                                 objectPropertyLibrary.GetIndex(ObjectClass.Enemy, 0, 0);

@@ -2,9 +2,10 @@
 
 using SystemShock.Object;
 
+
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeState : Triggerable<ObjectInstance.Trigger.ChangeState> {
+    public class PropagateRepeat : Triggerable<ObjectInstance.Trigger.PropagateRepeat> {
         public SystemShockObject Target;
 
         private LevelInfo levelInfo;

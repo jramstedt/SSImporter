@@ -34,7 +34,7 @@ namespace SSImporter.Resource {
         }
 
         [MenuItem("Assets/System Shock/4. Generate Object Instance Classes", true)]
-        public static bool ValidateCreateGameController() {
+        public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 

@@ -20,7 +20,7 @@ namespace SSImporter.Resource {
         }
 
         [MenuItem("Assets/System Shock/5. Import Object Properties", true)]
-        public static bool ValidateCreateGameController() {
+        public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 

@@ -84,6 +84,8 @@ namespace SystemShock.InstanceObjects {
                     gameObject.AddComponent<Effect>();
                 } else if (ClassData.Action == ActionType.MovePlatform) {
                     gameObject.AddComponent<MovePlatform>();
+                } else if (ClassData.Action == ActionType.PropagateRepeat) {
+                    gameObject.AddComponent<PropagateRepeat>();
                 } else if (ClassData.Action == ActionType.PropagateConditional) {
                     gameObject.AddComponent<PropagateConditional>();
                 } else if (ClassData.Action == ActionType.Destroy) {
@@ -92,6 +94,8 @@ namespace SystemShock.InstanceObjects {
                     gameObject.AddComponent<EmailPlayer>();
                 } else if (ClassData.Action == ActionType.RadiationTreatment) {
                     gameObject.AddComponent<RadiationTreatment>();
+                } else if (ClassData.Action == ActionType.ChangeClassData) {
+                    gameObject.AddComponent<ChangeClassData>();
                 } else if (ClassData.Action == ActionType.ChangeState) {
                     gameObject.AddComponent<ChangeState>();
                 } else if (ClassData.Action == ActionType.Message) {

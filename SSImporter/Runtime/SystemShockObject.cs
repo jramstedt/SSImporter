@@ -87,13 +87,13 @@ namespace SystemShock.Object {
         Effect = 0x08,
         MovePlatform = 0x09,
         Unknown0x0A = 0x0A,
-        Unknown0x0B = 0x0B,
+        PropagateRepeat = 0x0B,
         PropagateConditional = 0x0C,
         Destroy = 0x0D,
         Unknown0x0E = 0x0E,
         EmailPlayer = 0x0F,
         RadiationTreatment = 0x10,
-        Unknown0x11 = 0x11,
+        ChangeClassData = 0x11,
         Unknown0x12 = 0x12,
         ChangeState = 0x13,
         Unknown0x14 = 0x14,
@@ -397,6 +397,9 @@ namespace SystemShock.Object {
             public byte Message;
             public byte ForceColor;
             public byte AccessRequired;
+
+            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
+            public byte[] Data;
         }
 
         [Serializable]
@@ -509,6 +512,17 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class PropagateRepeat {
+                public uint ObjectId;
+                public uint Delay;
+                public ushort Count;
+                public ushort DelayVariationMin;
+                public ushort DelayVariationMax;
+                public ushort Unknown;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class EmailPlayer {
                 public ushort Message;
 
@@ -525,9 +539,20 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class ChangeClassData {
+                public uint ObjectId;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                public byte[] Data;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeState {
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
-                public byte[] Unknown;
+                public uint ObjectId;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                public byte[] Data;
             }
 
             [Serializable]

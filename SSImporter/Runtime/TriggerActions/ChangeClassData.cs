@@ -4,7 +4,7 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeState : Triggerable<ObjectInstance.Trigger.ChangeState> {
+    public class ChangeClassData : Triggerable<ObjectInstance.Trigger.ChangeClassData> {
         public SystemShockObject Target;
 
         private LevelInfo levelInfo;

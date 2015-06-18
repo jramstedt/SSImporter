@@ -77,7 +77,7 @@ namespace SSImporter.Resource {
             } else if (fileChunkInfo.ChunkType == ChunkType.BlocksUncompressed) {
                 return ReadBlock(rawChunk, blockIndex);
             } else if (fileChunkInfo.ChunkType == ChunkType.BlocksCompressed) {
-                return ReadBlock(UnpackChunk(fileChunkInfo, rawChunk), blockIndex);
+                return ReadBlock(rawChunk, blockIndex, fileChunkInfo);
             } else {
                 throw new Exception("Unsupported chunk");
             }
@@ -96,7 +96,7 @@ namespace SSImporter.Resource {
             } else if (fileChunkInfo.ChunkType == ChunkType.BlocksUncompressed) {
                 return ReadBlocks(rawChunk);
             } else if (fileChunkInfo.ChunkType == ChunkType.BlocksCompressed) {
-                return ReadBlocks(UnpackChunk(fileChunkInfo, rawChunk));
+                return ReadBlocks(rawChunk, fileChunkInfo);
             } else {
                 throw new Exception("Unsupported chunk");
             }
@@ -251,7 +251,7 @@ namespace SSImporter.Resource {
                 } else if (bitmap.BitmapType == BitmapType.Compressed) {
                     pixelData = RunLengthDecode(bitmap, msbr);
                 } else {
-                    throw new Exception("Not supported bitmap type!");
+                    throw new Exception("Not supported bitmap type! " + bitmap.BitmapType);
                 }
 
                 if (ms.Length > (ms.Position + 4)) { // Optional data
@@ -383,6 +383,46 @@ namespace SSImporter.Resource {
             }
         }
 
+        private byte[][] ReadBlocks(byte[] rawChunk, FileChunkInfo fileChunkInfo) {
+            if (!fileChunkInfo.IsCompressed)
+                return ReadBlocks(rawChunk);
+
+            using (MemoryStream ms = new MemoryStream(rawChunk)) {
+                BinaryReader msbr = new BinaryReader(ms);
+
+                ushort blockCount = msbr.ReadUInt16(); // number of sub blocks
+
+                long blockDirectory = ms.Position;
+
+                int chunkDataStart = msbr.ReadInt32();
+                ms.Position += blockCount * sizeof(int);
+                int chunkDataEnd = msbr.ReadInt32();
+
+                ms.Position = chunkDataStart;
+
+                byte[] unpackedChunkData = UnpackChunk(fileChunkInfo, msbr.ReadBytes(chunkDataEnd - chunkDataStart));
+
+                byte[][] blockDatas = new byte[blockCount][];
+
+                using (MemoryStream upms = new MemoryStream(unpackedChunkData)) {
+                    BinaryReader upmsbr = new BinaryReader(upms);
+
+                    for (int i = 0; i < blockCount; ++i) {
+                        ms.Position = blockDirectory + (i * sizeof(int));
+
+                        int blockStart = msbr.ReadInt32(); // pointer is from dataOffset
+                        int blockEnd = msbr.ReadInt32();
+
+                        upms.Position = blockStart - chunkDataStart;
+
+                        blockDatas[i] = upmsbr.ReadBytes(blockEnd - blockStart);
+                    }
+                }
+
+                return blockDatas;
+            }
+        }
+
         private byte[] ReadBlock(byte[] rawChunk, ushort blockIndex) {
             using (MemoryStream ms = new MemoryStream(rawChunk)) {
                 BinaryReader msbr = new BinaryReader(ms);
@@ -400,6 +440,43 @@ namespace SSImporter.Resource {
                 ms.Position = blockStart;
 
                 return msbr.ReadBytes(blockEnd - blockStart);
+            }
+        }
+
+        private byte[] ReadBlock(byte[] rawChunk, ushort blockIndex, FileChunkInfo fileChunkInfo) {
+            if (!fileChunkInfo.IsCompressed)
+                return ReadBlock(rawChunk, blockIndex);
+
+            using (MemoryStream ms = new MemoryStream(rawChunk)) {
+                BinaryReader msbr = new BinaryReader(ms);
+
+                ushort blockCount = msbr.ReadUInt16(); // number of sub blocks
+
+                if (blockIndex >= blockCount)
+                    throw new ArgumentOutOfRangeException(@"blockIndex", string.Format(@"Chunk has only {0} blocks", blockCount));
+
+                long blockDirectory = ms.Position;
+
+                int chunkDataStart = msbr.ReadInt32();
+                ms.Position += blockCount * sizeof(int);
+                int chunkDataEnd = msbr.ReadInt32();
+
+                ms.Position = chunkDataStart;
+
+                byte[] unpackedChunkData = UnpackChunk(fileChunkInfo, msbr.ReadBytes(chunkDataEnd - chunkDataStart));
+
+                using (MemoryStream upms = new MemoryStream(unpackedChunkData)) {
+                    BinaryReader upmsbr = new BinaryReader(upms);
+
+                    ms.Position += blockDirectory + (blockIndex * sizeof(int));
+
+                    int blockStart = msbr.ReadInt32(); // pointer is from dataOffset
+                    int blockEnd = msbr.ReadInt32();
+
+                    upms.Position = blockStart - chunkDataStart;
+
+                    return upmsbr.ReadBytes(blockEnd - blockStart);
+                }
             }
         }
 
@@ -450,9 +527,9 @@ namespace SSImporter.Resource {
 
                             if (value >= 0x0100) // value is index to reference word
                                 reference[wordIndex] = (short)(value - 0x0100);
-
-                            ++wordIndex;
                         }
+
+                        ++wordIndex;
 
                         if (value < 0x0100) { // byte value
                             bmsbw.Write((byte)(value & 0xFF));
