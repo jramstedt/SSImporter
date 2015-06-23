@@ -25,11 +25,11 @@ They will have to be resized to match the level scale. 0.7 for height seems to w
 1. Create new Unity project (3D, No asset packages needed)
 2. Clone repository to Unity projects Assets folder. (or copy SSImporter directory)
    Unity should now import and compile everything.
-3. Run every importer in order from Assets/SystemShock menu.
-Starting from 0. Set RES Path. It should ask for folder. Select your RES folder.
-Run 1. Create Object Factory
-Run 2. ...
- 
+3. Run every importer in order from Assets/SystemShock menu.  
+   Starting from 0. Set RES Path. It should ask for folder. Select your RES folder.  
+   Run 1. Create Object Factory  
+   Run 2. ...
+
 ## Todo
 - Palette rotated textures
   - Each palette chunk (5 colors) is rotated at different speed. Use multi layered material (one layer per chunk)?
