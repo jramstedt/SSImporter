@@ -12,12 +12,12 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class StringImport {
-        [MenuItem("Assets/System Shock/2. Import Strings", false, 1002)]
+        [MenuItem("Assets/System Shock/4. Import Strings", false, 1004)]
         public static void Init() {
             CreateStringAssets();
         }
 
-        [MenuItem("Assets/System Shock/2. Import Strings", true)]
+        [MenuItem("Assets/System Shock/4. Import Strings", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }

@@ -35,7 +35,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;

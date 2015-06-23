@@ -21,7 +21,7 @@ namespace SystemShock.Triggers {
         private void OnTriggerEnter(Collider collider) {
             // TODO Better check if player
 
-            if (collider.tag == "Player")
+            if (triggerable != null && collider.tag == "Player")
                 triggerable.Trigger();
         }
     }

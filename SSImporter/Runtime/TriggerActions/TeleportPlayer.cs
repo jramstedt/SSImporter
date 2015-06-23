@@ -7,8 +7,8 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class TeleportPlayer : Triggerable<ObjectInstance.Trigger.TeleportPlayer> {
-        private Vector3 targetPosition;
-        private Quaternion targetRotation;
+        public Vector3 targetPosition;
+        public Quaternion targetRotation;
 
         protected override void Awake() {
             base.Awake();
@@ -16,8 +16,7 @@ namespace SystemShock.TriggerActions {
             LevelInfo levelInfo = GameObject.FindObjectOfType<LevelInfo>();
 
             targetPosition = new Vector3(ActionData.TileX + 0.5f, ActionData.Z * levelInfo.HeightFactor, ActionData.TileY + 0.5f);
-            targetRotation = Quaternion.Euler(-ActionData.Pitch / 256f * 360f, ActionData.Yaw / 256f * 360f, -ActionData.Roll / 256f * 360f);
-
+            targetRotation = Quaternion.Euler(-ActionData.Pitch / 65536f * 360f, ActionData.Yaw / 65536f * 360f, -ActionData.Roll / 65536f * 360f);           
         }
 
         public override void Trigger() {

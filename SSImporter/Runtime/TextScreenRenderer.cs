@@ -18,8 +18,10 @@ namespace SystemShock {
             text.text = textScreen.Text;
             text.alignment = textScreen.Alignment;
 
+            camera.enabled = true;
             camera.targetTexture = textScreen.Texture;
             camera.Render();
+            camera.enabled = false;
         }
     }
 }

@@ -12,7 +12,7 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class DataObjectGenerator {
-        [MenuItem("Assets/System Shock/3. Generate DataObject Classes", false, 1003)]
+        [MenuItem("Assets/System Shock/2. Generate DataObject Classes", false, 1002)]
         public static void Init() {
             ObjectDeclaration[][] ObjectDeclarations = ObjectPropertyImport.ObjectDeclarations;
 
@@ -43,7 +43,7 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Assets/System Shock/3. Generate DataObject Classes", true)]
+        [MenuItem("Assets/System Shock/2. Generate DataObject Classes", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }

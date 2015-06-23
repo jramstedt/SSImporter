@@ -262,7 +262,7 @@ namespace SystemShock.InstanceObjects {
                     isAnimated = true;
 
                     materialOverride.Frames = 6;
-                    materialOverride.PingPong = 1;
+                    materialOverride.AnimationType = 3;
                     materialOverride.StartFrameIndex = 63;
 
                     overridingMaterial = animationLibrary.GetMaterial(63);
@@ -347,7 +347,7 @@ namespace SystemShock.InstanceObjects {
                     Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
 
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
-                    animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.PingPong, 2f);
+                    animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.AnimationType, 2f);
                 }
 
                 meshRenderer.sharedMaterials = sharedMaterials;

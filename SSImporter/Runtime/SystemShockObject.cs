@@ -94,7 +94,7 @@ namespace SystemShock.Object {
         EmailPlayer = 0x0F,
         RadiationTreatment = 0x10,
         ChangeClassData = 0x11,
-        Unknown0x12 = 0x12,
+        ChangeStartFrame = 0x12,
         ChangeState = 0x13,
         Unknown0x14 = 0x14,
         Unknown0x15 = 0x15,
@@ -236,7 +236,7 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class MaterialOverride {
                 public ushort Frames;
-                public ushort PingPong;
+                public ushort AnimationType;
                 public ushort Unknown1;
                 public ushort StartFrameIndex;
                 public ushort Unknown2;
@@ -428,11 +428,10 @@ namespace SystemShock.Object {
             public class TeleportPlayer {
                 public uint TileX;
                 public uint TileY;
-                public uint Z;
-                public byte Pitch;
-                public byte Yaw;
-                public byte Roll;
-                public byte Unknown;
+                public ushort Z;
+                public ushort Pitch;
+                public ushort Yaw;
+                public ushort Roll;
             }
 
             [Serializable]
@@ -543,6 +542,17 @@ namespace SystemShock.Object {
                 public uint ObjectId;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                public byte[] Data;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class ChangeStartFrame {
+                public uint ObjectId;
+                public byte StartFrameIndex;
+                public ushort AnimationType;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 9)]
                 public byte[] Data;
             }
 

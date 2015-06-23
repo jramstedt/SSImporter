@@ -11,7 +11,7 @@ using SystemShock.Object;
 
 namespace SSImporter.Resource {
     public class SystemShockObjectGenerator : MonoBehaviour {
-        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes", false, 1004)]
+        [MenuItem("Assets/System Shock/3. Generate Object Instance Classes", false, 1003)]
         public static void Init() {
             try {
                 AssetDatabase.StartAssetEditing();
@@ -33,7 +33,7 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Assets/System Shock/4. Generate Object Instance Classes", true)]
+        [MenuItem("Assets/System Shock/3. Generate Object Instance Classes", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
