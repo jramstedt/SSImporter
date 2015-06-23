@@ -26,10 +26,9 @@ They will have to be resized to match the level scale. 0.7 for height seems to w
 2. Clone repository to Unity projects Assets folder. (or copy SSImporter directory)
    Unity should now import and compile everything.
 3. Run every importer in order from Assets/SystemShock menu.
-   Starting from 0. Set RES Path. It should ask for folder. Select your RES folder.
-   Run 1. Create Object Factory
-   Run 2. ..
-   .
+Starting from 0. Set RES Path. It should ask for folder. Select your RES folder.
+Run 1. Create Object Factory
+Run 2. ...
  
 ## Todo
 - Palette rotated textures
