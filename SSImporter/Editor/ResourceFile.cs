@@ -103,12 +103,13 @@ namespace SSImporter.Resource {
         }
 
         public TextureSet[] ReadBitmaps(KnownChunkId chunkId, PaletteChunk palette) {
-            byte[][] chunkBlockData = GetChunkDatas(chunkInfoPointers[chunkId]);
+            ChunkInfo chunkInfo = chunkInfoPointers[chunkId];
+            byte[][] chunkBlockData = GetChunkDatas(chunkInfo);
 
             TextureSet[] textures = new TextureSet[chunkBlockData.Length];
 
             for (int i = 0; i < chunkBlockData.Length; ++i)
-                textures[i] = ReadBitmap(chunkBlockData[i], palette, chunkId.ToString(@"X") + ":" + i);
+                textures[i] = ReadBitmap(chunkBlockData[i], chunkInfo.dataOffset, palette, chunkId.ToString(@"X") + ":" + i);
 
             return textures;
         }
@@ -235,10 +236,10 @@ namespace SSImporter.Resource {
             if (chunkInfo.info.ContentType != ContentType.Bitmap)
                 throw new ArgumentException("Chunk is not bitmap.");
 
-            return ReadBitmap(GetChunkData(chunkInfo, blockIndex), palette, name);
+            return ReadBitmap(GetChunkData(chunkInfo, blockIndex), chunkInfo.dataOffset, palette, name);
         }
 
-        private TextureSet ReadBitmap(byte[] chunkData, PaletteChunk palette, string name) {
+        private TextureSet ReadBitmap(byte[] chunkData, long chunkOffset, PaletteChunk palette, string name) {
             using (MemoryStream ms = new MemoryStream(chunkData)) {
                 BinaryReader msbr = new BinaryReader(ms);
 
@@ -246,19 +247,22 @@ namespace SSImporter.Resource {
 
                 byte[] pixelData;
 
+                //int bytesPerPixel = bitmap.Stride / bitmap.Width;
+
                 if (bitmap.BitmapType == BitmapType.Texture || bitmap.BitmapType == BitmapType.Uncompressed) {
-                    pixelData = msbr.ReadBytes(bitmap.Width * bitmap.Height);
+                    pixelData = msbr.ReadBytes(bitmap.Height * bitmap.Stride);
                 } else if (bitmap.BitmapType == BitmapType.Compressed) {
                     pixelData = RunLengthDecode(bitmap, msbr);
                 } else {
-                    throw new Exception("Not supported bitmap type! " + bitmap.BitmapType);
+                    throw new Exception("Unsupported bitmap type! " + bitmap.BitmapType);
                 }
 
-                if (ms.Length > (ms.Position + 4)) { // Optional data
-                    int optionType = msbr.ReadInt32();
-                    if (optionType == 0x000001) {
-                        palette = msbr.Read<PaletteChunk>();
-                    }
+                if (bitmap.PaletteOffset != 0) {
+                    fileStream.Position = chunkOffset + bitmap.PaletteOffset;
+                    int optionType = binaryReader.ReadInt32();
+
+                    if (optionType == 0x01000000)
+                        palette = binaryReader.Read<PaletteChunk>();
                 }
 
                 #region Create texture

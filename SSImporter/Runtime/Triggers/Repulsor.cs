@@ -20,10 +20,6 @@ namespace SystemShock.Triggers {
             if (actionDataProvider != null)
                 Data = actionDataProvider.TriggerData.Read<RepulsorData>();
 
-            LevelInfo levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-
-            InstanceObjects.Trigger trigger = GetComponent<InstanceObjects.Trigger>();
-
             Vector3 colliderSize = collider.size;
             colliderSize.y = (Data.EndHeight - Data.StartHeight) / 256f;
             collider.size = colliderSize;

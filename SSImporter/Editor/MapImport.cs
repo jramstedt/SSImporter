@@ -39,16 +39,19 @@ namespace SSImporter.Resource {
         }
 
         private static LevelInfo levelInfo;
+        private static SystemShock.LevelInfo runtimeLevelInfo;
         private static ushort[] textureMap;
 
         private static TextureLibrary textureLibrary;
 
         private static void LoadLevel(KnownChunkId mapId, ResourceFile mapLibrary) {
             
-            levelInfo = ReadLevelInfo(mapId, mapLibrary);
+            levelInfo = ReadChunk<LevelInfo>(mapId + 0x0004, mapLibrary);
             textureMap = ReadTextureList(mapId, mapLibrary);
             Tile[,] tileMap = ReadTiles(mapId, mapLibrary, levelInfo);
             TileMesh[,] tileMeshes = new TileMesh[levelInfo.Width, levelInfo.Height];
+
+            LevelVariables levelVariables = ReadChunk<LevelVariables>(mapId + 0x002D, mapLibrary);
 
             #region Read class tables
             object[][] instanceDatas = new object[][] {
@@ -124,12 +127,17 @@ namespace SSImporter.Resource {
 
                 #region Create LevelInfo
                 GameObject levelInfoGO = new GameObject(@"LevelInfo");
-                SystemShock.LevelInfo levelInfoRuntime = levelInfoGO.AddComponent<SystemShock.LevelInfo>();
-                levelInfoRuntime.Type = levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace ? SystemShock.LevelInfo.LevelType.Cyberspace : SystemShock.LevelInfo.LevelType.Normal;
-                levelInfoRuntime.HeightFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightPower) * 256f);
-                levelInfoRuntime.MapScale = 1f / (float)(1 << (int)levelInfo.HeightPower);
-                levelInfoRuntime.TextureMap = textureMap;
-                levelInfoRuntime.Tile = new GameObject[levelInfo.Width, levelInfo.Height];
+                runtimeLevelInfo = levelInfoGO.AddComponent<SystemShock.LevelInfo>();
+                runtimeLevelInfo.Type = levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace ? SystemShock.LevelInfo.LevelType.Cyberspace : SystemShock.LevelInfo.LevelType.Normal;
+                runtimeLevelInfo.HeightFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightShift) * 256f);
+                runtimeLevelInfo.MapScale = 1f / (float)(1 << (int)levelInfo.HeightShift);
+                runtimeLevelInfo.TextureMap = textureMap;
+                runtimeLevelInfo.Tile = new GameObject[levelInfo.Width, levelInfo.Height];
+                runtimeLevelInfo.Radiation = levelVariables.Radiation * 0.5f;
+                runtimeLevelInfo.BioContamination = levelVariables.BioIsGravity == 0 ? levelVariables.BioContamination * 0.5f : 0f;
+                runtimeLevelInfo.Gravity = levelVariables.BioIsGravity != 0 ? levelVariables.BioContamination * 0.5f : 0f;
+
+                runtimeLevelInfo.SetTextureAnimations(mapLibrary.ReadArrayOf<TextureAnimation>(mapId + 0x002A));
                 #endregion
 
                 textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
@@ -150,7 +158,7 @@ namespace SSImporter.Resource {
                         if (tile.Type != TileType.Solid) {
                             TileMesh tileMesh = tileMeshes[x, y];
                             GameObject tileGO = CreateGameObject(CombineTile(tileMesh, tileMeshes), @"Tile " + x.ToString() + " " + y.ToString());
-                            levelInfoRuntime.Tile[x, y] = tileGO;
+                            runtimeLevelInfo.Tile[x, y] = tileGO;
 
                             /*
                             byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
@@ -242,10 +250,10 @@ namespace SSImporter.Resource {
                             }
 
                             if (!tileMesh.FloorMoving)
-                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) + yOffset, y + zOffset));
+                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) + yOffset, y + zOffset));
 
                             if (!tileMesh.CeilingMoving)
-                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightPower) - yOffset, y + zOffset));
+                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) - yOffset, y + zOffset));
                         }
                     }
                 }
@@ -271,7 +279,7 @@ namespace SSImporter.Resource {
                         surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
                 }
 
-                levelInfoRuntime.SurveillanceCamera = surveillanceCamera.ToArray();
+                runtimeLevelInfo.SurveillanceCamera = surveillanceCamera.ToArray();
                 #endregion
 
                 #region Text screen
@@ -280,7 +288,7 @@ namespace SSImporter.Resource {
 
                     GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
                     textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");
-                    levelInfoRuntime.TextScreenRenderer = textScreenRendererGO.AddComponent<TextScreenRenderer>();
+                    runtimeLevelInfo.TextScreenRenderer = textScreenRendererGO.AddComponent<TextScreenRenderer>();
 
                     GameObject cameraGO = new GameObject(@"Camera");
                     cameraGO.layer = LayerMask.NameToLayer(@"UI");
@@ -364,8 +372,17 @@ namespace SSImporter.Resource {
                 }
                 #endregion
 
+                LoopConfig[] loopConfigs = mapLibrary.ReadArrayOf<LoopConfig>(mapId + 0x0033);
+                foreach(LoopConfig loopConfig in loopConfigs) {
+                    SystemShockObject ssObject;
+                    if (!runtimeLevelInfo.Objects.TryGetValue((uint)loopConfig.ObjectId, out ssObject))
+                        continue;
+
+                    Debug.LogFormat(ssObject, "{0} {1} {2} {3}", ssObject.name, loopConfig.ObjectId, loopConfig.LoopType, loopConfig.Unknown);
+                }
+
                 StaticOcclusionCulling.smallestOccluder = 0.5f;
-                StaticOcclusionCulling.smallestHole = levelInfoRuntime.HeightFactor;
+                StaticOcclusionCulling.smallestHole = runtimeLevelInfo.HeightFactor;
                 StaticOcclusionCulling.Compute();
             } catch(Exception e) {
                 Debug.LogException(e);
@@ -413,10 +430,12 @@ namespace SSImporter.Resource {
 
             if (materialAnimations.Count > 0) {
                 AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
-
                 foreach (KeyValuePair<TextureProperties, List<int>> materialAnimation in materialAnimations) {
-                    Material[] frames = textureLibrary.GetMaterialAnimation(materialAnimation.Key.AnimationGroup);
-                    animate.AddAnimation(materialAnimation.Value.ToArray(), frames, 1, 3.5f);
+                    TextureProperties textureProperties = materialAnimation.Key;
+                    TextureAnimation textureAnimation = runtimeLevelInfo.GetTextureAnimationData(textureProperties.AnimationGroup);
+
+                    Material[] frames = textureLibrary.GetMaterialAnimation(textureProperties.AnimationGroup);
+                    animate.AddAnimation(materialAnimation.Value.ToArray(), frames, textureAnimation);
                 }
             }
             #endregion
@@ -586,7 +605,7 @@ namespace SSImporter.Resource {
             GameObject cameraGO = new GameObject();
             cameraGO.name = "Surveillance Camera";
 
-            float yFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightPower) * 256f);
+            float yFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightShift) * 256f);
 
             cameraGO.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * yFactor, objectInstance.Y / 256f);
             cameraGO.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
@@ -600,11 +619,11 @@ namespace SSImporter.Resource {
             return camera;
         }
         
-        private static LevelInfo ReadLevelInfo(KnownChunkId mapId, ResourceFile mapLibrary) {
-            ChunkInfo chunkInfo = mapLibrary.GetChunkInfo(mapId + 0x0004);
+        private static T ReadChunk<T>(KnownChunkId chunkId, ResourceFile mapLibrary) {
+            ChunkInfo chunkInfo = mapLibrary.GetChunkInfo(chunkId);
             using (MemoryStream ms = new MemoryStream(mapLibrary.GetChunkData(chunkInfo))) {
                 BinaryReader msbr = new BinaryReader(ms);
-                return msbr.Read<LevelInfo>();
+                return msbr.Read<T>();
             }
         }
 
@@ -660,14 +679,27 @@ namespace SSImporter.Resource {
         public uint Height;
         public uint LogWidth;
         public uint LogHeight;
-        public uint HeightPower;
-        public uint TileMapPointer;
+        public uint HeightShift;
+        public uint Unknown;
         public LevelInfoFlags Flags;
 
         public override string ToString() {
-            return string.Format(@"Width = {0}, Height = {1}, LogWidth = {2}, LogHeight = {3}, HeightPower = {4}, TileMapPointer = {5}, Flags = {6}",
-                                 Width, Height, LogWidth, LogHeight, HeightPower, TileMapPointer, Flags);
+            return string.Format(@"Width = {0}, Height = {1}, LogWidth = {2}, LogHeight = {3}, HeightShift = {4}, Unknown = {5}, Flags = {6}",
+                                 Width, Height, LogWidth, LogHeight, HeightShift, Unknown, Flags);
         }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct LevelVariables {
+        public uint Size;
+        public byte Radiation;
+        public byte BioContamination;
+        public byte BioIsGravity;
+        public byte RadiationEnabled;
+        public byte BioContaminationEnabled;
+
+        //[MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 85)]
+        //public byte[] Unknown;
     }
 
     public static class MapUtils {
@@ -764,6 +796,25 @@ namespace SSImporter.Resource {
         RidgeSW_NE
     };
 
+    public enum CyberspacePull : byte {
+        None,
+        WeakEast,
+        WeakWest,
+        WeakNorth,
+        WeakSouth,
+        MediumEast,
+        MediumWest,
+        MediumNorth,
+        MediumSouth,
+        StrongEast,
+        StrongWest,
+        StrongNorth,
+        StrongSouth,
+        MediumCeiling,
+        MediumFloor,
+        StrongCeiling,
+    };
+
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Tile {
         [Flags]
@@ -777,6 +828,9 @@ namespace SSImporter.Resource {
             ShadeLower = 0x000F0000,
             ShadeUpper = 0x0F000000,
             TileVisited = 0x80000000,
+
+            CyberspacePull = 0x000F0000,
+            CyberspaceGOL = 0x00000060,
 
             Unknown = 0x70F0F080
         };
@@ -793,7 +847,10 @@ namespace SSImporter.Resource {
         public enum TextureInfoMask : ushort {
             WallTexture = 0x003F,
             CeilingTexture = 0x07C0,
-            FloorTexture = 0xF800
+            FloorTexture = 0xF800,
+
+            CyberspaceFloor = 0x00FF,
+            CyberspaceCeiling = 0xFF00,
         }
 
         [Flags]
@@ -846,5 +903,15 @@ namespace SSImporter.Resource {
         public bool TextureFlip { get { return ((FlipMask)((byte)(Flags & Tile.FlagMask.TextureFlip) >> 5) & FlipMask.Flip) == FlipMask.Flip; } }
 
         public bool TextureAlternate { get { return ((FlipMask)((byte)(Flags & Tile.FlagMask.TextureFlip) >> 5) & FlipMask.Alternate) == FlipMask.Alternate; } }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct LoopConfig {
+        public ushort ObjectId;
+        public byte LoopType;
+        public byte Unknown;
+
+        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11)]
+        public byte[] Unknown2;
     }
 }

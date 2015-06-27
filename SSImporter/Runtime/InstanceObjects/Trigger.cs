@@ -100,6 +100,8 @@ namespace SystemShock.InstanceObjects {
                     gameObject.AddComponent<ChangeStartFrame>();
                 } else if (ClassData.Action == ActionType.ChangeState) {
                     gameObject.AddComponent<ChangeState>();
+                } else if (ClassData.Action == ActionType.Awaken) {
+                    gameObject.AddComponent<Awaken>();
                 } else if (ClassData.Action == ActionType.Message) {
                     gameObject.AddComponent<Message>();
                 } else if (ClassData.Action == ActionType.Spawn) {

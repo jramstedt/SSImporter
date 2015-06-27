@@ -77,7 +77,7 @@ namespace SSImporter.Resource {
             }
 
             for (int corner = 0; corner < 4; ++corner)
-                vertices[corner].y = cornerHeight[corner] / (float)(1 << (int)levelInfo.HeightPower);
+                vertices[corner].y = cornerHeight[corner] / (float)(1 << (int)levelInfo.HeightShift);
 
             Mesh mesh = new Mesh();
             mesh.vertices = vertices;

@@ -97,7 +97,7 @@ namespace SystemShock.Object {
         ChangeStartFrame = 0x12,
         ChangeState = 0x13,
         Unknown0x14 = 0x14,
-        Unknown0x15 = 0x15,
+        Awaken = 0x15,
         Message = 0x16,
         Spawn = 0x17,
         ChangeType = 0x18
@@ -314,7 +314,9 @@ namespace SystemShock.Object {
             public class KeyPad {
                 public ushort Combination;
                 public ushort ObjectToTrigger1;
+                public ushort Delay1;
                 public ushort ObjectToTrigger2;
+                public ushort Delay2;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
                 public byte[] Data;
@@ -559,10 +561,22 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeState {
+                public uint Unknown;
                 public uint ObjectId;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Data;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Awaken {
+                public uint Unknown1;
+                public ushort Corner1ObjectId;
+                public ushort Corner2ObjectId;
+                public uint Unknown2;
+                public ushort Unknown3;
+                public ushort Unknown4;
             }
 
             [Serializable]

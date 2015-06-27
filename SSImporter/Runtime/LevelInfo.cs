@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 using SystemShock.Object;
 
@@ -21,11 +22,18 @@ namespace SystemShock {
         public Dictionary<uint, SystemShockObject> Objects = new Dictionary<uint, SystemShockObject>();
         public TextScreenRenderer TextScreenRenderer;
 
-        [SerializeField]
+        public float Radiation;
+        public float BioContamination;
+        public float Gravity;
+
+        [SerializeField, HideInInspector]
         private List<SSKvp> serializedObjectsDictionary;
 
         [SerializeField, HideInInspector]
         private Tiles serializedTiles;
+
+        [SerializeField]
+        private List<TextureAnimation> textureAnimations;
 
         public void OnAfterDeserialize() {
             Objects = new Dictionary<uint, SystemShockObject>();
@@ -55,6 +63,14 @@ namespace SystemShock {
             };
         }
 
+        public void SetTextureAnimations(TextureAnimation[] textureAnimations) {
+            this.textureAnimations = new List<TextureAnimation>(textureAnimations);
+        }
+
+        public TextureAnimation GetTextureAnimationData(byte animationGroup) {
+            return this.textureAnimations[animationGroup];
+        }
+
         [Serializable]
         private struct SSKvp {
             public uint Key;
@@ -72,5 +88,15 @@ namespace SystemShock {
             public int Height;
             public GameObject[] Tile;
         }
+    }
+
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct TextureAnimation {
+        public ushort FrameTime;
+        public ushort CurrentFrameTime;
+        public byte CurrentFrameIndex;
+        public byte FrameCount;
+        public byte IsPingPong;
     }
 }

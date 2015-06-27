@@ -175,7 +175,7 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        textureLibrary.SetTexture(textureId, material, textureProperties[textureId]);
+                        textureLibrary.AddTexture(textureId, material, textureProperties[textureId]);
                     }
 
                     EditorUtility.SetDirty(textureLibrary);
@@ -220,7 +220,7 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        textureLibrary.SetTexture(textureId, material, emptyTextureProperties);
+                        textureLibrary.AddTexture(textureId, material, emptyTextureProperties);
                     }
 
                     EditorUtility.SetDirty(textureLibrary);
@@ -267,7 +267,7 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        materialLibrary.SetTexture(materialId, material, emptyTextureProperties);
+                        materialLibrary.AddTexture(materialId, material, emptyTextureProperties);
 
                         ++materialId;
                     }

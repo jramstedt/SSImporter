@@ -262,7 +262,7 @@ namespace SystemShock.InstanceObjects {
                     isAnimated = true;
 
                     materialOverride.Frames = 6;
-                    materialOverride.AnimationType = 3;
+                    materialOverride.AnimationType = 2;
                     materialOverride.StartFrameIndex = 63;
 
                     overridingMaterial = animationLibrary.GetMaterial(63);
@@ -345,9 +345,8 @@ namespace SystemShock.InstanceObjects {
 
                 if (isAnimated) {
                     Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
-
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
-                    animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.AnimationType, 2f);
+                    //animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.AnimationType, 2f);
                 }
 
                 meshRenderer.sharedMaterials = sharedMaterials;

@@ -14,7 +14,7 @@ namespace SSImporter.Resource {
         Video,
         Sound = 0x07,
         Model = 0x0F,
-        AudioLog = 0x11,
+        MOVI = 0x11,
         Map = 0x30
     }
 
@@ -122,17 +122,17 @@ namespace SSImporter.Resource {
         public ushort Unknown2;
         public ushort Width;
         public ushort Height;
-        public ushort Pitch;
+        public ushort Stride;
         public byte LogWidth;
         public byte LogHeight;
         public ushort PivotMinX;
         public ushort PivotMinY;
         public ushort PivotMaxX;
         public ushort PivotMaxY;
-        public int Unknown3;
+        public int PaletteOffset;
 
         public override string ToString() {
-            return string.Format("BitmapType = {0}, Width = {1}, Height = {2}, Pitch = {3}, LogWidth = {4}, LogHeight = {5}", BitmapType, Width, Height, Pitch, LogWidth, LogHeight);
+            return string.Format("BitmapType = {0}, Width = {1}, Height = {2}, Stride = {3}, LogWidth = {4}, LogHeight = {5}", BitmapType, Width, Height, Stride, LogWidth, LogHeight);
         }
     }
 

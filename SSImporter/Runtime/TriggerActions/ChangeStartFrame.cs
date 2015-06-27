@@ -31,8 +31,9 @@ namespace SystemShock.TriggerActions {
                 AnimateMaterial animate = Target.GetComponent<AnimateMaterial>();
                 AnimateMaterial.AnimationSet animation = animate.GetAnimationSet();
 
-                animation.AnimationType = ActionData.AnimationType == 0 ? (ushort)3 : (ushort)4;
+                animation.WrapMode = ActionData.AnimationType == 0 ? AnimateMaterial.WrapMode.Once : AnimateMaterial.WrapMode.ReverseOnce;
                 animation.Frames = animationLibrary.GetMaterialAnimation(ActionData.StartFrameIndex, (ushort)animation.Frames.Length);
+                animation.CurrentFrame = -1;
 
                 animate.SetAnimation(animation);
             }

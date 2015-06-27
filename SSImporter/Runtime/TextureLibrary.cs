@@ -11,24 +11,21 @@ using System.Runtime.InteropServices;
 
 namespace SystemShock.Resource {
     public class TextureLibrary : AbstractResourceLibrary<TextureLibrary> {
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<Material> materials;
 
-        [SerializeField]
-        public List<TextureProperties> textureProperties;
+        [SerializeField, HideInInspector]
+        private List<TextureProperties> textureProperties;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<ushort> indexMap;
 
         public TextureLibrary() {
             materials = new List<Material>();
-            textureProperties = new List<TextureProperties>();
             indexMap = new List<ushort>();
         }
 
-        public void SetTexture(ushort textureId, Material material, TextureProperties textureProperties) {
+        public void AddTexture(ushort textureId, Material material, TextureProperties textureProperties) {
             if (indexMap.Contains(textureId))
                 throw new ArgumentException(string.Format(@"Texture {0} already set.", textureId));
 
@@ -61,7 +58,7 @@ namespace SystemShock.Resource {
 
             return frames;
         }
-
+        
         public Material[] GetMaterialAnimation(byte animationGroup) {
             SortedDictionary<byte, Material> animationFrames = new SortedDictionary<byte, Material>();
             for(int i = 0; i < textureProperties.Count; ++i) {
@@ -72,7 +69,7 @@ namespace SystemShock.Resource {
 
             return animationFrames.Values.ToArray();
         }
-
+        
         public Material[] GetMaterialAnimation(Material material) {
             return GetMaterialAnimation(textureProperties[materials.IndexOf(material)].AnimationGroup);
         }
