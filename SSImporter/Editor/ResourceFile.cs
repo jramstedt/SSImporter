@@ -132,6 +132,29 @@ namespace SSImporter.Resource {
             return strings;
         }
 
+        public SoundEffectSet ReadSoundEffects(KnownChunkId chunkId)
+        {
+            return ReadSoundEffects(chunkInfoPointers[chunkId]);
+        }
+
+        public SoundEffectSet ReadSoundEffects(ChunkInfo chunkInfo)
+        {
+            if (chunkInfo.info.ContentType != ContentType.Sound)
+                throw new ArgumentException("Chunk is not sound.");
+
+            SoundEffectSet sfx = new SoundEffectSet();
+
+            byte[][] chunkBlockData = GetChunkDatas(chunkInfo);
+            sfx.Data = new byte[chunkBlockData[0].Length];
+            Array.Copy(chunkBlockData[0], 0, sfx.Data, 0, chunkBlockData[0].Length);
+
+            byte freqDivisor = sfx.Data[0x1E];
+            UInt32 sampleRate = 1000000 / (256 - (UInt32)freqDivisor);
+            sfx.SampleRate = sampleRate;
+
+            return sfx;
+        }
+
         public FontSet ReadFont(KnownChunkId chunkId, PaletteChunk palette) {
             return ReadFont(chunkInfoPointers[chunkId], palette);
         }
@@ -667,6 +690,16 @@ namespace SSImporter.Resource {
             Texture2D.DestroyImmediate(Texture);
         }
     }
+
+    public class SoundEffectSet : IDisposable
+    {
+        public byte[] Data;
+        public UInt32 SampleRate;
+
+        public void Dispose(){ }
+
+    }
+
 }
 
 
