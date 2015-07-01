@@ -24,7 +24,7 @@ namespace SystemShock.TriggerActions {
 
         private void Start() {
             SystemShockObject ssObject;
-            if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger1, out ssObject)) {
+            if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger1, out ssObject)) {
                 Target1 = ssObject.GetComponent<Triggerable>();
 
                 if (Target1 == null) {
@@ -35,7 +35,7 @@ namespace SystemShock.TriggerActions {
                 Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger1, this);
             }
 
-            if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger2, out ssObject)) {
+            if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger2, out ssObject)) {
                 Target2 = ssObject.GetComponent<Triggerable>();
 
                 if (Target2 == null) {
@@ -46,7 +46,7 @@ namespace SystemShock.TriggerActions {
                 Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger2, this);
             }
 
-            if (ActionData.ObjectToTrigger3 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger3, out ssObject)) {
+            if (ActionData.ObjectToTrigger3 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger3, out ssObject)) {
                 Target3 = ssObject.GetComponent<Triggerable>();
 
                 if (Target3 == null) {
@@ -57,7 +57,7 @@ namespace SystemShock.TriggerActions {
                 Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger3, this);
             }
 
-            if (ActionData.ObjectToTrigger4 != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger4, out ssObject)) {
+            if (ActionData.ObjectToTrigger4 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger4, out ssObject)) {
                 Target4 = ssObject.GetComponent<Triggerable>();
 
                 if (Target4 == null) {

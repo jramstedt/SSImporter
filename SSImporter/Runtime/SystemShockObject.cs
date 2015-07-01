@@ -7,6 +7,8 @@ using SystemShock.Resource;
 
 namespace SystemShock.Object {
     public abstract class SystemShockObject : MonoBehaviour {
+        public abstract ushort ObjectId { get; }
+
         public ObjectClass Class;
         public byte SubClass;
         public byte Type;
@@ -19,7 +21,7 @@ namespace SystemShock.Object {
         public byte Unknown2;
         public byte Unknown3;
 
-        public void Setup(ObjectInstance objectInstance, object instanceData) {
+        public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
             Class = (SystemShock.Object.ObjectClass)objectInstance.Class;
             SubClass = objectInstance.SubClass;
             Type = objectInstance.Type;
@@ -37,24 +39,31 @@ namespace SystemShock.Object {
             InitializeInstance();
         }
 
-        protected virtual void SetClassData(object classData) { }
+        protected virtual void SetClassData(IClassData classData) { }
 
         protected virtual void InitializeInstance() { }
     }
-    public abstract class SystemShockObject<T> : SystemShockObject {
+
+    public abstract class SystemShockObject<T> : SystemShockObject where T : IClassData {
         public T ClassData;
+
+        public override ushort ObjectId { get { return ClassData.ObjectId; } }
     }
 
     public abstract class SystemShockObjectProperties : MonoBehaviour {
         public abstract BaseProperties Base { get; }
 
-        public virtual void SetProperties(ObjectData properties) { }
+        public abstract void SetProperties(ObjectData properties);
 
     }
 
     public abstract class SystemShockObjectProperties<G, S> : SystemShockObjectProperties {
         public abstract G Generic { get; }
         public abstract S Specific { get; }
+    }
+
+    public interface IClassData {
+        ushort ObjectId { get; }
     }
 
     public enum ObjectClass : byte {
@@ -94,7 +103,7 @@ namespace SystemShock.Object {
         EmailPlayer = 0x0F,
         RadiationTreatment = 0x10,
         ChangeClassData = 0x11,
-        ChangeStartFrame = 0x12,
+        ChangeFrameLoop = 0x12,
         ChangeState = 0x13,
         Unknown0x14 = 0x14,
         Awaken = 0x15,
@@ -136,7 +145,7 @@ namespace SystemShock.Object {
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Weapon {
+        public class Weapon : IClassData {
             public Link Link;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 2)]
@@ -155,59 +164,73 @@ namespace SystemShock.Object {
                 public byte Charge;
                 public byte Temperature;
             }
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Ammunition {
+        public class Ammunition : IClassData {
             public Link Link;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Projectile {
+        public class Projectile : IClassData {
             public Link Link;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 34)]
             public byte[] Data;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Explosive {
+        public class Explosive : IClassData {
             public Link Link;
 
             public ushort Unknown1;
             public uint Flags;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class DermalPatch {
+        public class DermalPatch : IClassData {
             public Link Link;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Hardware {
+        public class Hardware : IClassData {
             public Link Link;
 
             public byte Version;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class SoftwareAndLog {
+        public class SoftwareAndLog : IClassData {
             public Link Link;
 
             public byte Version;
             public byte LogIndex;
             public byte LevelIndex;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Decoration {
+        public class Decoration : IClassData {
             public Link Link;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
@@ -236,7 +259,7 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class MaterialOverride {
                 public ushort Frames;
-                public ushort AnimationType;
+                public ushort Unknown; // somewhat correlates with loop type
                 public ushort Unknown1;
                 public ushort StartFrameIndex;
                 public ushort Unknown2;
@@ -275,11 +298,13 @@ namespace SystemShock.Object {
                 public ushort Unknown3;
                 public ushort Unknown4;
             }
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Item {
+        public class Item : IClassData {
             public Link Link;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
@@ -294,11 +319,13 @@ namespace SystemShock.Object {
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 6)]
                 public byte[] Fill;
             }
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Interface {
+        public class Interface : IClassData {
             public Link Link;
 
             public ActionType Action;
@@ -388,11 +415,13 @@ namespace SystemShock.Object {
                 public uint Unknown2;
                 public ushort Unknown3;
             }
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 14)]
-        public class DoorAndGrating {
+        public class DoorAndGrating : IClassData {
             public Link Link;
 
             public ushort TriggerIndex;
@@ -402,19 +431,23 @@ namespace SystemShock.Object {
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
             public byte[] Data;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Animated {
+        public class Animated : IClassData {
             public Link Link;
 
             public uint Data;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Trigger {
+        public class Trigger : IClassData {
             public Link Link;
 
             public ActionType Action;
@@ -549,7 +582,7 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class ChangeStartFrame {
+            public class ChangeFrameLoop {
                 public uint ObjectId;
                 public byte StartFrameIndex;
                 public ushort AnimationType;
@@ -620,11 +653,13 @@ namespace SystemShock.Object {
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 14)]
                 public byte[] Unknown;
             }
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Container {
+        public class Container : IClassData {
             public Link Link;
 
             public ushort Object1;
@@ -637,15 +672,19 @@ namespace SystemShock.Object {
             public byte TopBottomTexture;
             public byte SideTexture;
             public ushort Flags;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public class Enemy {
+        public class Enemy : IClassData {
             public Link Link;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 40)]
             public byte[] Data;
+
+            public ushort ObjectId { get { return Link.ObjectIndex; } }
         }
     }
 }

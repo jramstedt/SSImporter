@@ -132,27 +132,104 @@ namespace SSImporter.Resource {
             return strings;
         }
 
-        public SoundEffectSet ReadSoundEffects(KnownChunkId chunkId)
-        {
-            return ReadSoundEffects(chunkInfoPointers[chunkId]);
+        public SoundEffectSet ReadSoundEffect(KnownChunkId chunkId, ushort blockIndex = 0) {
+            return ReadSoundEffect(chunkInfoPointers[chunkId], blockIndex);
         }
 
-        public SoundEffectSet ReadSoundEffects(ChunkInfo chunkInfo)
-        {
+        public SoundEffectSet ReadSoundEffect(ChunkInfo chunkInfo, ushort blockIndex = 0) {
             if (chunkInfo.info.ContentType != ContentType.Sound)
                 throw new ArgumentException("Chunk is not sound.");
 
-            SoundEffectSet sfx = new SoundEffectSet();
+            using (MemoryStream ms = new MemoryStream(GetChunkData(chunkInfo, blockIndex)), ams = new MemoryStream()) {
+                BinaryReader msbr = new BinaryReader(ms);
+                BinaryWriter amsbw = new BinaryWriter(ams);
 
-            byte[][] chunkBlockData = GetChunkDatas(chunkInfo);
-            sfx.Data = new byte[chunkBlockData[0].Length];
-            Array.Copy(chunkBlockData[0], 0, sfx.Data, 0, chunkBlockData[0].Length);
+                SoundEffectSet sfx = new SoundEffectSet();
 
-            byte freqDivisor = sfx.Data[0x1E];
-            UInt32 sampleRate = 1000000 / (256 - (UInt32)freqDivisor);
-            sfx.SampleRate = sampleRate;
+                SoundEffect soundEffect = msbr.Read<SoundEffect>();
 
-            return sfx;
+                if(soundEffect.VersionValidation != (~soundEffect.Version + 0x1234))
+                    throw new ArgumentException("Sound validation failed.");
+
+                ReadSoundEffectBlocks(msbr, amsbw, sfx);
+
+                sfx.Data = ams.ToArray();
+
+                return sfx;
+            }
+        }
+
+        private void ReadSoundEffectBlocks(BinaryReader msbr, BinaryWriter amsbw, SoundEffectSet sfx) {
+            while (msbr.BaseStream.Position < msbr.BaseStream.Length) {
+                SoundEffect.BlockType blockType = (SoundEffect.BlockType)msbr.ReadByte();
+
+                if (blockType == SoundEffect.BlockType.Terminator)
+                    break;
+
+                byte[] lengthBytes = msbr.ReadBytes(3);
+                int dataLength = lengthBytes[2] << 24 | lengthBytes[1] << 16 | lengthBytes[0];
+
+                if (blockType == SoundEffect.BlockType.SoundData) {
+                    byte frequencyDivisor = msbr.ReadByte();
+                    /*byte codecId =*/ msbr.ReadByte();
+
+                    sfx.SampleRate = 1000000 / (256 - (uint)frequencyDivisor);
+
+                    amsbw.Write(msbr.ReadBytes(dataLength - 2)); // Block header is 2 bytes.
+                } else if (blockType == SoundEffect.BlockType.SoundDataContinuation) {
+                    /*byte frequencyDivisor =*/ msbr.ReadByte();
+                    /*byte codecId =*/ msbr.ReadByte();
+
+                    // Does audio need resampling?
+
+                    amsbw.Write(msbr.ReadBytes(dataLength - 2)); // Block header is 2 bytes.
+                } else if (blockType == SoundEffect.BlockType.Silence) {
+                    ushort lengthOfSilence = (ushort)(1 + msbr.ReadUInt16());
+                    byte frequencyDivisor = msbr.ReadByte();
+
+                    // What if silence is in the beginning?
+
+                    uint sampleRate = 1000000 / (256 - (uint)frequencyDivisor);
+                    float sampleRateFactor = sfx.SampleRate / sampleRate;
+
+                    uint totalLengthOfSamples = (uint)(lengthOfSilence * sampleRateFactor * sfx.ChannelCount);
+
+                    for (int i = 0; i < totalLengthOfSamples; ++i)
+                        amsbw.Write((byte)0);
+                } else if (blockType == SoundEffect.BlockType.Marker) {
+                    /*ushort markerId =*/ msbr.ReadUInt16();
+                } else if (blockType == SoundEffect.BlockType.Text) {
+                    /*string text = Encoding.UTF8.GetString(*/msbr.ReadBytes(dataLength - 2)/*)*/;
+                } else if (blockType == SoundEffect.BlockType.RepeatStart) {
+                    MemoryStream repeatms = new MemoryStream();
+                    BinaryWriter repeatmsbw = new BinaryWriter(repeatms);
+
+                    ushort repeatCount = (ushort)(1 + msbr.ReadUInt16());
+
+                    ReadSoundEffectBlocks(msbr, repeatmsbw, sfx);
+
+                    for (int i = 0; i < repeatCount; ++i)
+                        repeatms.WriteTo(amsbw.BaseStream);
+                } else if (blockType == SoundEffect.BlockType.RepeatEnd) {
+                    break;
+                } else if (blockType == SoundEffect.BlockType.ExtraInfo) {
+                    /*ushort frequencyDivisor =*/ msbr.ReadUInt16();
+                    /*byte codecId =*/ msbr.ReadByte();
+                    /*byte channelCount = (byte)(1 +*/ msbr.ReadByte()/*)*/;
+
+                    //uint sampleRate = 256000000 / (channelCount * (65536 - (uint)frequencyDivisor));
+
+                    // This should override next sound block
+                } else if (blockType == SoundEffect.BlockType.SoundDataNew) {
+                    /*uint sampleRate =*/ msbr.ReadUInt32();
+                    /*byte bitsPerSample =*/ msbr.ReadByte();
+                    /*byte channelCount =*/ msbr.ReadByte();
+                    /*ushort codecId =*/ msbr.ReadUInt16();
+                    /*uint reserved =*/ msbr.ReadUInt32();
+
+                    /*amsbw.Write(*/msbr.ReadBytes(dataLength - 12)/*)*/; // Block header is 12 bytes.
+                }
+            }
         }
 
         public FontSet ReadFont(KnownChunkId chunkId, PaletteChunk palette) {
@@ -226,7 +303,7 @@ namespace SSImporter.Resource {
                             bool white = (block & (1 << (7 - (x & 7)))) != 0;
 
                             if (white)
-                            texture.SetPixel(x + PADDING, y + PADDING, new Color(1f, 1f, 1f, 1f));
+                                texture.SetPixel(x + PADDING, y + PADDING, new Color(1f, 1f, 1f, 1f));
                         }
                     }
                 } else if (font.DataType == BitmapFont.BitmapDataType.Color) {
@@ -304,7 +381,7 @@ namespace SSImporter.Resource {
                             emission.SetPixel(x, y, palette[paletteIndex]);
                             emissionHasPixels = true;
                         }
-                        
+
                         //if (paletteIndex > 4 && paletteIndex < 32)
                         //    animated = true;
 
@@ -317,7 +394,7 @@ namespace SSImporter.Resource {
                     emission = null;
                 }
 
-                Vector2 pivot = new Vector2(    (bitmap.PivotMinX + bitmap.PivotMaxX) / 2f,
+                Vector2 pivot = new Vector2((bitmap.PivotMinX + bitmap.PivotMaxX) / 2f,
                                                 lastY - (bitmap.PivotMinY + bitmap.PivotMaxY) / 2f);
 
                 if (bitmap.PivotMinX == 0 && bitmap.PivotMaxX == 0)
@@ -691,13 +768,17 @@ namespace SSImporter.Resource {
         }
     }
 
-    public class SoundEffectSet : IDisposable
-    {
+    public class SoundEffectSet {
         public byte[] Data;
-        public UInt32 SampleRate;
+        public byte BitsPerSample;
+        public uint SampleRate;
+        public byte ChannelCount;
 
-        public void Dispose(){ }
-
+        public SoundEffectSet() {
+            BitsPerSample = 8;
+            SampleRate = 22050;
+            ChannelCount = 1;
+        }
     }
 
 }

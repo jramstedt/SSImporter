@@ -7,28 +7,26 @@ using System.Collections.Generic;
 namespace SystemShock.Resource {
     public class ModelLibrary : AbstractResourceLibrary<ModelLibrary> {
         [SerializeField]
-        [HideInInspector]
-        private List<string> modelGuids;
+        private List<GameObject> modelPrefabs;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<ushort> indexMap;
 
         public ModelLibrary() {
-            modelGuids = new List<string>();
+            modelPrefabs = new List<GameObject>();
             indexMap = new List<ushort>();
         }
 
-        public void SetModel(ushort modelId, string guid) {
+        public void AddModel(ushort modelId, GameObject modelPrefab) {
             if (indexMap.Contains(modelId))
                 throw new ArgumentException(string.Format(@"Model {0} already set.", modelId));
 
             indexMap.Add(modelId);
-            modelGuids.Add(guid);
+            modelPrefabs.Add(modelPrefab);
         }
 
-        public string GetModelGuid(ushort modelId) {
-            return modelGuids[indexMap.IndexOf(modelId)];
+        public GameObject GetModel(ushort modelId) {
+            return modelPrefabs[indexMap.IndexOf(modelId)];
         }
     }
 }

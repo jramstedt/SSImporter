@@ -118,9 +118,11 @@ namespace SSImporter.Resource {
 
             File.WriteAllBytes(Application.dataPath + "/SystemShock/" + libraryAssetPath, atlasDiffuse.EncodeToPNG());
 
-            AssetDatabase.Refresh();
+            string assetPath = @"Assets/SystemShock/" + libraryAssetPath;
 
-            TextureImporter textureImporter = TextureImporter.GetAtPath(@"Assets/SystemShock/" + libraryAssetPath) as TextureImporter;
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+
+            TextureImporter textureImporter = TextureImporter.GetAtPath(assetPath) as TextureImporter;
             textureImporter.alphaIsTransparency = true;
             textureImporter.compressionQuality = 100;
             textureImporter.linearTexture = true;

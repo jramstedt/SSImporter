@@ -22,8 +22,7 @@ namespace SSImporter.Resource {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
-        private static void CreateSoundEffectAssets()
-        {
+        private static void CreateSoundEffectAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
             string resourcePath = filePath + @"\DATA\digifx.res";
@@ -33,81 +32,75 @@ namespace SSImporter.Resource {
 
             ResourceFile soundEffectResource = new ResourceFile(resourcePath);
 
-            if (!Directory.Exists(@"Assets/SystemShock/" + @"soundeffects.res"))
-                AssetDatabase.CreateFolder(@"Assets/SystemShock", @"soundeffects.res");
-
             try {
-                AssetDatabase.StartAssetEditing();
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
+                    AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-                Dictionary<uint, SoundEffectSet> soundDictionary = new Dictionary<uint, SoundEffectSet>();
-                foreach (KnownChunkId chunkId in soundEffectResource.GetChunkList())
-                {
-                    SoundEffectSet sfx = soundEffectResource.ReadSoundEffects(chunkId);  
-                    soundDictionary.Add((uint)chunkId, sfx);
+                if (!Directory.Exists(Application.dataPath + @"/SystemShock/digifx.res"))
+                    AssetDatabase.CreateFolder(@"Assets/SystemShock", @"digifx.res");
 
-                    ConvertToWave((uint)chunkId, soundDictionary[(uint)chunkId], "soundeffects.res");
+                float progress = 0f;
+                float progressStep = 1f / soundEffectResource.GetChunkList().Count;
+
+                foreach (KnownChunkId chunkId in soundEffectResource.GetChunkList()) {
+                    EditorUtility.DisplayProgressBar(@"Import Sound Effects", (uint)chunkId + @".wav", progress);
+
+                    SoundEffectSet sfx = soundEffectResource.ReadSoundEffect(chunkId);
+                    ConvertToWave(chunkId, sfx, "digifx.res");
+
+                    string assetPath = string.Format(@"Assets/SystemShock/digifx.res/{0}.wav", (uint)chunkId);
+
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+
+                    //AudioImporter audioImporter = AudioImporter.GetAtPath(assetPath) as AudioImporter;
+                    //audioImporter.SaveAndReimport();
+
+                    AudioClip audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath);
+
+                    // TODO add to library
+
+                    progress += progressStep;
                 }
-                
+
             } finally {
-                AssetDatabase.StopAssetEditing();
+                EditorUtility.ClearProgressBar();
                 EditorApplication.SaveAssets();
             }
 
             AssetDatabase.Refresh();
         }
 
-        private static void ConvertToWave(uint chunkId, SoundEffectSet sfx, string libraryAssetPath)
-        {
-            int filesize = 0;
+        private static void ConvertToWave(KnownChunkId chunkId, SoundEffectSet sfx, string libraryAssetPath) {
+            using (MemoryStream ms = new MemoryStream()) {
+                BinaryWriter msbw = new BinaryWriter(ms, Encoding.ASCII);
+                msbw.Write(@"RIFF".ToCharArray());
+                msbw.Write((uint)0);
+                msbw.Write(@"WAVE".ToCharArray());
 
-            byte[] wave_header = new byte[44];
-            byte[] wave_data = new byte[wave_header.Length + sfx.Data.Length - 0x20]; //0x20 Header size
-            WriteBytes(wave_header, "RIFF", 0, 4);
-            WriteBytes(wave_header, "WAVE", 8, 4);
-            WriteBytes(wave_header, "fmt ", 12, 4);
-            WriteBytes(wave_header, (int)16, 16);
-            WriteBytes(wave_header, (ushort)1, 20);
-            WriteBytes(wave_header, (ushort)1, 22);
-            WriteBytes(wave_header, (int)sfx.SampleRate, 24);
-            WriteBytes(wave_header, (int)((sfx.SampleRate * 8 * 1) / 8), 28);
-            WriteBytes(wave_header, (ushort)1, 32);
-            WriteBytes(wave_header, (ushort)8, 34);
-            WriteBytes(wave_header, "data", 36, 4);
+                msbw.Write(@"fmt ".ToCharArray());
+                msbw.Write((uint)16); // fmt chunk data length
+                msbw.Write((ushort)1);
+                msbw.Write((ushort)sfx.ChannelCount);
+                msbw.Write(sfx.SampleRate);
+                msbw.Write((uint)(sfx.ChannelCount * sfx.SampleRate * Mathf.Round(sfx.BitsPerSample / 8f)));
+                msbw.Write((ushort)(sfx.BitsPerSample * Mathf.Round(sfx.ChannelCount / 8f)));
+                msbw.Write((ushort)sfx.BitsPerSample);
+                msbw.Write(@"data".ToCharArray());
+                msbw.Write((uint)sfx.Data.Length);
+                msbw.Write(sfx.Data);
 
-            int channels = 1;
-            int bitsPerSample = 8;
-            int samples = sfx.Data.Length - 0x20;
-            filesize = samples * channels * bitsPerSample / 8;
+                msbw.Flush();
 
-            WriteBytes(wave_header, (int)(filesize - 8), 4);
-            WriteBytes(wave_header, (int)(filesize - 44), 40);
+                msbw.Seek(4, SeekOrigin.Begin);
+                msbw.Write((uint)(ms.Length - 8)); // 4 + 4
 
-            Array.Copy(wave_header, 0, wave_data, 0, wave_header.Length);
-            Array.Copy(sfx.Data, 0x20, wave_data, wave_header.Length, samples);
+                msbw.Flush();
 
-            Debug.Log(String.Format("converting sfx {0}", chunkId));
-
-
-            File.WriteAllBytes(Application.dataPath + "/SystemShock/" + libraryAssetPath + "/" + chunkId.ToString() + ".wav", wave_data);
+                using (FileStream file = File.Create(Application.dataPath + "/SystemShock/" + libraryAssetPath + "/" + (uint)chunkId + ".wav")) {
+                    ms.Seek(0, SeekOrigin.Begin);
+                    ms.WriteTo(file);
+                }
+            }
         }
-
-        private static void WriteBytes(byte[] array, string str, int offset, int length)
-        {
-            for (int i = 0; i < length; i++)
-                array[offset + i] = (byte)str[i];
-        }
-
-        private static void WriteBytes(byte[] array, ushort value, int offset)
-        {
-            byte[] bytes = BitConverter.GetBytes(value);
-            Array.Copy(bytes, 0, array, offset, bytes.Length);
-        }
-
-        private static void WriteBytes(byte[] array, int value, int offset)
-        {
-            byte[] bytes = BitConverter.GetBytes(value);
-            Array.Copy(bytes, 0, array, offset, bytes.Length);
-        }
-
     }
 }

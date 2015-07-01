@@ -6,7 +6,7 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeStartFrame : Triggerable<ObjectInstance.Trigger.ChangeStartFrame> {
+    public class ChangeFrameLoop : Triggerable<ObjectInstance.Trigger.ChangeFrameLoop> {
         public SystemShockObject Target;
 
         private LevelInfo levelInfo;
@@ -22,7 +22,7 @@ namespace SystemShock.TriggerActions {
         }
 
         private void Start() {
-            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((uint)ActionData.ObjectId, out Target))
+            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId, out Target))
                 Debug.Log("Tried to find object! " + ActionData.ObjectId, this);
         }
 

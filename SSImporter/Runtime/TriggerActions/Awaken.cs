@@ -17,10 +17,10 @@ namespace SystemShock.TriggerActions {
         }
 
         private void Start() {
-            if (ActionData.Corner1ObjectId != 0 && !levelInfo.Objects.TryGetValue((uint)ActionData.Corner1ObjectId, out FirstCorner))
+            if (ActionData.Corner1ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner1ObjectId, out FirstCorner))
                 Debug.Log("Tried to find object! " + ActionData.Corner1ObjectId, this);
 
-            if (ActionData.Corner2ObjectId != 0 && !levelInfo.Objects.TryGetValue((uint)ActionData.Corner2ObjectId, out SecondCorner))
+            if (ActionData.Corner2ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner2ObjectId, out SecondCorner))
                 Debug.Log("Tried to find object! " + ActionData.Corner2ObjectId, this);
         }
 

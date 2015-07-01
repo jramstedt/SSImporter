@@ -13,6 +13,8 @@ namespace SystemShock {
             ReverseRepeat,
             ReverseOnce,
             PingPong,
+            PingPong1,
+            PingPong2,
 
             EnumLength
         }
@@ -35,6 +37,14 @@ namespace SystemShock {
 
                 if (Renderer.isVisible)
                     UpdateAnimationSet(animationSet);
+            }
+        }
+
+        public void Reset() {
+            for (int animationIndex = 0; animationIndex < animationSets.Length; ++animationIndex) {
+                AnimationSet animationSet = animationSets[animationIndex];
+                animationSet.TimeAccumulator = 0.0;
+                animationSet.CurrentFrame = -1;
             }
         }
 

@@ -17,7 +17,7 @@ namespace SystemShock.TriggerActions {
         }
 
         private void Start() {
-            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((uint)ActionData.ObjectId, out Target))
+            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId, out Target))
                 Debug.Log("Tried to find object! " + ActionData.ObjectId, this);
         }
 

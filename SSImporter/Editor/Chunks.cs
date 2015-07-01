@@ -190,4 +190,27 @@ namespace SSImporter.Resource {
         Texture = 0x02,
         Compressed = 0x04
     }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SoundEffect {
+        public enum BlockType : byte {
+            Terminator,
+            SoundData,
+            SoundDataContinuation,
+            Silence,
+            Marker,
+            Text,
+            RepeatStart,
+            RepeatEnd,
+            ExtraInfo,
+            SoundDataNew
+        }
+
+        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 19)]
+        private byte[] MagicIdentifier;
+        private byte MagicIdentifierTerminator;
+        public ushort HeaderLength;
+        public ushort Version;
+        public ushort VersionValidation;
+    }
 }

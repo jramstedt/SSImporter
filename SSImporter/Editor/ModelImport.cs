@@ -30,10 +30,10 @@ namespace SSImporter.Resource {
             if (!File.Exists(obj3dPath))
                 return;
 
-            PaletteLibrary paletteLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/gamepal.res.asset", typeof(PaletteLibrary)) as PaletteLibrary;
+            PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary(@"gamepal.res");
             Palette gamePalette = paletteLibrary.GetPalette(KnownChunkId.Palette);
 
-            TextureLibrary textureLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/citmat.res.asset", typeof(TextureLibrary)) as TextureLibrary;
+            TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
 
             try {
                 AssetDatabase.StartAssetEditing();
@@ -45,6 +45,8 @@ namespace SSImporter.Resource {
 
                 ModelLibrary modelLibrary = ScriptableObject.CreateInstance<ModelLibrary>();
                 AssetDatabase.CreateAsset(modelLibrary, @"Assets/SystemShock/obj3d.res.asset");
+
+                ObjectFactory.GetController().AddLibrary(modelLibrary);
 
                 foreach (KnownChunkId chunkId in obj3dResource.GetChunkList()) {
                     ushort modelId = chunkId - KnownChunkId.ModelsStart;
@@ -81,18 +83,15 @@ namespace SSImporter.Resource {
                     MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
                     meshRenderer.materials = materials;
 
-                    PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
+                    EditorUtility.SetDirty(gameObject);
+                    GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
 
-                    string guid = AssetDatabase.AssetPathToGUID(assetPath);
-
-                    modelLibrary.SetModel(modelId, guid);
+                    modelLibrary.AddModel(modelId, prefabGameObject);
 
                     GameObject.DestroyImmediate(gameObject);
                 }
 
                 EditorUtility.SetDirty(modelLibrary);
-
-                ObjectFactory.GetController().AddLibrary(modelLibrary);
                 #endregion
             } finally {
                 AssetDatabase.StopAssetEditing();

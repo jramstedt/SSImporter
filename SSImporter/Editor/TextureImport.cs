@@ -79,7 +79,7 @@ namespace SSImporter.Resource {
             try {
                 AssetDatabase.StartAssetEditing();
 
-                StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
+                StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
                 CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
@@ -163,7 +163,7 @@ namespace SSImporter.Resource {
                         material.mainTexture = texture.Diffuse;
                         material.SetFloat(@"_Glossiness", 0f);
 
-                        Texture2D emissiveTexture = texture.Emission ?? AssetDatabase.LoadAssetAtPath(string.Format(@"Assets/SSImporter/Emission/{0:000}.png", textureId), typeof(Texture2D)) as Texture2D;
+                        Texture2D emissiveTexture = texture.Emission ?? AssetDatabase.LoadAssetAtPath<Texture2D>(string.Format(@"Assets/SSImporter/Emission/{0:000}.png", textureId));
                         if (emissiveTexture != null) {
                             material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive | MaterialGlobalIlluminationFlags.BakedEmissive;
                             material.SetTexture(@"_EmissionMap", emissiveTexture);

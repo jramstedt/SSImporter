@@ -50,60 +50,6 @@ namespace SystemShock.InstanceObjects {
 
                     float scale = 1f/64f * sizeMap[(text.Font & 0x00F0) >> 4];
                     meshText.transform.localScale = new Vector3(scale, scale, scale);
-
-                    /*
-                    TextGenerationSettings settings = new TextGenerationSettings();
-                    settings.color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
-                    settings.font = font;
-                    //settings.fontSize = Mathf.FloorToInt(14f * sizeMap[(text.Font & 0x00F0) >> 4]);
-                    settings.fontSize = 12;
-                    settings.fontStyle = FontStyle.Normal;
-                    settings.generateOutOfBounds = true;
-                    settings.horizontalOverflow = HorizontalWrapMode.Overflow;
-                    settings.lineSpacing = 1f;
-                    settings.pivot = Vector2.zero;
-                    settings.resizeTextForBestFit = false;
-                    settings.richText = false;
-                    settings.textAnchor = TextAnchor.MiddleCenter;
-                    settings.updateBounds = true;
-                    settings.verticalOverflow = VerticalWrapMode.Overflow;
-
-                    TextGenerator generator = new TextGenerator();
-                    generator.Populate(decalWords[text.TextIndex], settings);
-
-                    MeshFilter meshFilter = GetComponent<MeshFilter>();
-                    Mesh mesh = new Mesh();
-                    mesh.name = decalWords[text.TextIndex];
-
-                    Debug.LogFormat(gameObject, "Verts {0} {1}", decalWords[text.TextIndex], generator.vertexCount);
-
-                    //mesh.colors32 = generator.verts.Select(v => v.color).ToArray();
-                    //mesh.normals = generator.verts.Select(v => v.normal).ToArray();
-                    mesh.vertices = generator.verts.Select(v => v.position).ToArray();
-                    //mesh.tangents = generator.verts.Select(v => v.tangent).ToArray();
-                    mesh.uv = generator.verts.Select(v => v.uv0).ToArray();
-                    //mesh.uv2 = generator.verts.Select(v => v.uv1).ToArray();
-
-                    int[] triangles = new int[(generator.vertexCount / 4) * 6];
-                    for (int triangleIndex = 0, vertexIndex = 0; triangleIndex < triangles.Length; vertexIndex += 4) {
-                        triangles[triangleIndex++] = vertexIndex;
-                        triangles[triangleIndex++] = vertexIndex + 1;
-                        triangles[triangleIndex++] = vertexIndex + 2;
-                        triangles[triangleIndex++] = vertexIndex;
-                        triangles[triangleIndex++] = vertexIndex + 2;
-                        triangles[triangleIndex++] = vertexIndex + 3;
-                    }
-
-                    mesh.triangles = triangles;
-
-                    //mesh.RecalculateNormals();
-                    //mesh.RecalculateTangents();
-                    //mesh.Optimize();
-                    //mesh.RecalculateBounds();
-
-                    meshFilter.sharedMesh = mesh;
-                    meshRenderer.sharedMaterial = settings.font.material;
-                    */
                 } else { // Sprite
                     SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
                     SpriteLibrary objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
@@ -262,7 +208,7 @@ namespace SystemShock.InstanceObjects {
                     isAnimated = true;
 
                     materialOverride.Frames = 6;
-                    materialOverride.AnimationType = 2;
+                    //materialOverride.AnimationType = 2;
                     materialOverride.StartFrameIndex = 63;
 
                     overridingMaterial = animationLibrary.GetMaterial(63);
@@ -346,7 +292,14 @@ namespace SystemShock.InstanceObjects {
                 if (isAnimated) {
                     Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
-                    //animate.AddAnimation(nullMaterialIndices.ToArray(), frames, materialOverride.AnimationType, 2f);
+
+                    LoopConfiguration loopConfiguration;
+                    if(objectFactory.LevelInfo.LoopConfigurations.TryGetValue(ObjectId, out loopConfiguration)) {
+                        int wrapModeIndex = loopConfiguration.LoopWrapMode % (int)AnimateMaterial.WrapMode.EnumLength;
+                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, (AnimateMaterial.WrapMode)wrapModeIndex, 2.66f);
+                    } else {
+                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, AnimateMaterial.WrapMode.Repeat, 2.66f);
+                    }
                 }
 
                 meshRenderer.sharedMaterials = sharedMaterials;

@@ -9,7 +9,7 @@ namespace SystemShock.Resource {
         [SerializeField]
         private SpriteAnimation[] animations;
 
-        [SerializeField]
+        [SerializeField, HideInInspector]
         private Material material;
 
         public SpriteLibrary() {

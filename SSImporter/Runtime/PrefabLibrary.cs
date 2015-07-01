@@ -11,8 +11,7 @@ namespace SystemShock {
         [SerializeField]
         public List<GameObject> Prefabs;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<uint> indexMap;
 
         public PrefabLibrary() {

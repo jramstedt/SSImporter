@@ -11,12 +11,10 @@ namespace SystemShock.Resource {
         [SerializeField]
         public List<ObjectData> ObjectDatas;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<uint> indexMap;
 
-        [SerializeField]
-        [HideInInspector]
+        [SerializeField, HideInInspector]
         private List<uint> spriteOffsets;
 
         public ObjectPropertyLibrary() {

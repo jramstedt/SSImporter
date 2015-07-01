@@ -96,8 +96,8 @@ namespace SystemShock.InstanceObjects {
                     gameObject.AddComponent<RadiationTreatment>();
                 } else if (ClassData.Action == ActionType.ChangeClassData) {
                     gameObject.AddComponent<ChangeClassData>();
-                } else if (ClassData.Action == ActionType.ChangeStartFrame) {
-                    gameObject.AddComponent<ChangeStartFrame>();
+                } else if (ClassData.Action == ActionType.ChangeFrameLoop) {
+                    gameObject.AddComponent<ChangeFrameLoop>();
                 } else if (ClassData.Action == ActionType.ChangeState) {
                     gameObject.AddComponent<ChangeState>();
                 } else if (ClassData.Action == ActionType.Awaken) {

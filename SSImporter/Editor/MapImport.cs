@@ -45,7 +45,11 @@ namespace SSImporter.Resource {
         private static TextureLibrary textureLibrary;
 
         private static void LoadLevel(KnownChunkId mapId, ResourceFile mapLibrary) {
-            
+            float progress = 0f;
+            float progressStep = 1f / 11f;
+
+            EditorUtility.DisplayProgressBar(@"Map Import", "Reading res files", progress);
+
             levelInfo = ReadChunk<LevelInfo>(mapId + 0x0004, mapLibrary);
             textureMap = ReadTextureList(mapId, mapLibrary);
             Tile[,] tileMap = ReadTiles(mapId, mapLibrary, levelInfo);
@@ -54,7 +58,7 @@ namespace SSImporter.Resource {
             LevelVariables levelVariables = ReadChunk<LevelVariables>(mapId + 0x002D, mapLibrary);
 
             #region Read class tables
-            object[][] instanceDatas = new object[][] {
+            IClassData[][] instanceDatas = new IClassData[][] {
                 mapLibrary.ReadArrayOf<ObjectInstance.Weapon>(mapId + 0x000A),
                 mapLibrary.ReadArrayOf<ObjectInstance.Ammunition>(mapId + 0x000B),
                 mapLibrary.ReadArrayOf<ObjectInstance.Projectile>(mapId + 0x000C),
@@ -122,10 +126,12 @@ namespace SSImporter.Resource {
             }
             #endregion
 
-            try {
-                AssetDatabase.StartAssetEditing();
+            progress += progressStep;
 
+            try {
                 #region Create LevelInfo
+                EditorUtility.DisplayProgressBar(@"Map Import", "Creating level info object", progress);
+
                 GameObject levelInfoGO = new GameObject(@"LevelInfo");
                 runtimeLevelInfo = levelInfoGO.AddComponent<SystemShock.LevelInfo>();
                 runtimeLevelInfo.Type = levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace ? SystemShock.LevelInfo.LevelType.Cyberspace : SystemShock.LevelInfo.LevelType.Normal;
@@ -137,14 +143,33 @@ namespace SSImporter.Resource {
                 runtimeLevelInfo.BioContamination = levelVariables.BioIsGravity == 0 ? levelVariables.BioContamination * 0.5f : 0f;
                 runtimeLevelInfo.Gravity = levelVariables.BioIsGravity != 0 ? levelVariables.BioContamination * 0.5f : 0f;
 
-                runtimeLevelInfo.SetTextureAnimations(mapLibrary.ReadArrayOf<TextureAnimation>(mapId + 0x002A));
+                runtimeLevelInfo.TextureAnimations = new List<TextureAnimation>(mapLibrary.ReadArrayOf<TextureAnimation>(mapId + 0x002A));
+
+                progress += progressStep;
+                #endregion
+
+                #region Loop Configurations
+                EditorUtility.DisplayProgressBar(@"Map Import", "Adding loop configurations", progress);
+
+                LoopConfiguration[] loopConfigurations = mapLibrary.ReadArrayOf<LoopConfiguration>(mapId + 0x0033);
+                foreach (LoopConfiguration loopConfiguration in loopConfigurations) {
+                    if (loopConfiguration.ObjectId != 0)
+                        runtimeLevelInfo.LoopConfigurations.Add(loopConfiguration.ObjectId, loopConfiguration);
+                }
+
+                progress += progressStep;
                 #endregion
 
                 textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
 
+                float stepPercentage = progressStep / (levelInfo.Width * levelInfo.Height);
+
                 #region Create Tiles
                 for (uint y = 0; y < levelInfo.Width; ++y) {
                     for (uint x = 0; x < levelInfo.Height; ++x) {
+                        EditorUtility.DisplayProgressBar(@"Map Import", "Creating tiles", progress);
+                        progress += stepPercentage;
+
                         tileMeshes[x, y] = new TileMesh(levelInfo, tileMap[x, y], x, y, movingFloorHeightRange[x, y], movingCeilingHeightRange[x, y]);
                     }
                 }
@@ -153,6 +178,9 @@ namespace SSImporter.Resource {
                 #region Construct Tiles
                 for (uint y = 0; y < levelInfo.Width; ++y) {
                     for (uint x = 0; x < levelInfo.Height; ++x) {
+                        EditorUtility.DisplayProgressBar(@"Map Import", "Creating tiles", progress);
+                        progress += stepPercentage;
+
                         Tile tile = tileMap[x, y];
 
                         if (tile.Type != TileType.Solid) {
@@ -230,6 +258,9 @@ namespace SSImporter.Resource {
                 List<Vector3> lightProbes = new List<Vector3>();
                 for (uint y = 0; y < levelInfo.Width; ++y) {
                     for (uint x = 0; x < levelInfo.Height; ++x) {
+                        EditorUtility.DisplayProgressBar(@"Map Import", "Creating light probes", progress);
+                        progress += stepPercentage;
+
                         TileMesh tileMesh = tileMeshes[x, y];
 
                         if (tileMesh.tile.Type != TileType.Solid) {
@@ -262,6 +293,8 @@ namespace SSImporter.Resource {
 
                 #region Reflection probes
                 //lightProbesGameObject.AddComponent<ReflectionProbe>();
+                EditorUtility.DisplayProgressBar(@"Map Import", "Creating reflection probes", progress);
+                progress += progressStep;
 
                 #endregion
 
@@ -269,20 +302,28 @@ namespace SSImporter.Resource {
 
                 #region Surveillance nodes
                 ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
+
+                stepPercentage = progressStep / surveillanceNodeIndices.Length;
+
                 List<Camera> surveillanceCamera = new List<Camera>(surveillanceNodeIndices.Length);
                 for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
+                    EditorUtility.DisplayProgressBar(@"Map Import", "Creating surveillance nodes", progress);
+
                     ushort instanceIndex = surveillanceNodeIndices[nodeIndex];
 
                     if (instanceIndex == 0)
                         surveillanceCamera.Add(null);
                     else
                         surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
+
+                    progress += stepPercentage;
                 }
 
                 runtimeLevelInfo.SurveillanceCamera = surveillanceCamera.ToArray();
                 #endregion
 
                 #region Text screen
+                EditorUtility.DisplayProgressBar(@"Map Import", "Creating text screen renderer", progress);
                 {
                     FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
 
@@ -333,19 +374,25 @@ namespace SSImporter.Resource {
                     text.font = fontLibrary.GetFont((KnownChunkId)605);
                     text.text = "GENERAL\nSYSTEM\nSTATUS";
                 }
+                progress += progressStep;
                 #endregion
 
                 #region Objects
                 ObjectFactory objectFactory = ObjectFactory.GetController();
                 objectFactory.UpdateLevelInfo();
 
-                for (uint instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
+                stepPercentage = progressStep / objectInstances.Length;
+
+                for (ushort instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
+                    EditorUtility.DisplayProgressBar(@"Map Import", "Creating object instances", progress);
+                    progress += stepPercentage;
+
                     ObjectInstance objectInstance = objectInstances[instanceIndex];
 
                     if (objectInstance.InUse == 0)
                         continue;
 
-                    object instanceData = instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex];
+                    IClassData instanceData = instanceDatas[(byte)objectInstance.Class][objectInstance.ClassTableIndex];
 
                     if (objectInstance.Class == ObjectClass.Decoration && levelInfo.Flags == LevelInfo.LevelInfoFlags.Cyberspace) {
                         ObjectInstance.Decoration decoration = (ObjectInstance.Decoration)instanceData;
@@ -372,22 +419,17 @@ namespace SSImporter.Resource {
                 }
                 #endregion
 
-                LoopConfig[] loopConfigs = mapLibrary.ReadArrayOf<LoopConfig>(mapId + 0x0033);
-                foreach(LoopConfig loopConfig in loopConfigs) {
-                    SystemShockObject ssObject;
-                    if (!runtimeLevelInfo.Objects.TryGetValue((uint)loopConfig.ObjectId, out ssObject))
-                        continue;
-
-                    Debug.LogFormat(ssObject, "{0} {1} {2} {3}", ssObject.name, loopConfig.ObjectId, loopConfig.LoopType, loopConfig.Unknown);
-                }
+                EditorUtility.DisplayProgressBar(@"Map Import", "Calculating occlusion culling", progress);
 
                 StaticOcclusionCulling.smallestOccluder = 0.5f;
                 StaticOcclusionCulling.smallestHole = runtimeLevelInfo.HeightFactor;
                 StaticOcclusionCulling.Compute();
+
+                progress += progressStep;
             } catch(Exception e) {
                 Debug.LogException(e);
             } finally {
-                AssetDatabase.StopAssetEditing();
+                EditorUtility.ClearProgressBar();
                 EditorApplication.SaveAssets();
             }
 
@@ -432,7 +474,7 @@ namespace SSImporter.Resource {
                 AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
                 foreach (KeyValuePair<TextureProperties, List<int>> materialAnimation in materialAnimations) {
                     TextureProperties textureProperties = materialAnimation.Key;
-                    TextureAnimation textureAnimation = runtimeLevelInfo.GetTextureAnimationData(textureProperties.AnimationGroup);
+                    TextureAnimation textureAnimation = runtimeLevelInfo.TextureAnimations[textureProperties.AnimationGroup];
 
                     Material[] frames = textureLibrary.GetMaterialAnimation(textureProperties.AnimationGroup);
                     animate.AddAnimation(materialAnimation.Value.ToArray(), frames, textureAnimation);
@@ -903,15 +945,5 @@ namespace SSImporter.Resource {
         public bool TextureFlip { get { return ((FlipMask)((byte)(Flags & Tile.FlagMask.TextureFlip) >> 5) & FlipMask.Flip) == FlipMask.Flip; } }
 
         public bool TextureAlternate { get { return ((FlipMask)((byte)(Flags & Tile.FlagMask.TextureFlip) >> 5) & FlipMask.Alternate) == FlipMask.Alternate; } }
-    }
-
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct LoopConfig {
-        public ushort ObjectId;
-        public byte LoopType;
-        public byte Unknown;
-
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11)]
-        public byte[] Unknown2;
     }
 }

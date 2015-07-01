@@ -11,7 +11,7 @@ namespace SystemShock.Resource {
 
         public CyberString[] Strings { get { return strings; } }
 
-        [SerializeField]
+        [SerializeField, HideInInspector]
         private uint[] chunkIds;
 
         public uint[] ChunkIds { get { return chunkIds; } }

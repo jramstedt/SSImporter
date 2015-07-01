@@ -19,7 +19,9 @@ namespace SystemShock {
         public ushort[] TextureMap;
         public Camera[] SurveillanceCamera;
         public GameObject[,] Tile;
-        public Dictionary<uint, SystemShockObject> Objects = new Dictionary<uint, SystemShockObject>();
+        public List<TextureAnimation> TextureAnimations;
+        public Dictionary<ushort, SystemShockObject> Objects = new Dictionary<ushort, SystemShockObject>();
+        public Dictionary<ushort, LoopConfiguration> LoopConfigurations = new Dictionary<ushort, LoopConfiguration>();
         public TextScreenRenderer TextScreenRenderer;
 
         public float Radiation;
@@ -27,18 +29,22 @@ namespace SystemShock {
         public float Gravity;
 
         [SerializeField, HideInInspector]
-        private List<SSKvp> serializedObjectsDictionary;
-
-        [SerializeField, HideInInspector]
         private Tiles serializedTiles;
 
         [SerializeField]
-        private List<TextureAnimation> textureAnimations;
+        private List<SSKvp> serializedObjects = new List<SSKvp>();
+
+        [SerializeField]
+        private List<LoopConfiguration> serializedLoopConfigurations = new List<LoopConfiguration>();
 
         public void OnAfterDeserialize() {
-            Objects = new Dictionary<uint, SystemShockObject>();
-            foreach (SSKvp kvp in serializedObjectsDictionary)
+            Objects = new Dictionary<ushort, SystemShockObject>();
+            foreach (SSKvp kvp in serializedObjects)
                 Objects.Add(kvp.Key, kvp.Value);
+
+            LoopConfigurations = new Dictionary<ushort, LoopConfiguration>();
+            foreach (LoopConfiguration loopConfiguration in serializedLoopConfigurations)
+                LoopConfigurations.Add(loopConfiguration.ObjectId, loopConfiguration);
 
             Tile = new GameObject[serializedTiles.Width, serializedTiles.Height];
             for (int i = 0; i < serializedTiles.Tile.Length; ++i)
@@ -46,13 +52,17 @@ namespace SystemShock {
         }
 
         public void OnBeforeSerialize() {
-            serializedObjectsDictionary = new List<SSKvp>();
-            foreach (KeyValuePair<uint, SystemShockObject> kvp in Objects)
-                serializedObjectsDictionary.Add(new SSKvp(kvp));
+            serializedObjects.Clear();
+            foreach (KeyValuePair<ushort, SystemShockObject> kvp in Objects)
+                serializedObjects.Add(new SSKvp(kvp));
+
+            serializedLoopConfigurations.Clear();
+            foreach (KeyValuePair<ushort, LoopConfiguration> kvp in LoopConfigurations)
+                serializedLoopConfigurations.Add(kvp.Value);
 
             GameObject[] serializedTilesArray = new GameObject[Tile.Length];
-            int index = 0;
 
+            int index = 0;
             foreach (GameObject tile in Tile)
                 serializedTilesArray[index++] = tile;
 
@@ -63,20 +73,12 @@ namespace SystemShock {
             };
         }
 
-        public void SetTextureAnimations(TextureAnimation[] textureAnimations) {
-            this.textureAnimations = new List<TextureAnimation>(textureAnimations);
-        }
-
-        public TextureAnimation GetTextureAnimationData(byte animationGroup) {
-            return this.textureAnimations[animationGroup];
-        }
-
         [Serializable]
         private struct SSKvp {
-            public uint Key;
+            public ushort Key;
             public SystemShockObject Value;
 
-            public SSKvp(KeyValuePair<uint, SystemShockObject> kvp) {
+            public SSKvp(KeyValuePair<ushort, SystemShockObject> kvp) {
                 Key = kvp.Key;
                 Value = kvp.Value;
             }
@@ -98,5 +100,17 @@ namespace SystemShock {
         public byte CurrentFrameIndex;
         public byte FrameCount;
         public byte IsPingPong;
+    }
+
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct LoopConfiguration {
+        public ushort ObjectId;
+        public byte LoopWrapMode;
+
+        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
+        public byte[] Unknown;
+
+        public ushort Unknown2;
     }
 }

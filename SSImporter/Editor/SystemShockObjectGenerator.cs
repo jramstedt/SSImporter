@@ -72,7 +72,7 @@ namespace SSImporter.Resource {
                 Name = @"SetClassData",
                 Attributes = MemberAttributes.Family | MemberAttributes.Override
             };
-            setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(object), @"classData"));
+            setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
             setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
 
             dataObjectClass.Members.Add(setProperties);

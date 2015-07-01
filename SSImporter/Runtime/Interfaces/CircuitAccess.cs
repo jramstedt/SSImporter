@@ -17,7 +17,7 @@ namespace SystemShock.Interfaces {
 
         private void Start() {
             SystemShockObject ssObject;
-            if (ActionData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue((uint)ActionData.ObjectToTrigger, out ssObject)) {
+            if (ActionData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger, out ssObject)) {
                 Target = ssObject.GetComponent<Triggerable>();
 
                 if (Target == null)

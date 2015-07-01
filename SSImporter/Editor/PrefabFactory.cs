@@ -315,8 +315,7 @@ namespace SSImporter.Resource {
         }
 
         private static void AddModel(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
-            string modelPath = AssetDatabase.GUIDToAssetPath(modelLibrary.GetModelGuid(baseProperties.ModelIndex));
-            GameObject modelGO = PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath(modelPath, typeof(GameObject))) as GameObject;
+            GameObject modelGO = PrefabUtility.InstantiatePrefab(modelLibrary.GetModel(baseProperties.ModelIndex)) as GameObject;
             modelGO.transform.SetParent(gameObject.transform, false);
         }
 

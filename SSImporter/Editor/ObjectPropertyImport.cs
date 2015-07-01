@@ -145,7 +145,7 @@ namespace SSImporter.Resource {
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-                StringLibrary stringLibrary = AssetDatabase.LoadAssetAtPath(@"Assets/SystemShock/cybstrng.res.asset", typeof(StringLibrary)) as StringLibrary;
+                StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
                 CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
                 CyberString objectShortNames = stringLibrary.GetStrings(KnownChunkId.ShortObjectNames);
 

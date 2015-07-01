@@ -11,10 +11,10 @@ using System.Runtime.InteropServices;
 
 namespace SystemShock.Resource {
     public class TextureLibrary : AbstractResourceLibrary<TextureLibrary> {
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private List<Material> materials;
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private List<TextureProperties> textureProperties;
 
         [SerializeField, HideInInspector]
@@ -23,6 +23,7 @@ namespace SystemShock.Resource {
         public TextureLibrary() {
             materials = new List<Material>();
             indexMap = new List<ushort>();
+            textureProperties = new List<TextureProperties>();
         }
 
         public void AddTexture(ushort textureId, Material material, TextureProperties textureProperties) {

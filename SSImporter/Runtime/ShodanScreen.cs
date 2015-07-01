@@ -13,6 +13,7 @@ namespace SystemShock {
         private void Awake() {
             AnimateMaterial = GetComponentInChildren<AnimateMaterial>();
             AnimateMaterial.LoopCompleted += OnEnable;
+            AnimateMaterial.GetAnimationSet().WrapMode = AnimateMaterial.WrapMode.PingPong;
 
             NoiseScreen = GetComponentInChildren<NoiseScreen>();
         }
@@ -26,7 +27,8 @@ namespace SystemShock {
         private void Update() {
             shodanCountdown -= Time.deltaTime;
 
-            if (shodanCountdown <= 0f) {
+            if (shodanCountdown <= 0f && NoiseScreen.enabled) {
+                AnimateMaterial.Reset();
                 AnimateMaterial.enabled = true; 
                 NoiseScreen.enabled = false;
                 return;

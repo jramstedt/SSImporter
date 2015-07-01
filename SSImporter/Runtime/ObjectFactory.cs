@@ -63,7 +63,7 @@ namespace SystemShock.Resource {
             return Instantiate(objectInstance, instanceData, levelInfo.Objects.Count);
         }
         */
-        public SystemShockObject Instantiate(ObjectInstance objectInstance, object instanceData, uint objectIndex) {
+        public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData, ushort objectIndex) {
             if (objectInstance.InUse == 0) {
                 Debug.LogWarning(@"Instance not in use.");
                 return null;
@@ -92,7 +92,7 @@ namespace SystemShock.Resource {
             SystemShockObject ssObject = gameObject.AddComponent(Type.GetType(@"SystemShock.InstanceObjects." + objectInstance.Class + @", Assembly-CSharp")) as SystemShockObject;
             ssObject.Setup(objectInstance, instanceData);
 
-            LevelInfo.Objects.Add(objectIndex, ssObject);
+            LevelInfo.Objects.Add(instanceData.ObjectId, ssObject);
 
             return ssObject;
         }

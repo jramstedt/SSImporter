@@ -26,9 +26,7 @@ namespace SystemShock.Triggers {
             uint Subclass = (combinedId >> 8) & 0xFF;
             uint Type = combinedId & 0xFF;
 
-            uint objectIndex = combinedId & 0x0FFF;
-
-            //levelInfo.Objects.TryGetValue(total, out watchedObject);
+            ushort objectIndex = (ushort)(combinedId & 0x0FFF);
 
             if (IsId) {
                 levelInfo.Objects.TryGetValue(objectIndex, out watchedObject);
