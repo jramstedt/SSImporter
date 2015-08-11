@@ -44,7 +44,7 @@ namespace SystemShock.InstanceObjects {
                     CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.DecalWords);
 
                     MeshText meshText = GetComponent<MeshText>();
-                    meshText.Color = gamePalette[text.Color != 0 ? (uint)text.Color : 60];
+                    meshText.Color = gamePalette[text.Color != 0 ? (uint)text.Color : 53];
                     meshText.Font = font;
                     meshText.Text = decalWords[text.TextIndex];
 
@@ -58,7 +58,7 @@ namespace SystemShock.InstanceObjects {
                     SpriteLibrary selectedLibrary = null;
 
                     ushort spriteIndex = 0;
-                    uint animationIndex = AnimationState;
+                    uint animationIndex = State;
 
                     if (Type == 1) { // Icon
                         selectedLibrary = objart3Library;
@@ -194,7 +194,7 @@ namespace SystemShock.InstanceObjects {
                 bool isAnimated = false;
                 bool isSurveillance = materialOverride.StartFrameIndex >= 0x00F8 && materialOverride.StartFrameIndex <= 0x00FF;
 
-                if (isSurveillance && objectFactory.LevelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
+                if (isSurveillance && objectFactory.LevelInfo.SurveillanceCameras[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
                     materialOverride.StartFrameIndex = 0x00F7; // Override with noise.
                     isSurveillance = false;
                 }
@@ -268,8 +268,8 @@ namespace SystemShock.InstanceObjects {
                 }
 
                 if (isSurveillance) {
-                    Camera camera = objectFactory.LevelInfo.SurveillanceCamera[materialOverride.StartFrameIndex & 0x07];
-                    //overridingMaterial.mainTexture = camera.targetTexture;
+                    LevelInfo.SurveillanceCamera surveillanceCamera = objectFactory.LevelInfo.SurveillanceCameras[materialOverride.StartFrameIndex & 0x07];
+                    Camera camera = surveillanceCamera.Camera;
                     overridingMaterial.color = Color.black;
 
                     //Screens are blacklit, so use diffuse texture as emission!
@@ -279,6 +279,8 @@ namespace SystemShock.InstanceObjects {
 
                     Surveillance surveillance = gameObject.AddComponent<Surveillance>();
                     surveillance.Camera = camera;
+
+                    // TODO Add death watch to screen.
                 }
 
                 if (meshProjector != null) {
@@ -295,10 +297,12 @@ namespace SystemShock.InstanceObjects {
 
                     LoopConfiguration loopConfiguration;
                     if(objectFactory.LevelInfo.LoopConfigurations.TryGetValue(ObjectId, out loopConfiguration)) {
+                        float fps = 256f / loopConfiguration.Frametime;
+
                         int wrapModeIndex = loopConfiguration.LoopWrapMode % (int)AnimateMaterial.WrapMode.EnumLength;
-                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, (AnimateMaterial.WrapMode)wrapModeIndex, 2.66f);
+                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, (AnimateMaterial.WrapMode)wrapModeIndex, fps);
                     } else {
-                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, AnimateMaterial.WrapMode.Repeat, 2.66f);
+                        animate.AddAnimation(nullMaterialIndices.ToArray(), frames, AnimateMaterial.WrapMode.Repeat, 2f);
                     }
                 }
 

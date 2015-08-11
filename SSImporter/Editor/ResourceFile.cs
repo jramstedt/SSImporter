@@ -322,6 +322,7 @@ namespace SSImporter.Resource {
 
                 return new FontSet() {
                     Font = unityFont,
+                    LineHeight = pixelHeight,
                     Texture = texture,
                     Colored = font.DataType == BitmapFont.BitmapDataType.Color
                 };
@@ -439,7 +440,7 @@ namespace SSImporter.Resource {
                 int structSize = Marshal.SizeOf(typeof(T));
 
                 if (ms.Length % structSize != 0)
-                    throw new ArgumentException(string.Format(@"Chunk length {0} is not divisible by struct size {1}.", ms.Length, structSize));
+                    throw new ArgumentException(string.Format(@"Chunk length {0} is not divisible by struct {1} size {2}.", ms.Length, typeof(T) ,structSize));
 
                 T[] structs = new T[ms.Length / structSize];
 
@@ -759,6 +760,7 @@ namespace SSImporter.Resource {
 
     public class FontSet : IDisposable {
         public Font Font;
+        public float LineHeight;
         public Texture2D Texture;
         public bool Colored;
 

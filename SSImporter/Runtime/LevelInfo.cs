@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
 
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
 
 using SystemShock.Object;
 
@@ -17,9 +19,10 @@ namespace SystemShock {
         public float HeightFactor;
         public float MapScale;
         public ushort[] TextureMap;
-        public Camera[] SurveillanceCamera;
+        public SurveillanceCamera[] SurveillanceCameras;
         public GameObject[,] Tile;
         public List<TextureAnimation> TextureAnimations;
+        public IClassData[] ClassDataTemplates;
         public Dictionary<ushort, SystemShockObject> Objects = new Dictionary<ushort, SystemShockObject>();
         public Dictionary<ushort, LoopConfiguration> LoopConfigurations = new Dictionary<ushort, LoopConfiguration>();
         public TextScreenRenderer TextScreenRenderer;
@@ -31,10 +34,13 @@ namespace SystemShock {
         [SerializeField, HideInInspector]
         private Tiles serializedTiles;
 
-        [SerializeField]
+        [SerializeField, HideInInspector]
+        private byte[] serializedClassDataTemplates;
+
+        [SerializeField, HideInInspector]
         private List<SSKvp> serializedObjects = new List<SSKvp>();
 
-        [SerializeField]
+        [SerializeField, HideInInspector]
         private List<LoopConfiguration> serializedLoopConfigurations = new List<LoopConfiguration>();
 
         public void OnAfterDeserialize() {
@@ -49,6 +55,11 @@ namespace SystemShock {
             Tile = new GameObject[serializedTiles.Width, serializedTiles.Height];
             for (int i = 0; i < serializedTiles.Tile.Length; ++i)
                 Tile[i / serializedTiles.Width, i % serializedTiles.Width] = serializedTiles.Tile[i];
+
+            using (MemoryStream ms = new MemoryStream(serializedClassDataTemplates)) {
+                BinaryFormatter bf = new BinaryFormatter();
+                ClassDataTemplates = (IClassData[])bf.Deserialize(ms);
+            }
         }
 
         public void OnBeforeSerialize() {
@@ -71,6 +82,12 @@ namespace SystemShock {
                 Height = Tile.GetLength(1),
                 Tile = serializedTilesArray
             };
+
+            using (MemoryStream ms = new MemoryStream()) {
+                BinaryFormatter bf = new BinaryFormatter();
+                bf.Serialize(ms, ClassDataTemplates);
+                serializedClassDataTemplates = ms.ToArray();
+            }
         }
 
         [Serializable]
@@ -89,6 +106,12 @@ namespace SystemShock {
             public int Width;
             public int Height;
             public GameObject[] Tile;
+        }
+
+        [Serializable]
+        public class SurveillanceCamera {
+            public Camera Camera;
+            public SystemShockObject DeathwatchObject;
         }
     }
 
@@ -111,6 +134,6 @@ namespace SystemShock {
         [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
         public byte[] Unknown;
 
-        public ushort Unknown2;
+        public ushort Frametime;
     }
 }

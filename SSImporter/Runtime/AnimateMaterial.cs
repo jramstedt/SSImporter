@@ -119,9 +119,7 @@ namespace SystemShock {
         }
 
         public void AddAnimation(int[] materialIndices, Material[] frames, TextureAnimation animationData) {
-            float fps = 1000f / (animationData.FrameTime * animationData.FrameCount);
-
-            Debug.LogFormat("{0} {1}", animationData.FrameTime, fps);
+            float fps = 256f / animationData.FrameTime;
 
             WrapMode wrapMode = animationData.IsPingPong != 0 ? WrapMode.PingPong : WrapMode.Repeat;
 

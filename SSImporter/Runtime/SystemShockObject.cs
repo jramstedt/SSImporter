@@ -16,7 +16,7 @@ namespace SystemShock.Object {
         public byte AIIndex;
         public ushort Hitpoints;
         public byte Unknown1;
-        public byte AnimationState;
+        public byte State;
 
         public byte Unknown2;
         public byte Unknown3;
@@ -29,7 +29,7 @@ namespace SystemShock.Object {
             AIIndex = objectInstance.AIIndex;
             Hitpoints = objectInstance.Hitpoints;
             Unknown1 = objectInstance.Unknown1;
-            AnimationState = objectInstance.AnimationState;
+            State = objectInstance.State;
 
             Unknown2 = objectInstance.Unknown2;
             Unknown3 = objectInstance.Unknown3;
@@ -63,9 +63,10 @@ namespace SystemShock.Object {
     }
 
     public interface IClassData {
-        ushort ObjectId { get; }
+        ushort ObjectId { get; set; }
+        IClassData Clone();
     }
-
+    
     public enum ObjectClass : byte {
         Weapon,
         Ammunition,
@@ -131,7 +132,7 @@ namespace SystemShock.Object {
         public byte Type;
         public ushort Hitpoints;
         public byte Unknown1;
-        public byte AnimationState;
+        public byte State;
         public byte Unknown2;
         public byte Unknown3;
 
@@ -165,7 +166,8 @@ namespace SystemShock.Object {
                 public byte Temperature;
             }
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -173,7 +175,8 @@ namespace SystemShock.Object {
         public class Ammunition : IClassData {
             public Link Link;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -184,7 +187,8 @@ namespace SystemShock.Object {
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 34)]
             public byte[] Data;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -195,7 +199,8 @@ namespace SystemShock.Object {
             public ushort Unknown1;
             public uint Flags;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -203,7 +208,8 @@ namespace SystemShock.Object {
         public class DermalPatch : IClassData {
             public Link Link;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -213,7 +219,8 @@ namespace SystemShock.Object {
 
             public byte Version;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -225,7 +232,8 @@ namespace SystemShock.Object {
             public byte LogIndex;
             public byte LevelIndex;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -299,7 +307,8 @@ namespace SystemShock.Object {
                 public ushort Unknown4;
             }
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -320,7 +329,8 @@ namespace SystemShock.Object {
                 public byte[] Fill;
             }
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -416,11 +426,12 @@ namespace SystemShock.Object {
                 public ushort Unknown3;
             }
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
-        [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 14)]
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public class DoorAndGrating : IClassData {
             public Link Link;
 
@@ -432,7 +443,8 @@ namespace SystemShock.Object {
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
             public byte[] Data;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -442,7 +454,8 @@ namespace SystemShock.Object {
 
             public uint Data;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -626,13 +639,10 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Spawn {
                 public uint ObjectId;
-                public ushort TargetId1;
-                public ushort TargetId2;
-                public ushort TargetId3;
-                public ushort TargetId4;
-
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
-                public byte[] Unknown;
+                public ushort Corner1ObjectId;
+                public ushort Corner2ObjectId;
+                public uint Amount;
+                public uint State;
             }
 
             [Serializable]
@@ -654,7 +664,8 @@ namespace SystemShock.Object {
                 public byte[] Unknown;
             }
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -673,7 +684,8 @@ namespace SystemShock.Object {
             public byte SideTexture;
             public ushort Flags;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
 
         [Serializable]
@@ -684,7 +696,8 @@ namespace SystemShock.Object {
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 40)]
             public byte[] Data;
 
-            public ushort ObjectId { get { return Link.ObjectIndex; } }
+            public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
+            public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
     }
 }

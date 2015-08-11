@@ -35,7 +35,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -45,6 +45,11 @@ namespace SSImporter.Resource {
         private static TextureLibrary textureLibrary;
 
         private static void LoadLevel(KnownChunkId mapId, ResourceFile mapLibrary) {
+            int levelGeometryLayer = LayerMask.NameToLayer(@"Level Geometry");
+
+            if (levelGeometryLayer == -1)
+                throw new Exception(@"No 'Level Geometry' Layer set.");
+
             float progress = 0f;
             float progressStep = 1f / 11f;
 
@@ -76,6 +81,24 @@ namespace SSImporter.Resource {
                 mapLibrary.ReadArrayOf<ObjectInstance.Enemy>(mapId + 0x0018)
             };
             #endregion
+
+            IClassData[][] classDataTemplates = new IClassData[][] {
+                mapLibrary.ReadArrayOf<ObjectInstance.Weapon>(mapId + 0x0019),
+                mapLibrary.ReadArrayOf<ObjectInstance.Ammunition>(mapId + 0x001A),
+                mapLibrary.ReadArrayOf<ObjectInstance.Projectile>(mapId + 0x001B),
+                mapLibrary.ReadArrayOf<ObjectInstance.Explosive>(mapId + 0x0001C),
+                mapLibrary.ReadArrayOf<ObjectInstance.DermalPatch>(mapId + 0x001D),
+                mapLibrary.ReadArrayOf<ObjectInstance.Hardware>(mapId + 0x001E),
+                mapLibrary.ReadArrayOf<ObjectInstance.SoftwareAndLog>(mapId + 0x001F),
+                mapLibrary.ReadArrayOf<ObjectInstance.Decoration>(mapId + 0x0020),
+                mapLibrary.ReadArrayOf<ObjectInstance.Item>(mapId + 0x0021),
+                mapLibrary.ReadArrayOf<ObjectInstance.Interface>(mapId + 0x0022),
+                mapLibrary.ReadArrayOf<ObjectInstance.DoorAndGrating>(mapId + 0x0023),
+                mapLibrary.ReadArrayOf<ObjectInstance.Animated>(mapId + 0x0024),
+                mapLibrary.ReadArrayOf<ObjectInstance.Trigger>(mapId + 0x0025),
+                mapLibrary.ReadArrayOf<ObjectInstance.Container>(mapId + 0x0026),
+                mapLibrary.ReadArrayOf<ObjectInstance.Enemy>(mapId + 0x0027)
+            };
 
             #region Find moving tiles
             int[,][] movingFloorHeightRange = new int[levelInfo.Width, levelInfo.Height][]; // Min and max height
@@ -142,9 +165,14 @@ namespace SSImporter.Resource {
                 runtimeLevelInfo.Radiation = levelVariables.Radiation * 0.5f;
                 runtimeLevelInfo.BioContamination = levelVariables.BioIsGravity == 0 ? levelVariables.BioContamination * 0.5f : 0f;
                 runtimeLevelInfo.Gravity = levelVariables.BioIsGravity != 0 ? levelVariables.BioContamination * 0.5f : 0f;
-
                 runtimeLevelInfo.TextureAnimations = new List<TextureAnimation>(mapLibrary.ReadArrayOf<TextureAnimation>(mapId + 0x002A));
-
+                runtimeLevelInfo.ClassDataTemplates = new IClassData[classDataTemplates.Length];
+                
+                for (int classTemplateIndex = 0; classTemplateIndex < classDataTemplates.Length; ++classTemplateIndex) {
+                    IClassData classData = classDataTemplates[classTemplateIndex][0];  
+                    runtimeLevelInfo.ClassDataTemplates[classTemplateIndex] = classData;
+                }
+                
                 progress += progressStep;
                 #endregion
 
@@ -154,7 +182,7 @@ namespace SSImporter.Resource {
                 LoopConfiguration[] loopConfigurations = mapLibrary.ReadArrayOf<LoopConfiguration>(mapId + 0x0033);
                 foreach (LoopConfiguration loopConfiguration in loopConfigurations) {
                     if (loopConfiguration.ObjectId != 0)
-                        runtimeLevelInfo.LoopConfigurations.Add(loopConfiguration.ObjectId, loopConfiguration);
+                        runtimeLevelInfo.LoopConfigurations[loopConfiguration.ObjectId] = loopConfiguration;
                 }
 
                 progress += progressStep;
@@ -186,6 +214,7 @@ namespace SSImporter.Resource {
                         if (tile.Type != TileType.Solid) {
                             TileMesh tileMesh = tileMeshes[x, y];
                             GameObject tileGO = CreateGameObject(CombineTile(tileMesh, tileMeshes), @"Tile " + x.ToString() + " " + y.ToString());
+                            tileGO.layer = levelGeometryLayer;
                             runtimeLevelInfo.Tile[x, y] = tileGO;
 
                             /*
@@ -305,7 +334,7 @@ namespace SSImporter.Resource {
 
                 stepPercentage = progressStep / surveillanceNodeIndices.Length;
 
-                List<Camera> surveillanceCamera = new List<Camera>(surveillanceNodeIndices.Length);
+                List<SystemShock.LevelInfo.SurveillanceCamera> surveillanceCamera = new List<SystemShock.LevelInfo.SurveillanceCamera>(surveillanceNodeIndices.Length);
                 for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
                     EditorUtility.DisplayProgressBar(@"Map Import", "Creating surveillance nodes", progress);
 
@@ -319,7 +348,7 @@ namespace SSImporter.Resource {
                     progress += stepPercentage;
                 }
 
-                runtimeLevelInfo.SurveillanceCamera = surveillanceCamera.ToArray();
+                runtimeLevelInfo.SurveillanceCameras = surveillanceCamera.ToArray();
                 #endregion
 
                 #region Text screen
@@ -382,7 +411,7 @@ namespace SSImporter.Resource {
                 objectFactory.UpdateLevelInfo();
 
                 stepPercentage = progressStep / objectInstances.Length;
-
+                
                 for (ushort instanceIndex = 0; instanceIndex < objectInstances.Length; ++instanceIndex) {
                     EditorUtility.DisplayProgressBar(@"Map Import", "Creating object instances", progress);
                     progress += stepPercentage;
@@ -403,19 +432,29 @@ namespace SSImporter.Resource {
                         objectInstance.Type = (byte)data.Type;
 
                         instanceData = new ObjectInstance.SoftwareAndLog() {
-                            Link = decoration.Link,
+                            ObjectId = instanceData.ObjectId,
                             Version = (byte)data.Version,
                             LogIndex = 0,
                             LevelIndex = (byte)data.LevelIndex
                         };
                     }
 
-                    SystemShockObject ssObject = objectFactory.Instantiate(objectInstance, instanceData, instanceIndex);
+                    SystemShockObject ssObject = objectFactory.Instantiate(objectInstance, instanceData);
 
                     if (ssObject == null)
                         continue;
 
                     EditorUtility.SetDirty(ssObject.gameObject);
+                }
+                
+                #endregion
+
+                #region Surveillance camera deathwatch object
+                ushort[] surveillanceDeathWatchNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002C);
+                for (int nodeIndex = 0; nodeIndex < surveillanceDeathWatchNodeIndices.Length; ++nodeIndex) {
+                    ushort objectIndex = surveillanceDeathWatchNodeIndices[nodeIndex];
+                    if(runtimeLevelInfo.Objects.ContainsKey(objectIndex))
+                        runtimeLevelInfo.SurveillanceCameras[nodeIndex].DeathwatchObject = runtimeLevelInfo.Objects[objectIndex];
                 }
                 #endregion
 
@@ -423,10 +462,11 @@ namespace SSImporter.Resource {
 
                 StaticOcclusionCulling.smallestOccluder = 0.5f;
                 StaticOcclusionCulling.smallestHole = runtimeLevelInfo.HeightFactor;
-                StaticOcclusionCulling.Compute();
+                //StaticOcclusionCulling.Compute();
 
                 progress += progressStep;
             } catch(Exception e) {
+                EditorUtility.ClearProgressBar();
                 Debug.LogException(e);
             } finally {
                 EditorUtility.ClearProgressBar();
@@ -643,7 +683,7 @@ namespace SSImporter.Resource {
             };
         }
 
-        private static Camera CreateCamera(ObjectInstance objectInstance) {
+        private static SystemShock.LevelInfo.SurveillanceCamera CreateCamera(ObjectInstance objectInstance) {
             GameObject cameraGO = new GameObject();
             cameraGO.name = "Surveillance Camera";
 
@@ -658,7 +698,9 @@ namespace SSImporter.Resource {
             camera.nearClipPlane = 0.1f;
             camera.enabled = false;
 
-            return camera;
+            return new SystemShock.LevelInfo.SurveillanceCamera() {
+                Camera = camera
+            };
         }
         
         private static T ReadChunk<T>(KnownChunkId chunkId, ResourceFile mapLibrary) {

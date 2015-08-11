@@ -15,6 +15,8 @@ namespace SSImporter.Resource {
             try {
                 AssetDatabase.StartAssetEditing();
 
+                CreateLayers();
+
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
@@ -51,14 +53,41 @@ namespace SSImporter.Resource {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
+        private static void CreateLayers() {
+            const string layerName = @"Level Geometry";
+
+            if (LayerMask.NameToLayer(layerName) != -1)
+                return;
+
+            SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+            //SerializedProperty tagsProp = tagManager.FindProperty("tags");
+            SerializedProperty layersProp = tagManager.FindProperty("layers");
+
+            for (int layerIndex = 8; layerIndex < layersProp.arraySize; ++layerIndex) {
+                SerializedProperty sp = layersProp.GetArrayElementAtIndex(layerIndex);
+
+                if (string.IsNullOrEmpty(sp.stringValue)) {
+                    sp.stringValue = layerName;
+                    break;
+                }
+            }
+
+            tagManager.ApplyModifiedProperties();
+        }
+
         [MenuItem("Assets/System Shock/0. Set RES path", false, 1000)]
         public static void ClearResourcePath() {
             PlayerPrefs.DeleteKey(@"SSHOCKRES");
 
-            string resPath = EditorUtility.OpenFolderPanel(@"System Shock folder with DATA", string.Empty, string.Empty);
+            string resPath = EditorUtility.OpenFolderPanel(@"System Shock folder with DATA folder", string.Empty, string.Empty);
 
-            if(resPath != string.Empty)
-                PlayerPrefs.SetString(@"SSHOCKRES", resPath);
+            if (string.IsNullOrEmpty(resPath))
+                return;
+
+            if(!Directory.Exists(resPath + @"\DATA"))
+                throw new DirectoryNotFoundException(@"No DATA folder found at " + resPath);
+            
+            PlayerPrefs.SetString(@"SSHOCKRES", resPath);
         }
     }
 }

@@ -59,6 +59,12 @@ namespace SSImporter.Resource {
             if (ignoreTypes.Length == 0) // Special case, diagonal walls have no ignore types
                 isSolidWall = true;
 
+            isSolidWall |=  floorCornerHeight[leftCorner] > otherTile.ceilingCornerHeight[otherLeftCorner] &&
+                            floorCornerHeight[rightCorner] > otherTile.ceilingCornerHeight[otherRightCorner];
+
+            isSolidWall |=  ceilingCornerHeight[leftCorner] < otherTile.floorCornerHeight[otherLeftCorner] &&
+                            ceilingCornerHeight[rightCorner] < otherTile.floorCornerHeight[otherRightCorner];
+
             float mapScale = 1f / (float)(1 << (int)levelInfo.HeightShift);
             float textureVerticalOffset = tile.TextureOffset * mapScale;
 

@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 
 using SystemShock.Object;
+using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
@@ -25,7 +26,7 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
-
+            
         }
 
 #if UNITY_EDITOR
@@ -33,16 +34,14 @@ namespace SystemShock.TriggerActions {
             if (FirstCorner == null || SecondCorner == null)
                 return;
 
-            //Vector3 center = (FirstCorner.transform.position + FirstCorner.transform.position) / 2f;
-            //Vector3 size = FirstCorner.
-
             Bounds bounds = new Bounds(FirstCorner.transform.position, Vector3.zero);
             bounds.Encapsulate(SecondCorner.transform.position);
 
-            Gizmos.DrawCube(bounds.center, bounds.size);
+            Color color = Color.green;
+            color.a = 0.1f;
+            Gizmos.color = color;
 
-            //if (Target != null)
-            //    Gizmos.DrawLine(transform.position, Target.transform.position);
+            Gizmos.DrawCube(bounds.center, bounds.size);
         }
 
         private void OnDrawGizmosSelected() {

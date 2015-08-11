@@ -190,10 +190,13 @@ namespace SSImporter.Resource {
                             }
 
                             if (!HasPhysics &&
-                                baseProperties.DrawType != DrawType.Sprite &&
-                                baseProperties.Vulnerabilities == DamageType.None && 
-                                baseProperties.SpecialVulnerabilities == 0x00 &&
-                                (((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup || baseProperties.DrawType == DrawType.Special))
+                                (baseProperties.DrawType == DrawType.Special ||
+                                 (baseProperties.DrawType != DrawType.Sprite &&
+                                  baseProperties.Vulnerabilities == DamageType.None &&
+                                  baseProperties.SpecialVulnerabilities == 0x00 &&
+                                  ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup)
+                                 )
+                                )
                                 staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
                             #endregion
 

@@ -58,7 +58,7 @@ namespace SystemShock.Resource {
 
             meshRenderer.sharedMaterial.mainTexture = Font.material.mainTexture;
             meshRenderer.sharedMaterial.color = Color;
-            meshRenderer.sharedMaterial.SetColor(@"_EmissionColor", Color * 0.15f);
+            meshRenderer.sharedMaterial.SetColor(@"_EmissionColor", Color * 0.1f);
 
             textGenerator.Invalidate();
 

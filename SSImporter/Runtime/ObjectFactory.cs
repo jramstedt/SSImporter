@@ -58,12 +58,16 @@ namespace SystemShock.Resource {
         }
 
         public void OnBeforeSerialize() { }
-        /*
-        public SystemShockObject Instantiate(ObjectInstance objectInstance, object instanceData) {
-            return Instantiate(objectInstance, instanceData, levelInfo.Objects.Count);
+
+        public ushort NextFreeId() {
+            ushort id = 1;
+            while (LevelInfo.Objects.ContainsKey(id))
+                ++id;
+
+            return id;
         }
-        */
-        public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData, ushort objectIndex) {
+
+        public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData) {
             if (objectInstance.InUse == 0) {
                 Debug.LogWarning(@"Instance not in use.");
                 return null;
@@ -84,8 +88,8 @@ namespace SystemShock.Resource {
             GameObject gameObject = GameObject.Instantiate(prefab);
 #endif
 
-            //gameObject.transform.localPosition = new Vector3(Mathf.Round(64f * objectInstance.X / 256f) / 64f, objectInstance.Z * LevelInfo.HeightFactor, Mathf.Round(64f * objectInstance.Y / 256f) / 64f);
-            gameObject.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * LevelInfo.HeightFactor, objectInstance.Y / 256f);
+            gameObject.transform.localPosition = new Vector3(Mathf.Round(128f * objectInstance.X / 256f) / 128f, objectInstance.Z * LevelInfo.HeightFactor, Mathf.Round(128f * objectInstance.Y / 256f) / 128f);
+            //gameObject.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * LevelInfo.HeightFactor, objectInstance.Y / 256f);
             gameObject.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
             gameObject.transform.localScale = Vector3.one;
 

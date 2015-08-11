@@ -15,6 +15,7 @@ namespace SSImporter.Resource {
         public static void Init() {
             try {
                 AssetDatabase.StartAssetEditing();
+                EditorApplication.LockReloadAssemblies();
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
@@ -26,6 +27,7 @@ namespace SSImporter.Resource {
                 foreach (string className in Enum.GetNames(typeof(ObjectClass)))
                     GenerateInstanceClass(className);
             } finally {
+                EditorApplication.UnlockReloadAssemblies();
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();
             }
@@ -56,29 +58,53 @@ namespace SSImporter.Resource {
 
             Type instanceType = Type.GetType(typeof(SystemShock.Object.ObjectInstance).FullName + @"+" + Name + @", Assembly-CSharp");
 
-            CodeTypeDeclaration dataObjectClass = new CodeTypeDeclaration(Name);
-            dataObjectClass.IsClass = true;
-            dataObjectClass.IsPartial = true;
-            dataObjectClass.TypeAttributes = TypeAttributes.Public;
-            dataObjectClass.BaseTypes.Add(typeof(SystemShockObject<>).MakeGenericType(instanceType));
-            dataObjectClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
-            /*
-            dataObjectClass.Members.Add(new CodeMemberField(instanceType, @"ClassData") {
-                Attributes = MemberAttributes.Public | MemberAttributes.Override
-            });
-            */
-            #region SetProperties
-            CodeMemberMethod setProperties = new CodeMemberMethod() {
-                Name = @"SetClassData",
-                Attributes = MemberAttributes.Family | MemberAttributes.Override
-            };
-            setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
-            setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
+            #region Instance object
+            {
+                CodeTypeDeclaration dataObjectClass = new CodeTypeDeclaration(Name);
+                dataObjectClass.IsClass = true;
+                dataObjectClass.IsPartial = true;
+                dataObjectClass.TypeAttributes = TypeAttributes.Public;
+                dataObjectClass.BaseTypes.Add(typeof(SystemShockObject<>).MakeGenericType(instanceType));
+                dataObjectClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
 
-            dataObjectClass.Members.Add(setProperties);
+                #region SetProperties
+                CodeMemberMethod setProperties = new CodeMemberMethod() {
+                    Name = @"SetClassData",
+                    Attributes = MemberAttributes.Family | MemberAttributes.Override
+                };
+                setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
+                setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
+
+                dataObjectClass.Members.Add(setProperties);
+                #endregion
+
+                ns.Types.Add(dataObjectClass);
+            }
             #endregion
 
-            ns.Types.Add(dataObjectClass);
+            #region Class template
+            /*{
+                CodeTypeDeclaration templateClass = new CodeTypeDeclaration(Name + @"Template");
+                templateClass.IsClass = true;
+                templateClass.IsPartial = true;
+                templateClass.TypeAttributes = TypeAttributes.Public;
+                templateClass.BaseTypes.Add(typeof(ClassDataTemplate<>).MakeGenericType(instanceType));
+                templateClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
+
+                #region SetProperties
+                CodeMemberMethod setProperties = new CodeMemberMethod() {
+                    Name = @"SetClassData",
+                    Attributes = MemberAttributes.Public | MemberAttributes.Override
+                };
+                setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
+                setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
+
+                templateClass.Members.Add(setProperties);
+                #endregion
+
+                ns.Types.Add(templateClass);
+            }*/
+            #endregion
 
             compileUnit.Namespaces.Add(ns);
 

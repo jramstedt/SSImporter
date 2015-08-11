@@ -44,7 +44,6 @@ namespace SSImporter.Resource {
                 #endregion
 
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"gamescr.res");
-                AssetDatabase.CreateFolder(@"Assets/SystemShock/gamescr.res", @"Materials");
 
                 Dictionary<uint, Font> fonts = new Dictionary<uint, Font>();
 
@@ -62,19 +61,19 @@ namespace SSImporter.Resource {
 
                         string assetPath = string.Format(@"Assets/SystemShock/gamescr.res/{0}.fontsettings", chunkId);
                         AssetDatabase.CreateAsset(fontSet.Font, assetPath);
-
-                        assetPath = string.Format(@"Assets/SystemShock/gamescr.res/Materials/{0} material.asset", chunkId);
-                        AssetDatabase.CreateAsset(fontSet.Texture, assetPath);
+                        AssetDatabase.AddObjectToAsset(fontSet.Texture, assetPath);
                         AssetDatabase.AddObjectToAsset(material, assetPath);
-
-                        //AssetDatabase.AddObjectToAsset(fontSet.Texture, assetPath);
-                        //AssetDatabase.AddObjectToAsset(material, assetPath);
 
                         EditorUtility.SetDirty(fontSet.Font);
                         EditorUtility.SetDirty(fontSet.Texture);
                         EditorUtility.SetDirty(material);
 
                         fonts.Add((uint)chunkId, fontSet.Font);
+
+                        SerializedObject fontAsset = new SerializedObject(AssetDatabase.LoadAssetAtPath<Font>(assetPath));
+                        SerializedProperty lineSpacing = fontAsset.FindProperty(@"m_LineSpacing");
+                        lineSpacing.floatValue = fontSet.LineHeight;
+                        fontAsset.ApplyModifiedProperties();
                     }
                     //Debug.Log(chunkId + " " + chunkInfo.info);
                 }
@@ -85,7 +84,7 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
                 EditorUtility.SetDirty(fontLibrary);
 
-                ObjectFactory.GetController().AddLibrary(fontLibrary);
+                ObjectFactory.GetController().AddLibrary(fontLibrary);               
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

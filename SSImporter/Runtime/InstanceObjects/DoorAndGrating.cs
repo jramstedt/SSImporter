@@ -58,7 +58,7 @@ namespace SystemShock.InstanceObjects {
 
                 SpriteAnimation spriteAnimation = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)));
 
-                SpriteDefinition sprite = spriteAnimation[AnimationState];
+                SpriteDefinition sprite = spriteAnimation[State];
                 Material material = objart3Library.GetMaterial();
 
                 meshRenderer.sharedMaterial = material;
@@ -71,7 +71,7 @@ namespace SystemShock.InstanceObjects {
 
                     Door door = gameObject.AddComponent<Door>();
                     door.Frames = spriteAnimation.Sprites;
-                    door.CurrentFrame = AnimationState;
+                    door.CurrentFrame = State;
 
                     gameObject.AddComponent<TriggerOnMouseDown>();
                 } else {

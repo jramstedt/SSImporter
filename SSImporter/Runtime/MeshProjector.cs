@@ -207,7 +207,11 @@ namespace SystemShock.Resource {
 
             List<CombineInstance> combineInstances = new List<CombineInstance>();
 
+            int levelGeometryLayer = LayerMask.NameToLayer(@"Level Geometry");
             foreach (MeshFilter targetMeshFilter in targetMeshFilters) {
+                if (targetMeshFilter.gameObject.layer != levelGeometryLayer)
+                    continue;
+
 #if UNITY_EDITOR
                 if (targetMeshFilter == meshFilter || !(targetMeshFilter.sharedMesh ?? targetMeshFilter.mesh).isReadable)
                     continue;

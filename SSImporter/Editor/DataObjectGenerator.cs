@@ -18,6 +18,7 @@ namespace SSImporter.Resource {
 
             try {
                 AssetDatabase.StartAssetEditing();
+                EditorApplication.LockReloadAssemblies();
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
@@ -36,6 +37,7 @@ namespace SSImporter.Resource {
                     }
                 }
             } finally {
+                EditorApplication.UnlockReloadAssemblies();
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();
             }
