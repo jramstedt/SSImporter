@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using System;
 
 namespace SystemShock {
     public abstract class Triggerable: MonoBehaviour {
@@ -17,16 +18,22 @@ namespace SystemShock {
     }
 
     public abstract class Triggerable<ActionDataType> : Triggerable {
+        protected IActionProvider ActionProvider;
         protected ActionDataType ActionData;
 
         protected virtual void Awake() {
-            ITriggerActionProvider trigger = GetComponent<ITriggerActionProvider>();
-            if (trigger != null)
-                ActionData = trigger.TriggerData.Read<ActionDataType>();
+            ActionProvider = GetComponent<IActionProvider>();
+            if (ActionProvider != null)
+                ActionData = ActionProvider.ActionData.Read<ActionDataType>();
+        }
+
+        public bool CanActivate {
+            get { return ActionProvider.CanActivate; }
         }
     }
 
-    public interface ITriggerActionProvider {
-        byte[] TriggerData { get; }
+    public interface IActionProvider {
+        bool CanActivate { get; }
+        byte[] ActionData { get; }
     }
 }

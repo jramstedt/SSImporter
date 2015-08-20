@@ -26,7 +26,8 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
-            
+            if (!CanActivate)
+                return;
         }
 
 #if UNITY_EDITOR

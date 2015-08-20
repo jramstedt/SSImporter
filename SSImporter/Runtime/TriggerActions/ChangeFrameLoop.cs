@@ -27,6 +27,9 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
+            if (!CanActivate)
+                return;
+
             if (Target != null) {
                 AnimateMaterial animate = Target.GetComponent<AnimateMaterial>();
                 AnimateMaterial.AnimationSet animation = animate.GetAnimationSet();

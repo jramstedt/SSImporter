@@ -9,7 +9,14 @@ using SystemShock.Triggers;
 using SystemShock.TriggerActions;
 
 namespace SystemShock.InstanceObjects {
-    public partial class Trigger : SystemShockObject<ObjectInstance.Trigger>, ITriggerActionProvider {
+    public partial class Trigger : SystemShockObject<ObjectInstance.Trigger>, IActionProvider {
+        private bool hasBeenActivated = false;
+        private GameVariables gameVariables;
+
+        private void Awake() {
+            gameVariables = GameVariables.GetController();
+        }
+
         protected override void InitializeInstance() {
             //Debug.LogFormat(gameObject, "Trigger {0}", ClassData.Action);
 
@@ -114,7 +121,23 @@ namespace SystemShock.InstanceObjects {
             }
         }
 
-        public byte[] TriggerData {
+        bool IActionProvider.CanActivate {
+            get {
+                if (hasBeenActivated && ClassData.OnceOnly == 1)
+                    return false;
+
+                bool canActivate = true;
+
+                if (ClassData.ConditionVariable != 0) {
+                    ushort conditionValue;
+                    canActivate = gameVariables.TryGetValue(ClassData.ConditionVariable, out conditionValue) && conditionValue == ClassData.ConditionValue;
+                }
+
+                return hasBeenActivated = canActivate;
+            }
+        }
+
+        byte[] IActionProvider.ActionData {
             get { return ClassData.Data; }
         }
     }

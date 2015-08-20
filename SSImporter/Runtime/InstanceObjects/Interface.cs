@@ -8,7 +8,7 @@ using SystemShock.TriggerActions;
 using SystemShock.Interfaces;
 
 namespace SystemShock.InstanceObjects {
-    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, ITriggerActionProvider {
+    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider {
         protected override void InitializeInstance() {
             //SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
@@ -96,7 +96,11 @@ namespace SystemShock.InstanceObjects {
             }
         }
 
-        public byte[] TriggerData {
+        bool IActionProvider.CanActivate {
+            get { return true; }
+        }
+
+        byte[] IActionProvider.ActionData {
             get { return ClassData.Data; }
         }
     }

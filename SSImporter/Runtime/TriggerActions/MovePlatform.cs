@@ -19,19 +19,23 @@ namespace SystemShock.TriggerActions {
         }
 
         private void Start() {
-            GameObject tile = levelInfo.Tile[ActionData.TileX, ActionData.TileY];
+            LevelInfo.Tile tile = levelInfo.Tiles[ActionData.TileX, ActionData.TileY];
+            GameObject tileGo = tile.GameObject;
 
             Speed = ActionData.Speed;
 
             if (Ceiling == null)
-                Ceiling = tile.GetComponentInChildren<MovableCeiling>();
+                Ceiling = tileGo.GetComponentInChildren<MovableCeiling>();
 
             if(Floor == null)
-                Floor = tile.GetComponentInChildren<MovableFloor>();
+                Floor = tileGo.GetComponentInChildren<MovableFloor>();
         }
         
         public override void Trigger() {
-            if(Ceiling != null)
+            if (!CanActivate)
+                return;
+
+            if (Ceiling != null)
                 Ceiling.Height = ActionData.TargetCeilingHeight;
 
             if (Floor != null)

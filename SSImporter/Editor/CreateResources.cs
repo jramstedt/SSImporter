@@ -36,6 +36,9 @@ namespace SSImporter.Resource {
                 ObjectFactory objectFactory = gameControllerPrefab.GetComponent<ObjectFactory>() ?? gameControllerPrefab.AddComponent<ObjectFactory>();
                 objectFactory.Reset();
 
+                GameVariables gameVariables = gameControllerPrefab.GetComponent<GameVariables>() ?? gameControllerPrefab.AddComponent<GameVariables>();
+                gameVariables.Clear();
+
                 PrefabUtility.ReplacePrefab(gameControllerPrefab, PrefabUtility.GetPrefabParent(gameControllerPrefab), ReplacePrefabOptions.ConnectToPrefab);
             } finally {
                 AssetDatabase.StopAssetEditing();

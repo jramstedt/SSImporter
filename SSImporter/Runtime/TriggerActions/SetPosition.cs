@@ -24,6 +24,9 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
+            if (!CanActivate)
+                return;
+
             Rigidbody rigidbody = Target.GetComponent<Rigidbody>();
             if (rigidbody != null) {
                 Vector3 oldPos = rigidbody.position;

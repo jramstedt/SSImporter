@@ -20,7 +20,7 @@ namespace SystemShock {
         public float MapScale;
         public ushort[] TextureMap;
         public SurveillanceCamera[] SurveillanceCameras;
-        public GameObject[,] Tile;
+        public Tile[,] Tiles;
         public List<TextureAnimation> TextureAnimations;
         public IClassData[] ClassDataTemplates;
         public Dictionary<ushort, SystemShockObject> Objects = new Dictionary<ushort, SystemShockObject>();
@@ -32,12 +32,12 @@ namespace SystemShock {
         public float Gravity;
 
         [SerializeField, HideInInspector]
-        private Tiles serializedTiles;
+        private SerializedTiles serializedTiles;
 
         [SerializeField, HideInInspector]
         private byte[] serializedClassDataTemplates;
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private List<SSKvp> serializedObjects = new List<SSKvp>();
 
         [SerializeField, HideInInspector]
@@ -52,9 +52,9 @@ namespace SystemShock {
             foreach (LoopConfiguration loopConfiguration in serializedLoopConfigurations)
                 LoopConfigurations.Add(loopConfiguration.ObjectId, loopConfiguration);
 
-            Tile = new GameObject[serializedTiles.Width, serializedTiles.Height];
-            for (int i = 0; i < serializedTiles.Tile.Length; ++i)
-                Tile[i / serializedTiles.Width, i % serializedTiles.Width] = serializedTiles.Tile[i];
+            Tiles = new Tile[serializedTiles.Width, serializedTiles.Height];
+            for (int i = 0; i < serializedTiles.Tiles.Length; ++i)
+                Tiles[i / serializedTiles.Width, i % serializedTiles.Width] = serializedTiles.Tiles[i];
 
             using (MemoryStream ms = new MemoryStream(serializedClassDataTemplates)) {
                 BinaryFormatter bf = new BinaryFormatter();
@@ -71,16 +71,16 @@ namespace SystemShock {
             foreach (KeyValuePair<ushort, LoopConfiguration> kvp in LoopConfigurations)
                 serializedLoopConfigurations.Add(kvp.Value);
 
-            GameObject[] serializedTilesArray = new GameObject[Tile.Length];
+            Tile[] serializedTilesArray = new Tile[Tiles.Length];
 
             int index = 0;
-            foreach (GameObject tile in Tile)
+            foreach (Tile tile in Tiles)
                 serializedTilesArray[index++] = tile;
 
-            serializedTiles = new Tiles() {
-                Width = Tile.GetLength(0),
-                Height = Tile.GetLength(1),
-                Tile = serializedTilesArray
+            serializedTiles = new SerializedTiles() {
+                Width = Tiles.GetLength(0),
+                Height = Tiles.GetLength(1),
+                Tiles = serializedTilesArray
             };
 
             using (MemoryStream ms = new MemoryStream()) {
@@ -102,10 +102,18 @@ namespace SystemShock {
         }
 
         [Serializable]
-        private struct Tiles {
+        private struct SerializedTiles {
             public int Width;
             public int Height;
-            public GameObject[] Tile;
+            public Tile[] Tiles;
+        }
+
+        [Serializable]
+        public class Tile {
+            public int Floor;
+            public int Ceiling;
+
+            public GameObject GameObject;
         }
 
         [Serializable]

@@ -30,7 +30,7 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
-            //Debug.Log("SPAWN! " + FirstCorner + " " + SecondCorner, this);
+            Debug.Log("SPAWN! " + FirstCorner + " " + SecondCorner, this);
 
             if (FirstCorner == null || SecondCorner == null)
                 return;
@@ -54,10 +54,22 @@ namespace SystemShock.TriggerActions {
                 objectInstance.Type = (byte)Type;
                 objectInstance.State = (byte)ActionData.State;
 
-                // TODO Spawn only on valid location
-                objectInstance.X = (ushort)(Random.Range(bounds.min.x, bounds.max.x) * 256f);
-                objectInstance.Y = (ushort)(Random.Range(bounds.min.z, bounds.max.z) * 256f);
-                objectInstance.Z = (byte)(Random.Range(bounds.min.y, bounds.max.y) / levelInfo.HeightFactor); // TODO get floor height!
+                LevelInfo.Tile Tile;
+                float X = 0f, Y = 0f, Z = 0f;
+                do {
+                    X = Random.Range(bounds.min.x, bounds.max.x);
+                    Z = Random.Range(bounds.min.z, bounds.max.z);
+
+                    Tile = levelInfo.Tiles[(int)X, (int)Z];
+                    if (Tile == null)
+                        continue;
+
+                    Y = Tile.Floor * levelInfo.MapScale;// Mathf.Clamp(Random.Range(bounds.min.y, bounds.max.y), Tile.Floor * levelInfo.MapScale, Tile.Ceiling * levelInfo.MapScale);
+                } while (Tile == null);
+
+                objectInstance.X = (ushort)(X * 256f);
+                objectInstance.Y = (ushort)(Z * 256f);
+                objectInstance.Z = (byte)(Y / levelInfo.HeightFactor);
                 objectInstance.Hitpoints = baseProperties.Hitpoints;
 
                 IClassData classData = levelInfo.ClassDataTemplates[(int)Class].Clone();

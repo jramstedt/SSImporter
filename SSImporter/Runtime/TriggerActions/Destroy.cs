@@ -21,6 +21,9 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
+            if (!CanActivate)
+                return;
+
             Target.gameObject.SetActive(false);
         }
 

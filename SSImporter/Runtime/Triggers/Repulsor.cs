@@ -16,9 +16,9 @@ namespace SystemShock.Triggers {
             BoxCollider collider = GetComponent<BoxCollider>();
             collider.isTrigger = true;
 
-            ITriggerActionProvider actionDataProvider = GetComponent<ITriggerActionProvider>();
+            IActionProvider actionDataProvider = GetComponent<IActionProvider>();
             if (actionDataProvider != null)
-                Data = actionDataProvider.TriggerData.Read<RepulsorData>();
+                Data = actionDataProvider.ActionData.Read<RepulsorData>();
 
             Vector3 colliderSize = collider.size;
             colliderSize.y = (Data.EndHeight - Data.StartHeight) / 256f;

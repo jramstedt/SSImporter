@@ -62,6 +62,9 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
+            if (!CanActivate)
+                return;
+
             condition = !condition;
 
             if (Target1 != null && condition)

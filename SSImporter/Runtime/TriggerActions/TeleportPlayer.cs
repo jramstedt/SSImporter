@@ -3,19 +3,24 @@
 using SystemShock.Object;
 using SystemShock.Resource;
 
-
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class TeleportPlayer : Triggerable<ObjectInstance.Trigger.TeleportPlayer> {
+        private LevelInfo levelInfo;
+
         public Vector3 targetPosition;
         public Quaternion targetRotation;
 
         protected override void Awake() {
             base.Awake();
 
-            LevelInfo levelInfo = GameObject.FindObjectOfType<LevelInfo>();
+            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
 
-            targetPosition = new Vector3(ActionData.TileX + 0.5f, ActionData.Z * levelInfo.HeightFactor, ActionData.TileY + 0.5f);
+            LevelInfo.Tile Tile = levelInfo.Tiles[ActionData.TileX, ActionData.TileY];
+
+            float realY = Mathf.Clamp(ActionData.Z * levelInfo.HeightFactor, Tile.Floor * levelInfo.MapScale, Tile.Ceiling * levelInfo.MapScale);
+
+            targetPosition = new Vector3(ActionData.TileX + 0.5f, realY, ActionData.TileY + 0.5f);
             targetRotation = Quaternion.Euler(-ActionData.Pitch / 65536f * 360f, ActionData.Yaw / 65536f * 360f, -ActionData.Roll / 65536f * 360f);           
         }
 

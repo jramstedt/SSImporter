@@ -32,11 +32,11 @@ namespace SystemShock {
                     gameControllers = UnityEditor.PrefabUtility.InstantiatePrefab(prefab) as GameObject;
 #else
                 GameObject gameControllers = Instantiate(prefab);
+                DontDestroyOnLoad(gameControllers);
 #endif
 
                 gameControllers.name = ResourceName;
-                gameControllers.hideFlags = HideFlags.DontSaveInBuild | HideFlags.DontSaveInEditor;
-                DontDestroyOnLoad(gameControllers);
+                gameControllers.hideFlags = HideFlags.DontSaveInBuild;
 
                 foreach (AbstractGameController gameController in gameControllers.GetComponents<AbstractGameController>())
                     typeof(AbstractGameController<>).MakeGenericType(gameController.GetType()).GetField(@"instance", BindingFlags.Static | BindingFlags.NonPublic).SetValue(gameController, gameController);

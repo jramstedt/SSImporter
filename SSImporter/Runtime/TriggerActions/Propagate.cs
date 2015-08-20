@@ -70,6 +70,9 @@ namespace SystemShock.TriggerActions {
         }
 
         public override void Trigger() {
+            if (!CanActivate)
+                return;
+
             if (Target1 != null)
                 StartCoroutine(WaitAndTrigger(Target1, ActionData.Delay1));
 

@@ -161,7 +161,7 @@ namespace SSImporter.Resource {
                 runtimeLevelInfo.HeightFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightShift) * 256f);
                 runtimeLevelInfo.MapScale = 1f / (float)(1 << (int)levelInfo.HeightShift);
                 runtimeLevelInfo.TextureMap = textureMap;
-                runtimeLevelInfo.Tile = new GameObject[levelInfo.Width, levelInfo.Height];
+                runtimeLevelInfo.Tiles = new SystemShock.LevelInfo.Tile[levelInfo.Width, levelInfo.Height];
                 runtimeLevelInfo.Radiation = levelVariables.Radiation * 0.5f;
                 runtimeLevelInfo.BioContamination = levelVariables.BioIsGravity == 0 ? levelVariables.BioContamination * 0.5f : 0f;
                 runtimeLevelInfo.Gravity = levelVariables.BioIsGravity != 0 ? levelVariables.BioContamination * 0.5f : 0f;
@@ -213,9 +213,17 @@ namespace SSImporter.Resource {
 
                         if (tile.Type != TileType.Solid) {
                             TileMesh tileMesh = tileMeshes[x, y];
+
                             GameObject tileGO = CreateGameObject(CombineTile(tileMesh, tileMeshes), @"Tile " + x.ToString() + " " + y.ToString());
                             tileGO.layer = levelGeometryLayer;
-                            runtimeLevelInfo.Tile[x, y] = tileGO;
+                            
+                            SystemShock.LevelInfo.Tile liTile = new SystemShock.LevelInfo.Tile() {
+                                Ceiling = tile.CeilingHeight,
+                                Floor = tile.FloorHeight,
+                                GameObject = tileGO
+                            };
+
+                            runtimeLevelInfo.Tiles[x, y] = liTile;
 
                             /*
                             byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
@@ -249,6 +257,7 @@ namespace SSImporter.Resource {
 
                                 GameObject floorGo = CreateGameObject(CombineTile(movingFloor, tileMeshes, true), "Moving floor", true);
                                 floorGo.transform.SetParent(tileGO.transform, false);
+                                floorGo.layer = levelGeometryLayer;
 
                                 Rigidbody rigidbody = floorGo.AddComponent<Rigidbody>();
                                 rigidbody.isKinematic = true;
@@ -263,6 +272,7 @@ namespace SSImporter.Resource {
 
                                 GameObject ceilingGo = CreateGameObject(CombineTile(movingCeiling, tileMeshes, true), "Moving ceiling", true);
                                 ceilingGo.transform.SetParent(tileGO.transform, false);
+                                ceilingGo.layer = levelGeometryLayer;
 
                                 Rigidbody rigidbody = ceilingGo.AddComponent<Rigidbody>();
                                 rigidbody.isKinematic = true;
