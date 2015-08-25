@@ -3,6 +3,11 @@
 using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
+    /// <summary>
+    /// This trigger type is not used in any of the levels.
+    /// </summary>
+
+
     [RequireComponent(typeof(BoxCollider))]
     public class AreaEnter : MonoBehaviour {
         private BoxCollider boxCollider;

@@ -281,13 +281,24 @@ namespace SSImporter.Resource {
                 for (int c = 0; c < charactersCount; ++c) {
                     Rect rect = characterRects[c];
                     characterInfo[c] = new CharacterInfo() {
-                        flipped = false,
                         index = font.FirstAscii + c,
                         size = font.Height,
                         style = FontStyle.Normal,
-                        width = rect.width,
-                        uv = new Rect(rect.x / (float)texture.width, rect.y / (float)texture.height, rect.width / (float)texture.width, rect.height / (float)texture.height),
-                        vert = new Rect(0, 0, rect.width, -rect.height),
+
+                        advance = (int)rect.width,
+                        bearing = 0,
+                        glyphHeight = (int)rect.height,
+                        glyphWidth = (int)rect.width,
+
+                        uvTopLeft = new Vector2(    rect.x / (float)texture.width,                  (rect.y + rect.height) / (float)texture.height),
+                        uvTopRight = new Vector2(   (rect.x + rect.width) / (float)texture.width,   (rect.y + rect.height) / (float)texture.height),
+                        uvBottomLeft = new Vector2( rect.x / (float)texture.width,                  rect.y / (float)texture.height),
+                        uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,   rect.y / (float)texture.height),
+
+                        minX = 0,
+                        minY = -(int)rect.height,
+                        maxX = (int)rect.width,
+                        maxY = 0
                     };
                 }
 

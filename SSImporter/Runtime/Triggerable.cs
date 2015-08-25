@@ -12,7 +12,9 @@ namespace SystemShock {
         public abstract void Trigger();
 
         protected static IEnumerator WaitAndTrigger(Triggerable target, ushort delay) {
-            yield return new WaitForSeconds(delay / 10f);
+            if(delay > 0)
+                yield return new WaitForSeconds(delay / 10f);
+
             target.Trigger();
         }
     }

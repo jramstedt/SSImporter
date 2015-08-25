@@ -100,5 +100,13 @@ namespace SystemShock.Resource {
 
             return ssObject;
         }
+
+        public void Destroy(ushort objectId) {
+            SystemShockObject ssObject;
+            if (LevelInfo.Objects.TryGetValue(objectId, out ssObject)) {
+                Destroy(ssObject.gameObject);
+                LevelInfo.Objects.Remove(objectId);
+            }
+        }
     }
 }

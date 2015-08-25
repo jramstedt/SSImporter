@@ -42,7 +42,6 @@ namespace SSImporter.Resource {
 
         public static void GenerateInstanceClass(string Name) {
             string fullNamespace = @"SystemShock.InstanceObjects";
-            //string fullName = fullNamespace + "." + Name;
             string filePath = Application.dataPath + @"/SystemShock/InstanceObjects/" + Name + @".cs";
 
             CodeCompileUnit compileUnit = new CodeCompileUnit();
@@ -67,43 +66,8 @@ namespace SSImporter.Resource {
                 dataObjectClass.BaseTypes.Add(typeof(SystemShockObject<>).MakeGenericType(instanceType));
                 dataObjectClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
 
-                #region SetProperties
-                CodeMemberMethod setProperties = new CodeMemberMethod() {
-                    Name = @"SetClassData",
-                    Attributes = MemberAttributes.Family | MemberAttributes.Override
-                };
-                setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
-                setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
-
-                dataObjectClass.Members.Add(setProperties);
-                #endregion
-
                 ns.Types.Add(dataObjectClass);
             }
-            #endregion
-
-            #region Class template
-            /*{
-                CodeTypeDeclaration templateClass = new CodeTypeDeclaration(Name + @"Template");
-                templateClass.IsClass = true;
-                templateClass.IsPartial = true;
-                templateClass.TypeAttributes = TypeAttributes.Public;
-                templateClass.BaseTypes.Add(typeof(ClassDataTemplate<>).MakeGenericType(instanceType));
-                templateClass.CustomAttributes.Add(new CodeAttributeDeclaration(@"Serializable"));
-
-                #region SetProperties
-                CodeMemberMethod setProperties = new CodeMemberMethod() {
-                    Name = @"SetClassData",
-                    Attributes = MemberAttributes.Public | MemberAttributes.Override
-                };
-                setProperties.Parameters.Add(new CodeParameterDeclarationExpression(typeof(IClassData), @"classData"));
-                setProperties.Statements.Add(new CodeAssignStatement(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"ClassData"), new CodeCastExpression(instanceType, new CodeArgumentReferenceExpression(@"classData"))));
-
-                templateClass.Members.Add(setProperties);
-                #endregion
-
-                ns.Types.Add(templateClass);
-            }*/
             #endregion
 
             compileUnit.Namespaces.Add(ns);

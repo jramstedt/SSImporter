@@ -32,6 +32,20 @@ namespace SystemShock.Resource {
             return structure;
         }
 
+        public static byte[] Write<T>(T obj) {
+            int size = Marshal.SizeOf(obj);
+            
+
+            IntPtr ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(obj, ptr, false);
+
+            byte[] bytes = new byte[size];
+            Marshal.Copy(ptr, bytes, 0, size);
+
+            Marshal.FreeHGlobal(ptr);
+            return bytes;
+        }
+
         public static T[] RotateRight<T>(this T[] array, uint shift) {
             T[] ret = new T[array.Length];
             for (int i = 0; i < ret.Length; ++i)

@@ -29,6 +29,7 @@ namespace SystemShock.Resource {
         TextureNames = 0x086A,
         CantUseMessages = 0x086B,
         ShortObjectNames = 0x086D,
+        StateMessages = 0x0871,
         LogoNames = 0x0876, // Engineering, Robotics ...
         ScreenTexts = 0x0877,
 

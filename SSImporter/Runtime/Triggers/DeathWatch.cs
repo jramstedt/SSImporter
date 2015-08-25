@@ -35,11 +35,13 @@ namespace SystemShock.Triggers {
                 Debug.LogFormat(gameObject, "DeathWatch {0} / {1} {2} {3}", combinedId, Class, Subclass, Type);
             }
 
-            triggered = false;
+            // TODO Add destroyed event to object factory?
+
+            triggered = watchedObject != null;
         }
 
         private void Update() {
-            if (!triggered && watchedObject != null)
+            if (!triggered && (watchedObject == null || !watchedObject.isActiveAndEnabled))
                 OnObjectDestroyed();
         }
 

@@ -7,47 +7,41 @@ using SystemShock.Resource;
 
 namespace SystemShock.Object {
     public abstract class SystemShockObject : MonoBehaviour {
+        public ObjectInstance ObjectInstance;
+
         public abstract ushort ObjectId { get; }
-
-        public ObjectClass Class;
-        public byte SubClass;
-        public byte Type;
-
-        public byte AIIndex;
-        public ushort Hitpoints;
-        public byte Unknown1;
-        public byte State;
-
-        public byte Unknown2;
-        public byte Unknown3;
+        public ObjectClass Class { get { return ObjectInstance.Class; } }
+        public byte SubClass { get { return ObjectInstance.SubClass; } }
+        public byte Type { get { return ObjectInstance.Type; } }
+        public byte State { get { return ObjectInstance.State; } }
 
         public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
-            Class = (SystemShock.Object.ObjectClass)objectInstance.Class;
-            SubClass = objectInstance.SubClass;
-            Type = objectInstance.Type;
-
-            AIIndex = objectInstance.AIIndex;
-            Hitpoints = objectInstance.Hitpoints;
-            Unknown1 = objectInstance.Unknown1;
-            State = objectInstance.State;
-
-            Unknown2 = objectInstance.Unknown2;
-            Unknown3 = objectInstance.Unknown3;
-
+            ObjectInstance = objectInstance;
             SetClassData(instanceData);
 
             InitializeInstance();
         }
 
-        protected virtual void SetClassData(IClassData classData) { }
-
         protected virtual void InitializeInstance() { }
+
+        protected abstract void SetClassData(IClassData classData);
+        public abstract IClassData GetClassData();
+
+        // TODO update X,Y,Z etc. if changed in unity.
     }
 
     public abstract class SystemShockObject<T> : SystemShockObject where T : IClassData {
         public T ClassData;
 
         public override ushort ObjectId { get { return ClassData.ObjectId; } }
+
+        protected override void SetClassData(IClassData classData) {
+            ClassData = (T)classData;
+        }
+
+        public override IClassData GetClassData() {
+            return ClassData;
+        }
     }
 
     public abstract class SystemShockObjectProperties : MonoBehaviour {
@@ -113,6 +107,7 @@ namespace SystemShock.Object {
         ChangeType = 0x18
     }
 
+    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct ObjectInstance {
         public byte InUse;
@@ -435,13 +430,12 @@ namespace SystemShock.Object {
         public class DoorAndGrating : IClassData {
             public Link Link;
 
-            public ushort TriggerIndex;
-            public byte Message;
+            public ushort Lock;
+            public byte LockMessage;
             public byte ForceColor;
             public byte AccessRequired;
-
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
-            public byte[] Data;
+            public byte Unknown2;
+            public ushort ObjectToTrigger;
 
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
             public IClassData Clone() { return (IClassData)MemberwiseClone(); }
@@ -699,5 +693,7 @@ namespace SystemShock.Object {
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
             public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
+
+        public ObjectInstance Clone() { return (ObjectInstance)MemberwiseClone(); }
     }
 }

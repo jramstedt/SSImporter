@@ -92,8 +92,6 @@ namespace SystemShock {
             else if (State == ToggleState.Active)
                 State = ToggleState.Open;
 
-            Debug.Log(Triggerable);
-
             if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
                 Triggerable.Trigger();
         }

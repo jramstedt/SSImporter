@@ -70,6 +70,7 @@ namespace SystemShock.InstanceObjects {
                     meshFilter.sharedMesh.name = sprite.Name;
 
                     Door door = gameObject.AddComponent<Door>();
+                    door.ClassData = ClassData;
                     door.Frames = spriteAnimation.Sprites;
                     door.CurrentFrame = State;
 

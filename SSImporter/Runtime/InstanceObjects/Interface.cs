@@ -51,7 +51,9 @@ namespace SystemShock.InstanceObjects {
         }
 
         private void UseAsTrigger() {
-            if (ClassData.Action == ActionType.TeleportPlayer) {
+            if (ClassData.Action == ActionType.NoOp) {
+                // Nothing
+            } else if (ClassData.Action == ActionType.TeleportPlayer) {
                 gameObject.AddComponent<TeleportPlayer>();
             } else if (ClassData.Action == ActionType.ResurrectPlayer) {
                 gameObject.AddComponent<ResurrectPlayer>();

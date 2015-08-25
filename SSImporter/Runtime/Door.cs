@@ -1,7 +1,10 @@
 ﻿using UnityEngine;
-using System.Collections;
-using SystemShock.Resource;
+
 using System;
+using System.Collections;
+
+using SystemShock.Object;
+using SystemShock.Resource;
 
 namespace SystemShock {
     [ExecuteInEditMode]
@@ -21,11 +24,16 @@ namespace SystemShock {
 
         private double timeAccumulator;
 
+        public Door PairedDoor;
+        public ObjectInstance.DoorAndGrating ClassData;
+
         public float FPS = 10f;
         public SpriteDefinition[] Frames;
 
         public event Action OnOpened;
         public event Action OnClosed;
+
+        // Access 255 = shodan security
 
         protected virtual void Awake() {
             Renderer = GetComponent<Renderer>();
@@ -38,6 +46,25 @@ namespace SystemShock {
         }
 
         private void Start() {
+            LevelInfo levelInfo = ObjectFactory.GetController().LevelInfo;
+            //StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
+            //CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.StateMessages);
+
+            //if (ClassData.Lock != 0)
+            //    Debug.Log("DOOR MESSAGE " + decalWords[(uint)ClassData.LockMessage + 0x07]);
+
+            SystemShockObject ssObject;
+            if (ClassData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue(ClassData.ObjectToTrigger, out ssObject) && ssObject != null) {
+                PairedDoor = ssObject.GetComponent<Door>();
+
+                if (PairedDoor == null) {
+                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
+                    Debug.Log("2Tried to link trigger! " + ssObject, this);
+                }
+            } else if (ClassData.ObjectToTrigger != 0) {
+                Debug.Log("Tried to find object! " + ClassData.ObjectToTrigger, this);
+            }
+
             UpdateFrame();
         }
 
@@ -86,6 +113,9 @@ namespace SystemShock {
                 State = DoorState.Opening;
             else if (State == DoorState.Open || State == DoorState.Opening)
                 State = DoorState.Closing;
+
+            if (PairedDoor != null && PairedDoor.State != State)
+                PairedDoor.Trigger();
         }
 
         protected override void ShowState(DoorState previousState) {
@@ -94,7 +124,6 @@ namespace SystemShock {
 
                 if (OnOpened != null)
                     OnOpened();
-
             } else if (State == DoorState.Closed) {
                 Collider.isTrigger = false;
 
@@ -119,5 +148,16 @@ namespace SystemShock {
                 }
             }
         }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmos() {
+            if (PairedDoor != null)
+                Gizmos.DrawLine(transform.position, PairedDoor.transform.position);
+        }
+
+        private void OnDrawGizmosSelected() {
+
+        }
+#endif
     }
 }

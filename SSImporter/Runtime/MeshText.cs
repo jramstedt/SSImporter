@@ -80,7 +80,7 @@ namespace SystemShock.Resource {
 
             mesh.vertices = vertices;
             */
-            
+
             mesh.vertices = textGenerator.verts.Select(v => v.position).ToArray();
             mesh.colors32 = textGenerator.verts.Select(v => v.color).ToArray();
             mesh.normals = textGenerator.verts.Select(v => v.normal).ToArray();
@@ -130,7 +130,7 @@ namespace SystemShock.Resource {
         }
 
         private void Update() {
-            if(Font.dynamic)
+            if (Font.dynamic)
                 Font.RequestCharactersInTexture(text);
         }
 
@@ -138,21 +138,21 @@ namespace SystemShock.Resource {
             Font.textureRebuilt -= OnFontTextureRebuilt;
         }
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private string text;
         public string Text {
             get { return text; }
             set { text = value; RebuildMesh(); }
         }
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private Color color;
         public Color Color {
             get { return color; }
             set { color = value; RebuildMesh(); }
         }
 
-        [SerializeField, HideInInspector]
+        [SerializeField]
         private Font font;
         public Font Font {
             get { return font; }
