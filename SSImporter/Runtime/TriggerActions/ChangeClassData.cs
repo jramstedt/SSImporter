@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 
 using SystemShock.Object;
+using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
@@ -8,10 +9,12 @@ namespace SystemShock.TriggerActions {
         public SystemShockObject Target;
 
         private LevelInfo levelInfo;
+        private ObjectFactory objectFactory;
 
         protected override void Awake() {
             base.Awake();
 
+            objectFactory = ObjectFactory.GetController();
             levelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
 
@@ -23,6 +26,12 @@ namespace SystemShock.TriggerActions {
         public override void Trigger() {
             if (!CanActivate)
                 return;
+
+            ObjectInstance objectInstance = Target.ObjectInstance;
+            IClassData classData = (IClassData)ActionProvider.ActionData.Read(Target.GetClassData().GetType());
+
+            objectFactory.Destroy(Target.ObjectId);
+            objectFactory.Instantiate(objectInstance, classData);
         }
 
 #if UNITY_EDITOR

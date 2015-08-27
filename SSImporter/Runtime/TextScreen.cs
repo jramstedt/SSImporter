@@ -23,6 +23,7 @@ namespace SystemShock {
         public TextAnchor Alignment;
         public float FPS;
         public AnimationType Type;
+        public bool SmallText;
 
         private double timeAccumulator;
         private uint currentFrame;
@@ -53,7 +54,7 @@ namespace SystemShock {
             if (nextFrame != currentFrame) {
                 uint previousFrame = currentFrame;
 
-                currentFrame = nextFrame % (uint)Frames;
+                currentFrame = Frames > 0 ? nextFrame % (uint)Frames : 1;
 
                 if (currentFrame != previousFrame) {
                     levelInfo.TextScreenRenderer.Render(this);

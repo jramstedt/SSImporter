@@ -32,6 +32,14 @@ namespace SystemShock.Resource {
             return structure;
         }
 
+        public static object Read(this byte[] bytes, Type type) {
+            GCHandle gcHandle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            object structure = Marshal.PtrToStructure(gcHandle.AddrOfPinnedObject(), type);
+            gcHandle.Free();
+
+            return structure;
+        }
+
         public static byte[] Write<T>(T obj) {
             int size = Marshal.SizeOf(obj);
             

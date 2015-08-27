@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
-
+using System.Collections;
 using SystemShock.Resource;
+
 
 namespace SystemShock.Triggers {
     public class LevelEnter : MonoBehaviour {
@@ -11,6 +12,14 @@ namespace SystemShock.Triggers {
         }
 
         private void Start() {
+            StartCoroutine(DelayedTrigger());
+
+            
+        }
+
+        private IEnumerator DelayedTrigger() {
+            yield return null;
+
             triggerable.Trigger();
         }
     }

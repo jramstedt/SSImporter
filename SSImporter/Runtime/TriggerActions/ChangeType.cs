@@ -27,13 +27,15 @@ namespace SystemShock.TriggerActions {
             if (!CanActivate)
                 return;
 
-            ObjectInstance objectInstance = Target.ObjectInstance.Clone();
-            objectInstance.Type = ActionData.NewType;
+            ObjectInstance objectInstance = Target.ObjectInstance;
+            objectInstance.Type = (byte)ActionData.NewType;
+
+            ActionData.NewType = (byte)((ActionData.NewType & ~ActionData.Resettable) | (Target.ObjectInstance.Type & ActionData.Resettable));
 
             IClassData classData = Target.GetClassData();
 
             objectFactory.Destroy(Target.ObjectId);
-            objectFactory.Instantiate(objectInstance, classData);
+            Target = objectFactory.Instantiate(objectInstance, classData);
         }
 
 #if UNITY_EDITOR

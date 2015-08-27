@@ -68,7 +68,10 @@ namespace SSImporter.Resource {
             float mapScale = 1f / (float)(1 << (int)levelInfo.HeightShift);
             float textureVerticalOffset = tile.TextureOffset * mapScale;
 
-            if (isSolidWall) { // Add solid wall
+            bool floorMoving = FloorMoving && otherTile.FloorMoving;
+            bool ceilingMoving = CeilingMoving && otherTile.CeilingMoving;
+
+            if (isSolidWall && !(floorMoving || ceilingMoving)) { // Add solid wall
                 vertices[0].y = (float)floorCornerHeight[leftCorner] * mapScale;
                 vertices[1].y = (float)ceilingCornerHeight[leftCorner] * mapScale;
                 vertices[2].y = (float)ceilingCornerHeight[rightCorner] * mapScale;
@@ -96,7 +99,7 @@ namespace SSImporter.Resource {
                 bool floorAboveCeiling = portalPoints[0] > portalPoints[1] ^ portalPoints[3] > portalPoints[2]; // Other corner of ceiling is above and other below floor
 
                 // Upper portal border is below ceiling
-                if (Mathf.Min(portalPoints[1], portalPoints[2]) < Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) {
+                if (!ceilingMoving && Mathf.Min(portalPoints[1], portalPoints[2]) < Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) {
                     vertices[0].y = (floorAboveCeiling ? portalPoints[1] : Mathf.Max(portalPoints[1], floorCornerHeight[leftCorner])) * mapScale;
                     vertices[1].y = ceilingCornerHeight[leftCorner] * mapScale;
                     vertices[2].y = ceilingCornerHeight[rightCorner] * mapScale;
@@ -120,7 +123,7 @@ namespace SSImporter.Resource {
                 }
 
                 // Lower border is above floor
-                if (Mathf.Max(portalPoints[0], portalPoints[3]) > Mathf.Min(floorCornerHeight[leftCorner], floorCornerHeight[rightCorner])) {
+                if (!floorMoving && Mathf.Max(portalPoints[0], portalPoints[3]) > Mathf.Min(floorCornerHeight[leftCorner], floorCornerHeight[rightCorner])) {
                     vertices[0].y = floorCornerHeight[leftCorner] * mapScale;
                     vertices[1].y = Mathf.Min(portalPoints[0], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;
                     vertices[2].y = Mathf.Min(portalPoints[3], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;

@@ -7,7 +7,8 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class ChangeFrameLoop : Triggerable<ObjectInstance.Trigger.ChangeFrameLoop> {
-        public SystemShockObject Target;
+        public SystemShockObject Target1;
+        public SystemShockObject Target2;
 
         private LevelInfo levelInfo;
         private TextureLibrary animationLibrary;
@@ -22,30 +23,42 @@ namespace SystemShock.TriggerActions {
         }
 
         private void Start() {
-            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId, out Target))
-                Debug.Log("Tried to find object! " + ActionData.ObjectId, this);
+            if (ActionData.ObjectId1 != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId1, out Target1))
+                Debug.Log("Tried to find object! " + ActionData.ObjectId1, this);
+
+            if (ActionData.ObjectId2 != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId2, out Target2))
+                Debug.Log("Tried to find object! " + ActionData.ObjectId2, this);
         }
 
         public override void Trigger() {
             if (!CanActivate)
                 return;
 
-            if (Target != null) {
-                AnimateMaterial animate = Target.GetComponent<AnimateMaterial>();
-                AnimateMaterial.AnimationSet animation = animate.GetAnimationSet();
+            if (Target1 != null)
+                ChangeAnimation(Target1);
 
-                animation.WrapMode = ActionData.AnimationType == 0 ? AnimateMaterial.WrapMode.Once : AnimateMaterial.WrapMode.ReverseOnce;
-                animation.Frames = animationLibrary.GetMaterialAnimation(ActionData.StartFrameIndex, (ushort)animation.Frames.Length);
+            if (Target2 != null)
+                ChangeAnimation(Target2);
+        }
 
-                animate.SetAnimation(animation);
-                animate.Reset();
-            }
+        private void ChangeAnimation(SystemShockObject target) {
+            AnimateMaterial animate = target.GetComponent<AnimateMaterial>();
+            AnimateMaterial.AnimationSet animation = animate.GetAnimationSet();
+
+            animation.WrapMode = ActionData.AnimationType == 0 ? AnimateMaterial.WrapMode.Once : AnimateMaterial.WrapMode.ReverseOnce;
+            animation.Frames = animationLibrary.GetMaterialAnimation(ActionData.StartFrameIndex, (ushort)animation.Frames.Length);
+
+            animate.SetAnimation(animation);
+            animate.Reset();
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
-            if (Target != null)
-                Gizmos.DrawLine(transform.position, Target.transform.position);
+            if (Target1 != null)
+                Gizmos.DrawLine(transform.position, Target1.transform.position);
+
+            if (Target2 != null)
+                Gizmos.DrawLine(transform.position, Target2.transform.position);
         }
 
         private void OnDrawGizmosSelected() {

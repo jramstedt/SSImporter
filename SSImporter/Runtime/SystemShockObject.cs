@@ -581,16 +581,17 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeClassData {
-                public uint ObjectId;
+                public ushort ObjectId;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 14)]
                 public byte[] Data;
             }
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeFrameLoop {
-                public uint ObjectId;
+                public ushort ObjectId1;
+                public ushort ObjectId2;
                 public byte StartFrameIndex;
                 public ushort AnimationType;
 
@@ -643,9 +644,10 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeType {
                 public uint ObjectId;
-                public byte NewType;
+                public ushort NewType;
+                public ushort Resettable;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11)]
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Unknown;
             }
 
@@ -693,7 +695,5 @@ namespace SystemShock.Object {
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
             public IClassData Clone() { return (IClassData)MemberwiseClone(); }
         }
-
-        public ObjectInstance Clone() { return (ObjectInstance)MemberwiseClone(); }
     }
 }

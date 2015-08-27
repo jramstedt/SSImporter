@@ -1,5 +1,5 @@
 # SSImporter
-System Shock's assets importer for Unity. Requires Unity 5.1.
+System Shock's assets importer for Unity. Requires Unity 5.2.
 
 ## Instructions  
 ###Notes

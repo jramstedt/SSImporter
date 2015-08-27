@@ -10,8 +10,6 @@ public class TileUpdater : MonoBehaviour {
     private int nameID;
 
     private void Awake() {
-        Debug.Log("Awake");
-
         nameID = Shader.PropertyToID(@"_MainTex_ST");
 
         materialPropertyBlock = new MaterialPropertyBlock();

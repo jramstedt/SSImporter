@@ -22,7 +22,7 @@ namespace SystemShock.InstanceObjects {
             Material nullMaterial = modelTextureLibrary.GetMaterial(0);
 
             ObjectFactory objectFactory = ObjectFactory.GetController();
-
+            
             if (SubClass == 2) {
                 if (Type == 6 || Type == 7 || Type == 8 || Type == 9 || Type == 10) {
                     // Nothing
@@ -223,11 +223,12 @@ namespace SystemShock.InstanceObjects {
                     noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
                 } else if (isSurveillance) { // Surveillance
                     overridingMaterial = new Material(Shader.Find(@"Standard"));
-                } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text
+                } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text screen
                     StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
 
                     int stringIndex = materialOverride.StartFrameIndex & 0x7F;
                     bool scrollVertically = (materialOverride.StartFrameIndex & 0x80) == 0x80;
+                    bool smallText = (materialOverride.StartFrameIndex & 0x800) == 0x800;
                     bool isRandomScreen = stringIndex == 0x7F || stringIndex == 0x7E;
 
                     if (isRandomScreen) { // Random number in level before CPU is destroyed
@@ -243,6 +244,7 @@ namespace SystemShock.InstanceObjects {
                     textScreen.Alignment = isRandomScreen ? TextAnchor.MiddleCenter : scrollVertically ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft;
                     textScreen.FPS = 2.5f;
                     textScreen.Type = isRandomScreen ? TextScreen.AnimationType.Random : TextScreen.AnimationType.Normal;
+                    textScreen.SmallText = smallText;
 
                     if (scrollVertically || isRandomScreen) {
                         int linesNeeded = scrollVertically ? materialOverride.Frames + TextScreen.LinesNeeded : materialOverride.Frames;

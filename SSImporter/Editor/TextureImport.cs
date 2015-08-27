@@ -68,11 +68,6 @@ namespace SSImporter.Resource {
                 while (fs.Position <= (fs.Length - dataSize)) {
                     textureProperties.Add(br.Read<TextureProperties>());
                 }
-
-                /*
-                while (fs.Position < fs.Length)
-                    Debug.Log("Jämä " + br.ReadByte());
-                */
             }
             #endregion
 
