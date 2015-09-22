@@ -45,11 +45,11 @@ namespace SystemShock.Resource {
         Level7Start = 0x125C,
         Level8Start = 0x12C0,
         Level9Start = 0x1324,
-        ShodanCyberspaceStart = 0x1388,
-        DeltaGroveStart = 0x13EC,
-        AlphaGroveStart = 0x1450,
-        BetaGroveStart = 0x14B4,
-        Cyberspace12Start = 0x1518,
-        Cyberspace39Start = 0x157C
+        LevelShodanCyberspaceStart = 0x1388,
+        LevelDeltaGroveStart = 0x13EC,
+        LevelAlphaGroveStart = 0x1450,
+        LevelBetaGroveStart = 0x14B4,
+        LevelCyberspace12Start = 0x1518,
+        LevelCyberspace39Start = 0x157C
     }
 }

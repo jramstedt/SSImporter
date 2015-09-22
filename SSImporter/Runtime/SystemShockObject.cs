@@ -99,7 +99,7 @@ namespace SystemShock.Object {
         RadiationTreatment = 0x10,
         ChangeClassData = 0x11,
         ChangeFrameLoop = 0x12,
-        ChangeState = 0x13,
+        ChangeInstance = 0x13,
         Unknown0x14 = 0x14,
         Awaken = 0x15,
         Message = 0x16,
@@ -333,10 +333,11 @@ namespace SystemShock.Object {
         public class Interface : IClassData {
             public Link Link;
 
-            public ActionType Action;
+            public ActionType ActionType;
             public byte Unknown;
-            public ushort ConditionVariableIndex;
-            public ushort ConditionMessageIndex;
+            public ushort ConditionVariable;
+            public byte ConditionValue;
+            public byte ConditionFailedMessage;
 
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 18)]
             public byte[] Data;
@@ -350,7 +351,7 @@ namespace SystemShock.Object {
                 public ushort ObjectToTrigger2;
                 public ushort Delay2;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 6)]
                 public byte[] Data;
             }
 
@@ -380,21 +381,15 @@ namespace SystemShock.Object {
                 public byte TypeIndicator;
                 public uint TargetWiresState;
                 public uint CurrentWiresState;
-                public byte Unknown3;
-                public byte Unknown4;
             }
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Cyberjack {
-                public ushort X;
-                public ushort Unknown1;
-                public ushort Y;
-                public ushort Unknown2;
-                public ushort Z;
-                public ushort Unknown3;
-                public ushort Level;
-                public uint Unknown4;
+                public uint X;
+                public uint Y;
+                public uint Z;
+                public uint Level;
             }
 
             [Serializable]
@@ -407,7 +402,6 @@ namespace SystemShock.Object {
                 public uint Unknown2;
                 public ushort LevelsVisible;
                 public ushort LevelsAccessible;
-                public ushort Unknown3;
             }
 
             [Serializable]
@@ -418,7 +412,6 @@ namespace SystemShock.Object {
 
                 public uint Unknown1;
                 public uint Unknown2;
-                public ushort Unknown3;
             }
 
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
@@ -457,7 +450,7 @@ namespace SystemShock.Object {
         public class Trigger : IClassData {
             public Link Link;
 
-            public ActionType Action;
+            public ActionType ActionType;
             public byte OnceOnly;
             public ushort ConditionVariable;
             public ushort ConditionValue;
@@ -496,17 +489,26 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class SetVariable {
-                public uint Variable;
-                public ushort Value;
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 2)]
+                public ushort[] Variable;
+
                 public VariableAction Action;
-                public ushort Message;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
-                public byte[] Unknown;
+                public VariableOperation Operation;
 
+                public uint MessageOn;
+                public uint MessageOff;
+
+                [Flags]
                 public enum VariableAction : ushort {
-                    Set,
-                    Add
+                    Set = 0x0001,
+                    Toggle = 0x0010,
+                    Unknown = 0x0100
+                }
+
+                public enum VariableOperation : ushort {
+                    One,
+                    Increment
                 }
             }
 
@@ -601,12 +603,26 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class ChangeState {
-                public uint Unknown;
+            public class ChangeInstance {
+                public enum ChangeAction : uint {
+                    ChangeYaw = 0x00000007,
+                    Unknown = 0x0000000B
+                }
+
+                public ChangeAction Action;
                 public uint ObjectId;
 
                 [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Data;
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeYaw {
+                    [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
+                    public byte[] Step;
+
+                    [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
+                    public byte[] Limit;
+                }
             }
 
             [Serializable]

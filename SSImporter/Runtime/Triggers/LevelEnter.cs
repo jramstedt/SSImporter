@@ -4,23 +4,23 @@ using SystemShock.Resource;
 
 
 namespace SystemShock.Triggers {
-    public class LevelEnter : MonoBehaviour {
-        private Triggerable triggerable;
+    public class LevelEnter : Null {
+        private TriggerAction triggerable;
 
-        private void Awake() {
-            triggerable = GetComponent<Triggerable>();
+        protected override void Awake() {
+            base.Awake();
+
+            triggerable = GetComponent<TriggerAction>();
         }
 
         private void Start() {
             StartCoroutine(DelayedTrigger());
-
-            
         }
 
         private IEnumerator DelayedTrigger() {
             yield return null;
 
-            triggerable.Trigger();
+            triggerable.Act();
         }
     }
 }

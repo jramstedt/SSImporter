@@ -67,6 +67,27 @@ namespace SystemShock.Resource {
             return id;
         }
 
+        public SystemShockObject Get(ushort objectId) {
+            SystemShockObject ssObject = null;
+
+            if (objectId != 0 && !LevelInfo.Objects.TryGetValue(objectId, out ssObject))
+                Debug.LogWarningFormat(this, "Unable to find object {0}", objectId);
+
+            return ssObject;
+        }
+
+        public T Get<T>(ushort objectId) where T : class {
+            SystemShockObject ssObject = Get(objectId);
+            if (ssObject == null)
+                return null;
+
+            T component = ssObject.GetComponent<T>();
+            if(component == null)
+                Debug.LogWarningFormat(this, "Unable to find {0} {1}", typeof(T).FullName, objectId);
+
+            return component;
+        }
+
         public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData) {
             if (objectInstance.InUse == 0) {
                 Debug.LogWarning(@"Instance not in use.");

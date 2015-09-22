@@ -3,10 +3,8 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class EmailPlayer : Triggerable<ObjectInstance.Trigger.EmailPlayer> {
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
+    public class EmailPlayer : TriggerAction<ObjectInstance.Trigger.EmailPlayer> {
+        protected override void DoAct() { 
         }
     }
 }

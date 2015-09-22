@@ -17,7 +17,7 @@ namespace SystemShock {
         private int propertyId;
         private MaterialPropertyBlock propertyBlock;
 
-        private Triggerable Triggerable;
+        private TriggerAction Triggerable;
 
         public SpriteDefinition[] Frames;
 
@@ -27,7 +27,7 @@ namespace SystemShock {
 
         protected virtual void Awake() {
             Renderer = GetComponent<Renderer>();
-            Triggerable = GetComponent<Triggerable>();
+            Triggerable = GetComponent<TriggerAction>();
 
             propertyId = Shader.PropertyToID(@"_MainTex_ST");
             propertyBlock = new MaterialPropertyBlock();
@@ -93,7 +93,7 @@ namespace SystemShock {
                 State = ToggleState.Open;
 
             if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
-                Triggerable.Trigger();
+                Triggerable.Act();
         }
     }
 }

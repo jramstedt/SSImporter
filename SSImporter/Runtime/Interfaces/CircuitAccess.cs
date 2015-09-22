@@ -4,36 +4,16 @@ using SystemShock.Object;
 
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
-    public class CircuitAccess : Triggerable<ObjectInstance.Interface.CircuitAccess> {
-        public Triggerable Target;
-
-        private LevelInfo levelInfo;
-
-        protected override void Awake() {
-            base.Awake();
-
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-        }
+    public class CircuitAccess : Interactable<ObjectInstance.Interface.CircuitAccess> {
+        public TriggerAction Target;
 
         private void Start() {
-            SystemShockObject ssObject;
-            if (ActionData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger, out ssObject)) {
-                Target = ssObject.GetComponent<Triggerable>();
-
-                if (Target == null)
-                    Debug.Log("Tried to link trigger! " + ssObject, ssObject);
-            } else if (ActionData.ObjectToTrigger != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger, this);
-            }
-        }
-
-        public override void Trigger() {
-            if (Target != null)
-                Target.Trigger();
+            Target = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger);
         }
 
         private void OnMouseDown() {
-            Trigger();
+            if (Target != null)
+                Target.Act();
         }
 
 #if UNITY_EDITOR

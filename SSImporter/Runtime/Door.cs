@@ -8,7 +8,7 @@ using SystemShock.Resource;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class Door : TriggerableStateMachine<Door.DoorState> {
+    public class Door : StateMachine<Door.DoorState> {
         public enum DoorState {
             Closed,
             Closing,
@@ -108,14 +108,14 @@ namespace SystemShock {
                 State = DoorState.Closed;
         }
 
-        public override void Trigger() {
+        public void Activate() {
             if (State == DoorState.Closed || State == DoorState.Closing)
                 State = DoorState.Opening;
             else if (State == DoorState.Open || State == DoorState.Opening)
                 State = DoorState.Closing;
 
             if (PairedDoor != null && PairedDoor.State != State)
-                PairedDoor.Trigger();
+                PairedDoor.Activate();
         }
 
         protected override void ShowState(DoorState previousState) {

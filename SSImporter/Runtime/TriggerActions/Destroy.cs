@@ -4,26 +4,14 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Destroy : Triggerable<ObjectInstance.Trigger.Disable> {
+    public class Destroy : TriggerAction<ObjectInstance.Trigger.Disable> {
         public SystemShockObject Target;
 
-        private LevelInfo levelInfo;
-
-        protected override void Awake() {
-            base.Awake();
-
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-        }
-
         private void Start() {
-            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.ObjectId, out Target))
-                Debug.Log("Tried to find object! " + ActionData.ObjectId, this);
+            Target = ObjectFactory.Get((ushort)ActionData.ObjectId);
         }
 
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
-
+        protected override void DoAct() {
             Target.gameObject.SetActive(false);
         }
 

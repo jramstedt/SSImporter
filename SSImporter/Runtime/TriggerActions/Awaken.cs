@@ -2,33 +2,20 @@
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using System;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Awaken : Triggerable<ObjectInstance.Trigger.Awaken> {
+    public class Awaken : TriggerAction<ObjectInstance.Trigger.Awaken> {
         public SystemShockObject FirstCorner;
         public SystemShockObject SecondCorner;
 
-        private LevelInfo levelInfo;
-
-        protected override void Awake() {
-            base.Awake();
-
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-        }
-
         private void Start() {
-            if (ActionData.Corner1ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner1ObjectId, out FirstCorner))
-                Debug.Log("Tried to find object! " + ActionData.Corner1ObjectId, this);
-
-            if (ActionData.Corner2ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner2ObjectId, out SecondCorner))
-                Debug.Log("Tried to find object! " + ActionData.Corner2ObjectId, this);
+            FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId) ?? GetComponent<SystemShockObject>();
+            SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
         }
 
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
-        }
+        protected override void DoAct() { }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {

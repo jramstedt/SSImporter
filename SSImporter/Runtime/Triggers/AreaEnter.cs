@@ -9,25 +9,27 @@ namespace SystemShock.Triggers {
 
 
     [RequireComponent(typeof(BoxCollider))]
-    public class AreaEnter : MonoBehaviour {
+    public class AreaEnter : Null {
         private BoxCollider boxCollider;
-        private Triggerable triggerable;
+        private TriggerAction triggerable;
 
-        private void Awake() {
+        protected override void Awake() {
+            base.Awake();
+
             LevelInfo levelInfo = ObjectFactory.GetController().LevelInfo;
 
             boxCollider = GetComponent<BoxCollider>();
             boxCollider.isTrigger = true;
             boxCollider.size = new Vector3(1f, 256.0f * levelInfo.HeightFactor, 1f); // TODO area size
 
-            triggerable = GetComponent<Triggerable>();
+            triggerable = GetComponent<TriggerAction>();
         }
 
         private void OnCollisionEnter(Collision collision) {
             // TODO Better check if player
 
             if (collision.gameObject.tag == "Player")
-                triggerable.Trigger();
+                triggerable.Act();
         }
     }
 }

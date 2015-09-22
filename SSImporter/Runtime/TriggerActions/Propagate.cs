@@ -6,73 +6,20 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Propagate : Triggerable<ObjectInstance.Trigger.Propagate> {
-        public Triggerable Target1;
-        public Triggerable Target2;
-        public Triggerable Target3;
-        public Triggerable Target4;
-
-        private LevelInfo levelInfo;
-
-        protected override void Awake() {
-            base.Awake();
-
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-
-            //Debug.LogFormat("Propagate {0} {1} {2} {3}", ActionData.ObjectToTrigger1, ActionData.ObjectToTrigger2, ActionData.ObjectToTrigger3, ActionData.ObjectToTrigger4);
-        }
+    public class Propagate : TriggerAction<ObjectInstance.Trigger.Propagate> {
+        public TriggerAction Target1;
+        public TriggerAction Target2;
+        public TriggerAction Target3;
+        public TriggerAction Target4;
 
         private void Start() {
-            SystemShockObject ssObject;
-            if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger1, out ssObject)) {
-                Target1 = ssObject.GetComponent<Triggerable>();
-
-                if (Target1 == null) {
-                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
-                    Debug.Log("2Tried to link trigger! " + ssObject, this);
-                }
-            } else if (ActionData.ObjectToTrigger1 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger1, this);
-            }
-
-            if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger2, out ssObject)) {
-                Target2 = ssObject.GetComponent<Triggerable>();
-
-                if (Target2 == null) {
-                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
-                    Debug.Log("2Tried to link trigger! " + ssObject, this);
-                }
-            } else if (ActionData.ObjectToTrigger2 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger2, this);
-            }
-
-            if (ActionData.ObjectToTrigger3 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger3, out ssObject)) {
-                Target3 = ssObject.GetComponent<Triggerable>();
-
-                if (Target3 == null) {
-                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
-                    Debug.Log("2Tried to link trigger! " + ssObject, this);
-                }
-            } else if (ActionData.ObjectToTrigger3 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger3, this);
-            }
-
-            if (ActionData.ObjectToTrigger4 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger4, out ssObject)) {
-                Target4 = ssObject.GetComponent<Triggerable>();
-
-                if (Target4 == null) {
-                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
-                    Debug.Log("2Tried to link trigger! " + ssObject, this);
-                }
-            } else if(ActionData.ObjectToTrigger4 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger4, this);
-            }
+            Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
+            Target2 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger2);
+            Target3 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger3);
+            Target4 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger4);
         }
 
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
-
+        protected override void DoAct() {
             if (Target1 != null)
                 StartCoroutine(WaitAndTrigger(Target1, ActionData.Delay1));
 

@@ -8,11 +8,13 @@ using SystemShock.Resource;
 namespace SystemShock.Triggers {
     [ExecuteInEditMode]
     [RequireComponent(typeof(BoxCollider))]
-    public class Repulsor : MonoBehaviour {
+    public class Repulsor : Null {
         [SerializeField, ReadOnly]
         private RepulsorData Data;
 
-        private void Awake() {
+        protected override void Awake() {
+            base.Awake();
+
             BoxCollider collider = GetComponent<BoxCollider>();
             collider.isTrigger = true;
 

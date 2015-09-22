@@ -5,31 +5,24 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Spawn : Triggerable<ObjectInstance.Trigger.Spawn> {
+    public class Spawn : TriggerAction<ObjectInstance.Trigger.Spawn> {
         public SystemShockObject FirstCorner;
         public SystemShockObject SecondCorner;
 
-        private LevelInfo levelInfo;
-        private ObjectFactory objectFactory;
         private ObjectPropertyLibrary objectPropertyLibrary;
 
         protected override void Awake() {
             base.Awake();
 
-            objectFactory = ObjectFactory.GetController();
-            levelInfo = objectFactory.LevelInfo;
             objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
         }
 
         private void Start() {
-            if (ActionData.Corner1ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner1ObjectId, out FirstCorner))
-                Debug.Log("Tried to find object! " + ActionData.Corner1ObjectId, this);
-
-            if (ActionData.Corner2ObjectId != 0 && !levelInfo.Objects.TryGetValue(ActionData.Corner2ObjectId, out SecondCorner))
-                Debug.Log("Tried to find object! " + ActionData.Corner2ObjectId, this);
+            FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId);
+            SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
         }
 
-        public override void Trigger() {
+        protected override void DoAct() {
             Debug.Log("SPAWN! " + FirstCorner + " " + SecondCorner, this);
 
             if (FirstCorner == null || SecondCorner == null)
@@ -45,6 +38,8 @@ namespace SystemShock.TriggerActions {
 
             ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
             BaseProperties baseProperties = objectData.Base;
+
+            LevelInfo levelInfo = ObjectFactory.LevelInfo;
 
             for (int i = 0; i < ActionData.Amount; ++i) {
                 ObjectInstance objectInstance = new ObjectInstance();
@@ -73,9 +68,9 @@ namespace SystemShock.TriggerActions {
                 objectInstance.Hitpoints = baseProperties.Hitpoints;
 
                 IClassData classData = levelInfo.ClassDataTemplates[(int)Class].Clone();
-                classData.ObjectId = objectFactory.NextFreeId();
+                classData.ObjectId = ObjectFactory.NextFreeId();
 
-                objectFactory.Instantiate(objectInstance, classData);
+                ObjectFactory.Instantiate(objectInstance, classData);
             }
         }
 

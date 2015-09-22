@@ -35,7 +35,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
 
-            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -113,7 +113,7 @@ namespace SSImporter.Resource {
             }
 
             foreach (ObjectInstance.Trigger trigger in instanceDatas[(byte)ObjectClass.Trigger]) {
-                if (trigger.Action == ActionType.MovePlatform) {
+                if (trigger.ActionType == ActionType.MovePlatform) {
                     ObjectInstance.Trigger.MovePlatform movingPlatform = trigger.Data.Read<ObjectInstance.Trigger.MovePlatform>();
 
                     if (movingPlatform.TargetFloorHeight <= Tile.MAX_HEIGHT) {
@@ -131,7 +131,7 @@ namespace SSImporter.Resource {
             }
 
             foreach (ObjectInstance.Interface @interface in instanceDatas[(byte)ObjectClass.Interface]) {
-                if (@interface.Action == ActionType.MovePlatform) {
+                if (@interface.ActionType == ActionType.MovePlatform) {
                     ObjectInstance.Trigger.MovePlatform movingPlatform = @interface.Data.Read<ObjectInstance.Trigger.MovePlatform>();
 
                     if (movingPlatform.TargetFloorHeight <= Tile.MAX_HEIGHT) {

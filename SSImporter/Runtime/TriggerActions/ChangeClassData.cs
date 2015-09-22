@@ -5,33 +5,19 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeClassData : Triggerable<ObjectInstance.Trigger.ChangeClassData> {
+    public class ChangeClassData : TriggerAction<ObjectInstance.Trigger.ChangeClassData> {
         public SystemShockObject Target;
 
-        private LevelInfo levelInfo;
-        private ObjectFactory objectFactory;
-
-        protected override void Awake() {
-            base.Awake();
-
-            objectFactory = ObjectFactory.GetController();
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-        }
-
         private void Start() {
-            if (ActionData.ObjectId != 0 && !levelInfo.Objects.TryGetValue((ushort)ActionData.ObjectId, out Target))
-                Debug.Log("Tried to find object! " + ActionData.ObjectId, this);
+            Target = ObjectFactory.Get(ActionData.ObjectId);
         }
 
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
-
+        protected override void DoAct() {
             ObjectInstance objectInstance = Target.ObjectInstance;
-            IClassData classData = (IClassData)ActionProvider.ActionData.Read(Target.GetClassData().GetType());
+            IClassData classData = (IClassData)ActionData.Data.Read(Target.GetClassData().GetType());
 
-            objectFactory.Destroy(Target.ObjectId);
-            objectFactory.Instantiate(objectInstance, classData);
+            ObjectFactory.Destroy(Target.ObjectId);
+            ObjectFactory.Instantiate(objectInstance, classData);
         }
 
 #if UNITY_EDITOR

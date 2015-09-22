@@ -29,32 +29,4 @@ namespace SystemShock {
             }
         }
     }
-
-    public abstract class TriggerableStateMachine<StateType> : Triggerable {
-        protected virtual void hideState(StateType nextState) {
-            HideState(nextState);
-        }
-
-        protected virtual void showState(StateType previousState) {
-            ShowState(previousState);
-        }
-
-        protected abstract void ShowState(StateType previousState);
-        protected abstract void HideState(StateType nextState);
-
-        [SerializeField]
-        private StateType state;
-        public StateType State {
-            protected set {
-                StateType previousState = state;
-                hideState(value);
-                state = value;
-                showState(previousState);
-            }
-
-            get {
-                return state;
-            }
-        }
-    }
 }

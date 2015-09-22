@@ -5,16 +5,14 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class TeleportPlayer : Triggerable<ObjectInstance.Trigger.TeleportPlayer> {
-        private LevelInfo levelInfo;
-
+    public class TeleportPlayer : TriggerAction<ObjectInstance.Trigger.TeleportPlayer> {
         public Vector3 targetPosition;
         public Quaternion targetRotation;
 
         protected override void Awake() {
             base.Awake();
 
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
+            LevelInfo levelInfo = ObjectFactory.LevelInfo;
 
             LevelInfo.Tile Tile = levelInfo.Tiles[ActionData.TileX, ActionData.TileY];
 
@@ -24,7 +22,7 @@ namespace SystemShock.TriggerActions {
             targetRotation = Quaternion.Euler(-ActionData.Pitch / 65536f * 360f, ActionData.Yaw / 65536f * 360f, -ActionData.Roll / 65536f * 360f);           
         }
 
-        public override void Trigger() {
+        protected override void DoAct() {
             GameObject player = GameObject.FindGameObjectWithTag(@"Player");
 
             Rigidbody rigidbody = player.GetComponent<Rigidbody>();

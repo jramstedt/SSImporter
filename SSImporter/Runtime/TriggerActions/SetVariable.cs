@@ -2,11 +2,15 @@
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using System;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class SetVariable : Triggerable<ObjectInstance.Trigger.SetVariable> {
+    public class SetVariable : TriggerAction<ObjectInstance.Trigger.SetVariable> {
         private GameVariables gameVariables;
+
+        private const ushort SCOPEMASK = 0xE000;
+        private const ushort VARIABLEMASK = 0x1FFF;
 
         private void Start() {
             gameVariables = GameVariables.GetController();
@@ -14,21 +18,29 @@ namespace SystemShock.TriggerActions {
             //Debug.LogFormat(this, "{0} = {1}", ActionData.Variable, ActionData.Value);
         }
 
-        public override void Trigger() {
-            if (!CanActivate)
-                return;
+        protected override void DoAct() {
+            for (int i = 0; i < ActionData.Variable.Length; ++i) {
+                ObjectInstance.Trigger.SetVariable.VariableAction action = ActionData.Action;
+                ushort variable = (ushort)(ActionData.Variable[i] & VARIABLEMASK);
 
-            if (ActionData.Action == ObjectInstance.Trigger.SetVariable.VariableAction.Set) {
-                gameVariables[(ushort)ActionData.Variable] = ActionData.Value;
-            } else if (ActionData.Action == ObjectInstance.Trigger.SetVariable.VariableAction.Add) {
-                ushort currentValue;
+                if ((action & ObjectInstance.Trigger.SetVariable.VariableAction.Set) == ObjectInstance.Trigger.SetVariable.VariableAction.Set) {
+                    ushort currentValue;
+                    gameVariables.TryGetValue(variable, out currentValue);
 
-                if (gameVariables.TryGetValue((ushort)ActionData.Variable, out currentValue))
-                    currentValue += ActionData.Value;
-                else
-                    currentValue = ActionData.Value;
+                    if (ActionData.Operation == ObjectInstance.Trigger.SetVariable.VariableOperation.Increment)
+                        currentValue += 1;
+                    else
+                        currentValue = 1;
 
-                gameVariables[(ushort)ActionData.Variable] = currentValue;
+                    gameVariables[variable] = currentValue;
+                }
+                
+                if ((action & ObjectInstance.Trigger.SetVariable.VariableAction.Toggle) == ObjectInstance.Trigger.SetVariable.VariableAction.Toggle)
+                    gameVariables[variable] = (ushort)~gameVariables[variable];
+                
+                
+                if(action == 0)
+                    gameVariables[variable] = 0;
             }
         }
     }

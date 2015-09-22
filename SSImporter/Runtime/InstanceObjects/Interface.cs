@@ -9,6 +9,8 @@ using SystemShock.Interfaces;
 
 namespace SystemShock.InstanceObjects {
     public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider {
+        private TriggerAction triggerAction;
+        
         protected override void InitializeInstance() {
             //SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
@@ -51,59 +53,59 @@ namespace SystemShock.InstanceObjects {
         }
 
         private void UseAsTrigger() {
-            if (ClassData.Action == ActionType.NoOp) {
+            ActionType actionType = ClassData.ActionType;
+
+            if (actionType == ActionType.NoOp) {
                 // Nothing
-            } else if (ClassData.Action == ActionType.TeleportPlayer) {
+            } else if (actionType == ActionType.TeleportPlayer) {
                 gameObject.AddComponent<TeleportPlayer>();
-            } else if (ClassData.Action == ActionType.ResurrectPlayer) {
+            } else if (actionType == ActionType.ResurrectPlayer) {
                 gameObject.AddComponent<ResurrectPlayer>();
-            } else if (ClassData.Action == ActionType.SetPosition) {
+            } else if (actionType == ActionType.SetPosition) {
                 gameObject.AddComponent<SetPosition>();
-            } else if (ClassData.Action == ActionType.SetVariable) {
+            } else if (actionType == ActionType.SetVariable) {
                 gameObject.AddComponent<SetVariable>();
-            } else if (ClassData.Action == ActionType.Propagate) {
+            } else if (actionType == ActionType.Propagate) {
                 gameObject.AddComponent<Propagate>();
-            } else if (ClassData.Action == ActionType.Lighting) {
+            } else if (actionType == ActionType.Lighting) {
                 gameObject.AddComponent<Lighting>();
-            } else if (ClassData.Action == ActionType.Effect) {
+            } else if (actionType == ActionType.Effect) {
                 gameObject.AddComponent<Effect>();
-            } else if (ClassData.Action == ActionType.MovePlatform) {
+            } else if (actionType == ActionType.MovePlatform) {
                 gameObject.AddComponent<MovePlatform>();
-            } else if (ClassData.Action == ActionType.PropagateRepeat) {
+            } else if (actionType == ActionType.PropagateRepeat) {
                 gameObject.AddComponent<PropagateRepeat>();
-            } else if (ClassData.Action == ActionType.PropagateConditional) {
+            } else if (actionType == ActionType.PropagateConditional) {
                 gameObject.AddComponent<PropagateConditional>();
-            } else if (ClassData.Action == ActionType.Destroy) {
+            } else if (actionType == ActionType.Destroy) {
                 gameObject.AddComponent<Destroy>();
-            } else if (ClassData.Action == ActionType.EmailPlayer) {
+            } else if (actionType == ActionType.EmailPlayer) {
                 gameObject.AddComponent<EmailPlayer>();
-            } else if (ClassData.Action == ActionType.RadiationTreatment) {
+            } else if (actionType == ActionType.RadiationTreatment) {
                 gameObject.AddComponent<RadiationTreatment>();
-            } else if (ClassData.Action == ActionType.ChangeClassData) {
+            } else if (actionType == ActionType.ChangeClassData) {
                 gameObject.AddComponent<ChangeClassData>();
-            } else if (ClassData.Action == ActionType.ChangeFrameLoop) {
+            } else if (actionType == ActionType.ChangeFrameLoop) {
                 gameObject.AddComponent<ChangeFrameLoop>();
-            } else if (ClassData.Action == ActionType.ChangeState) {
-                gameObject.AddComponent<ChangeState>();
-            } else if (ClassData.Action == ActionType.Awaken) {
+            } else if (actionType == ActionType.ChangeInstance) {
+                gameObject.AddComponent<ChangeInstance>();
+            } else if (actionType == ActionType.Awaken) {
                 gameObject.AddComponent<Awaken>();
-            } else if (ClassData.Action == ActionType.Message) {
+            } else if (actionType == ActionType.Message) {
                 gameObject.AddComponent<Message>();
-            } else if (ClassData.Action == ActionType.Spawn) {
+            } else if (actionType == ActionType.Spawn) {
                 gameObject.AddComponent<Spawn>();
-            } else if (ClassData.Action == ActionType.ChangeType) {
+            } else if (actionType == ActionType.ChangeType) {
                 gameObject.AddComponent<ChangeType>();
             } else {
-                Debug.LogWarning(ClassData.Action, gameObject);
+                Debug.LogWarning(actionType, gameObject);
             }
+
+            triggerAction = GetComponent<TriggerAction>();
+
+            gameObject.AddComponent<Button>();
         }
 
-        bool IActionProvider.CanActivate {
-            get { return true; }
-        }
-
-        byte[] IActionProvider.ActionData {
-            get { return ClassData.Data; }
-        }
+        public byte[] ActionData { get { return ClassData.Data; } }
     }
 }

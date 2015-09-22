@@ -63,7 +63,7 @@ namespace SystemShock.InstanceObjects {
 
                 meshRenderer.sharedMaterial = material;
 
-                if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable && spriteAnimation.Sprites.Length > 1) {
+                if (spriteAnimation.Sprites.Length > 1) {
                     meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
                         sprite.Pivot,
                         Vector2.one);
@@ -74,7 +74,8 @@ namespace SystemShock.InstanceObjects {
                     door.Frames = spriteAnimation.Sprites;
                     door.CurrentFrame = State;
 
-                    gameObject.AddComponent<TriggerOnMouseDown>();
+                    if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable)
+                        gameObject.AddComponent<ActivableDoor>();
                 } else {
                     meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
                         sprite.Pivot,

@@ -3,11 +3,13 @@
 using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
-    public class Ecology : MonoBehaviour {
-        private Triggerable triggerable;
+    public class Ecology : Null {
+        private TriggerAction triggerable;
 
-        private void Awake() {
-            triggerable = GetComponent<Triggerable>();
+        protected override void Awake() {
+            base.Awake();
+
+            triggerable = GetComponent<TriggerAction>();
 
             // TODO monitor ecology
             // TODO trigger if out of limits

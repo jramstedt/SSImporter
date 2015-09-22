@@ -3,11 +3,13 @@
 using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
-    public class Shodan : MonoBehaviour {
-        private Triggerable triggerable;
+    public class Shodan : Null {
+        private TriggerAction triggerable;
 
-        private void Awake() {
-            triggerable = GetComponent<Triggerable>();
+        protected override void Awake() {
+            base.Awake();
+
+            triggerable = GetComponent<TriggerAction>();
         }
     }
 }

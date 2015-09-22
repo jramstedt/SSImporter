@@ -4,49 +4,21 @@ using SystemShock.Object;
 
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
-    public class KeyPad : Triggerable<ObjectInstance.Interface.KeyPad> {
-        public Triggerable Target1;
-        public Triggerable Target2;
-
-        private LevelInfo levelInfo;
-
-        protected override void Awake() {
-            base.Awake();
-
-            levelInfo = GameObject.FindObjectOfType<LevelInfo>();
-        }
+    public class KeyPad : Interactable<ObjectInstance.Interface.KeyPad> {
+        public TriggerAction Target1;
+        public TriggerAction Target2;
 
         private void Start() {
-            SystemShockObject ssObject;
-            if (ActionData.ObjectToTrigger1 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger1, out ssObject)) {
-                Target1 = ssObject.GetComponent<Triggerable>();
-
-                if (Target1 == null)
-                    Debug.Log("Tried to link trigger! " + ssObject, ssObject);
-            } else if (ActionData.ObjectToTrigger1 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger1, this);
-            }
-
-            if (ActionData.ObjectToTrigger2 != 0 && levelInfo.Objects.TryGetValue(ActionData.ObjectToTrigger2, out ssObject)) {
-                Target2 = ssObject.GetComponent<Triggerable>();
-
-                if (Target2 == null)
-                    Debug.Log("Tried to link trigger! " + ssObject, ssObject);
-            } else if (ActionData.ObjectToTrigger2 != 0) {
-                Debug.Log("Tried to find object! " + ActionData.ObjectToTrigger2, this);
-            }
-        }
-
-        public override void Trigger() {
-            if (Target1 != null)
-                Target1.Trigger();
-
-            if (Target2 != null)
-                Target2.Trigger();
+            Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
+            Target2 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger2);
         }
 
         private void OnMouseDown() {
-            Trigger();
+            if (Target1 != null)
+                Target1.Act();
+
+            if (Target2 != null)
+                Target2.Act();
         }
 
 #if UNITY_EDITOR
