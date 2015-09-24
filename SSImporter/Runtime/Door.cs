@@ -108,11 +108,27 @@ namespace SystemShock {
                 State = DoorState.Closed;
         }
 
-        public void Activate() {
+        public void Open() {
             if (State == DoorState.Closed || State == DoorState.Closing)
                 State = DoorState.Opening;
-            else if (State == DoorState.Open || State == DoorState.Opening)
+
+            if (PairedDoor != null && PairedDoor.State != State)
+                PairedDoor.Activate();
+        }
+
+        public void Close() {
+            if (State == DoorState.Open || State == DoorState.Opening)
                 State = DoorState.Closing;
+
+            if (PairedDoor != null && PairedDoor.State != State)
+                PairedDoor.Activate();
+        }
+
+        public void Activate() {
+            if (State == DoorState.Closed || State == DoorState.Closing)
+                Open();
+            else if (State == DoorState.Open || State == DoorState.Opening)
+                Close();
 
             if (PairedDoor != null && PairedDoor.State != State)
                 PairedDoor.Activate();

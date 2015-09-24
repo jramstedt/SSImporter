@@ -9,8 +9,8 @@ namespace SystemShock.Triggers {
     [ExecuteInEditMode]
     [RequireComponent(typeof(BoxCollider))]
     public class Repulsor : Null {
-        [SerializeField, ReadOnly]
-        private RepulsorData Data;
+        [ReadOnly]
+        public RepulsorData Data;
 
         protected override void Awake() {
             base.Awake();
@@ -23,11 +23,11 @@ namespace SystemShock.Triggers {
                 Data = actionDataProvider.ActionData.Read<RepulsorData>();
 
             Vector3 colliderSize = collider.size;
-            colliderSize.y = (Data.EndHeight - Data.StartHeight) / 256f;
+            colliderSize.y = (Data.EndHeight - Data.StartHeight) / 65536f;
             collider.size = colliderSize;
 
             Vector3 colliderCenter = collider.center;
-            colliderCenter.y = colliderSize.y / 2f + Data.StartHeight / 256f - transform.position.y;
+            colliderCenter.y = colliderSize.y / 2f + Data.StartHeight / 65536f - transform.position.y;
             collider.center = colliderCenter;
         }
 
@@ -38,19 +38,16 @@ namespace SystemShock.Triggers {
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        private struct RepulsorData {
-            public enum Direction : byte {
-                Down,
-                Up
+        public struct RepulsorData {
+            public enum Direction : uint {
+                Up,
+                Down
             }
 
             public uint Unknown;
+            public uint StartHeight;
+            public uint EndHeight;
             public Direction ForceDirection;
-            public ushort StartHeight;
-            public ushort Unknown1;
-            public ushort EndHeight;
-            public byte Unknown2;
-            public uint Reversible;
         }
     }
 }

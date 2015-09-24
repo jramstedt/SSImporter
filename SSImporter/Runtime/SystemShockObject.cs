@@ -345,14 +345,13 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class KeyPad {
-                public ushort Combination;
+                public ushort Combination1;
                 public ushort ObjectToTrigger1;
-                public ushort Delay1;
+                public ushort Combination2;
                 public ushort ObjectToTrigger2;
-                public ushort Delay2;
-
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 6)]
-                public byte[] Data;
+                public uint Unknown;
+                public uint Message;
+                public ushort Unknown2;
             }
 
             [Serializable]
@@ -427,7 +426,7 @@ namespace SystemShock.Object {
             public byte LockMessage;
             public byte ForceColor;
             public byte AccessRequired;
-            public byte Unknown2;
+            public byte SoundEffect;
             public ushort ObjectToTrigger;
 
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
@@ -605,8 +604,20 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeInstance {
                 public enum ChangeAction : uint {
-                    ChangeYaw = 0x00000007,
-                    Unknown = 0x0000000B
+                    ChangeRepulsor = 0x00000001, // Ok
+                    ChangeScreen = 0x00000002, // Ok
+                    ChangeCode = 0x00000003, // Ok
+                    ResetButton = 0x00000004, // Ok
+                    ActivateDoor = 0x00000005, // Ok
+                    ReturnToMenu = 0x00000006, // Ok
+                    ChangeYaw = 0x00000007, // Ok
+                    ChangeDoor = 0x00000008,
+                    ChangeInterfaceCondition = 0x0000000A, // Ok
+                    ShowSystemAnalyzer = 0x0000000B, // 
+                    RadiatePlayer = 0x0000000C, // Ok
+                    ChangeKeypad = 0x0000000E,
+                    ChangeTriggerAgain = 0x0000000F,
+                    ChangeMissingObjects = 0x00000010
                 }
 
                 public ChangeAction Action;
@@ -616,12 +627,76 @@ namespace SystemShock.Object {
                 public byte[] Data;
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeRepulsor {
+                    public enum Direction : byte {
+                        Toggle = 0x00,
+                        Up = 0x01,
+                        Down = 0x02
+                    }
+
+                    public byte Unknown;
+                    public byte Unknown1;
+                    public ushort Unknown2;
+                    public Direction ForceDirection;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeScreen {
+                    public uint NumberIndex;
+                    public uint Unknown;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeCode {
+                    public uint CodeIndex;
+                    public uint Code;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ResetButton {
+                    public enum State : byte {
+                        Inactive = 0x00,
+                        Active = 0x01
+                    }
+
+                    public uint Unknown1;
+                    public State TargetState;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ActivateDoor {
+                    public enum State : uint {
+                        Toggle = 0x00,
+                        Open = 0x01,
+                        Close = 0x02
+                    }
+
+                    public State TargetState;
+                    public uint Unknown;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeYaw {
                     [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
                     public byte[] Step;
 
                     [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
                     public byte[] Limit;
+                }
+
+                
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeInterfaceCondition {
+                    public ushort Variable;
+                    public byte Value;
+                    public byte FailedMessage;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class RadiatePlayer {
+                    public ushort ObjectId;
+                    public ushort MinimumState;
+                    public uint Unknown;
                 }
             }
 

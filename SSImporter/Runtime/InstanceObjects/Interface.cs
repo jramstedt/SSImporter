@@ -9,8 +9,6 @@ using SystemShock.Interfaces;
 
 namespace SystemShock.InstanceObjects {
     public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider {
-        private TriggerAction triggerAction;
-        
         protected override void InitializeInstance() {
             //SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
@@ -100,8 +98,6 @@ namespace SystemShock.InstanceObjects {
             } else {
                 Debug.LogWarning(actionType, gameObject);
             }
-
-            triggerAction = GetComponent<TriggerAction>();
 
             gameObject.AddComponent<Button>();
         }
