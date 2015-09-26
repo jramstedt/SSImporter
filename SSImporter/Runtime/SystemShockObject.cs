@@ -604,26 +604,26 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeInstance {
                 public enum ChangeAction : uint {
-                    ChangeRepulsor = 0x00000001, // Ok
-                    ChangeScreen = 0x00000002, // Ok
-                    ChangeCode = 0x00000003, // Ok
-                    ResetButton = 0x00000004, // Ok
-                    ActivateDoor = 0x00000005, // Ok
-                    ReturnToMenu = 0x00000006, // Ok
-                    ChangeYaw = 0x00000007, // Ok
-                    ChangeDoor = 0x00000008,
-                    ChangeInterfaceCondition = 0x0000000A, // Ok
-                    ShowSystemAnalyzer = 0x0000000B, // 
-                    RadiatePlayer = 0x0000000C, // Ok
-                    ChangeKeypad = 0x0000000E,
-                    ChangeTriggerAgain = 0x0000000F,
-                    ChangeMissingObjects = 0x00000010
+                    ChangeRepulsor = 0x00000001,
+                    ChangeScreen = 0x00000002,
+                    ChangeCode = 0x00000003,
+                    ResetButton = 0x00000004,
+                    ActivateDoor = 0x00000005,
+                    ReturnToMenu = 0x00000006,
+                    ChangeYaw = 0x00000007,
+                    ChangeEnemy = 0x00000008, // Behaviour unknown
+                    ChangeInterfaceCondition = 0x0000000A,
+                    ShowSystemAnalyzer = 0x0000000B,
+                    RadiatePlayer = 0x0000000C,
+                    ActivateIfPlayerYaw = 0x0000000D,
+                    DisableKeypad = 0x0000000E,
+                    GameFailed = 0x0000000F, // Behaviour unknown
+                    ChangeEnemyType = 0x00000010
                 }
 
                 public ChangeAction Action;
-                public uint ObjectId;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
                 public byte[] Data;
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -634,6 +634,7 @@ namespace SystemShock.Object {
                         Down = 0x02
                     }
 
+                    public uint ObjectId;
                     public byte Unknown;
                     public byte Unknown1;
                     public ushort Unknown2;
@@ -642,12 +643,14 @@ namespace SystemShock.Object {
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeScreen {
+                    public uint ObjectId;
                     public uint NumberIndex;
                     public uint Unknown;
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeCode {
+                    public uint ObjectId;
                     public uint CodeIndex;
                     public uint Code;
                 }
@@ -659,24 +662,30 @@ namespace SystemShock.Object {
                         Active = 0x01
                     }
 
+                    public uint ObjectId;
                     public uint Unknown1;
                     public State TargetState;
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ActivateDoor {
+                    // TODO Lock door at Diego boss fight!
+
                     public enum State : uint {
                         Toggle = 0x00,
                         Open = 0x01,
                         Close = 0x02
                     }
 
+                    public uint ObjectId;
                     public State TargetState;
                     public uint Unknown;
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeYaw {
+                    public uint ObjectId;
+
                     [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
                     public byte[] Step;
 
@@ -684,9 +693,15 @@ namespace SystemShock.Object {
                     public byte[] Limit;
                 }
 
-                
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeEnemy {
+                    public uint CombinedId;
+                    public byte Unknown;
+                }
+
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeInterfaceCondition {
+                    public uint ObjectId;
                     public ushort Variable;
                     public byte Value;
                     public byte FailedMessage;
@@ -694,9 +709,23 @@ namespace SystemShock.Object {
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class RadiatePlayer {
-                    public ushort ObjectId;
+                    public uint ObjectId;
+                    public ushort WatchedObjectId;
                     public ushort MinimumState;
                     public uint Unknown;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ActivateIfPlayerYaw {
+                    public uint Angle;
+                    public uint ObjectId;
+                    public uint Unknown;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class ChangeEnemyType {
+                    public uint CombinedId;
+                    public byte NewType;
                 }
             }
 
@@ -717,7 +746,9 @@ namespace SystemShock.Object {
                 public ushort Success;
                 public ushort Fail;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+                public uint Sound;
+
+                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Unknown;
             }
 

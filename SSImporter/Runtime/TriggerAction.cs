@@ -18,7 +18,7 @@ namespace SystemShock {
 
     public abstract class TriggerAction<ActionDataType> : TriggerAction {
         protected IActionPermission PermissionProvider;
-        protected ActionDataType ActionData;
+        public ActionDataType ActionData;
         protected ObjectFactory ObjectFactory;
 
         protected virtual void Awake() {

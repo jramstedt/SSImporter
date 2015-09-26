@@ -7,35 +7,42 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class ChangeInstance : TriggerAction<ObjectInstance.Trigger.ChangeInstance> {
-        public SystemShockObject Target;
-
         private IChanger changer;
 
         private void Start() {
-            if (ActionData.ObjectId == 0)
-                Target = GetComponent<SystemShockObject>();
-            else
-                Target = ObjectFactory.Get((ushort)ActionData.ObjectId);
-
             if (!Application.isPlaying)
                 return;
 
             if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeRepulsor)
-                changer = new ChangeRepulsor(Target, ActionData.Data);
+                changer = new ChangeRepulsor(this, ObjectFactory);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeScreen)
-                changer = new ChangeScreen(Target, ActionData.Data);
+                changer = new ChangeScreen(this, ObjectFactory);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeCode)
-                changer = new ChangeCode(Target, ActionData.Data);
+                changer = new ChangeCode(this, ObjectFactory);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ResetButton)
-                changer = new ResetButton(Target, ActionData.Data);
+                changer = new ResetButton(this, ObjectFactory);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ActivateDoor)
-                changer = new ActivateDoor(Target, ActionData.Data);
+                changer = new ActivateDoor(this, ObjectFactory);
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ReturnToMenu)
+                changer = null; // TODO Return player to main menu
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeYaw)
-                changer = new ChangeYaw(Target, ActionData.Data);
+                changer = new ChangeYaw(this, ObjectFactory);
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeEnemy)
+                changer = null; // TODO Behaviour unknown
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeInterfaceCondition)
-                changer = new ChangeInterfaceCondition(Target, ActionData.Data);
+                changer = new ChangeInterfaceCondition(this, ObjectFactory);
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ShowSystemAnalyzer)
+                changer = null; // TODO Shows system analyzer in HUD
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.RadiatePlayer)
-                changer = new RadiatePlayer(Target, ActionData.Data, ObjectFactory);
+                changer = new RadiatePlayer(this, ObjectFactory);
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ActivateIfPlayerYaw)
+                changer = null; // TODO Should activate object if player looking between -45 and +45 from target yaw angle.
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.DisableKeypad)
+                changer = null; // TODO Should disable keypad.
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.GameFailed)
+                changer = null; // TODO Behaviour unknown
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeEnemyType)
+                changer = new ChangeEnemyType(this, ObjectFactory);
         }
 
         protected override void DoAct() {
@@ -45,15 +52,23 @@ namespace SystemShock.TriggerActions {
 
         private interface IChanger {
             void Change();
+
+#if UNITY_EDITOR
+            Transform[] Targets { get; }
+#endif
         }
 
         private class ChangeRepulsor : IChanger {
             private Triggers.Repulsor Repulsor;
             private ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor ActionData;
 
-            public ChangeRepulsor(SystemShockObject target, byte[] data) {
-                Repulsor = target.GetComponent<Triggers.Repulsor>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor>();
+            public ChangeRepulsor(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor>();
+
+                if (ActionData.ObjectId == 0)
+                    Repulsor = instance.GetComponent<Triggers.Repulsor>();
+                else
+                    Repulsor = objectFactory.Get<Triggers.Repulsor>((ushort)ActionData.ObjectId);                
             }
 
             public void Change() {
@@ -71,15 +86,21 @@ namespace SystemShock.TriggerActions {
                         Repulsor.Data.ForceDirection = Triggers.Repulsor.RepulsorData.Direction.Up;
                 }
             }
+
+            public Transform[] Targets { get { return new Transform[] { Repulsor.transform }; } }
         }
 
         private class ChangeScreen : IChanger {
             private TextScreen Screen;
             private ObjectInstance.Trigger.ChangeInstance.ChangeScreen ActionData;
 
-            public ChangeScreen(SystemShockObject target, byte[] data) {
-                Screen = target.GetComponent<TextScreen>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeScreen>();
+            public ChangeScreen(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeScreen>();
+
+                if (ActionData.ObjectId == 0)
+                    Screen = instance.GetComponent<TextScreen>();
+                else
+                    Screen = objectFactory.Get<TextScreen>((ushort)ActionData.ObjectId);                
             }
 
             public void Change() {
@@ -92,15 +113,21 @@ namespace SystemShock.TriggerActions {
                 Screen.Alignment = TextAnchor.MiddleCenter;
                 Screen.SmallText = false;
             }
+
+            public Transform[] Targets { get { return new Transform[] { Screen.transform }; } }
         }
 
         private class ChangeCode : IChanger {
-            private ObjectInstance.Interface.KeyPad KeyPad;
+            private Interfaces.KeyPad KeyPad;
             private ObjectInstance.Trigger.ChangeInstance.ChangeCode ActionData;
 
-            public ChangeCode(SystemShockObject target, byte[] data) {
-                KeyPad = target.GetComponent<ObjectInstance.Interface.KeyPad>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeCode>();
+            public ChangeCode(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeCode>();
+
+                if (ActionData.ObjectId == 0)
+                    KeyPad = instance.GetComponent<Interfaces.KeyPad>();
+                else
+                    KeyPad = objectFactory.Get<Interfaces.KeyPad>((ushort)ActionData.ObjectId);
             }
 
             public void Change() {
@@ -108,18 +135,23 @@ namespace SystemShock.TriggerActions {
                     return;
 
                 if (ActionData.CodeIndex == 1)
-                    KeyPad.Combination1 = (ushort)ActionData.Code; // FIXME this is not the code. Code is somewhere else.
+                    KeyPad.ActionData.Combination1 = (ushort)ActionData.Code; // FIXME this is not the code. Code is somewhere else.
                 else if(ActionData.CodeIndex == 2)
-                    KeyPad.Combination2 = (ushort)ActionData.Code; // FIXME this is not the code. Code is somewhere else.
+                    KeyPad.ActionData.Combination2 = (ushort)ActionData.Code; // FIXME this is not the code. Code is somewhere else.
             }
+            public Transform[] Targets { get { return new Transform[] { KeyPad.transform }; } }
         }
 
         private class ResetButton : IChanger {
             private ToggleSprite ToggleSprite;
             private ObjectInstance.Trigger.ChangeInstance.ResetButton ActionData;
-            public ResetButton(SystemShockObject target, byte[] data) {
-                ToggleSprite = target.GetComponent<ToggleSprite>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ResetButton>();
+            public ResetButton(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ResetButton>();
+
+                if (ActionData.ObjectId == 0)
+                    ToggleSprite = instance.GetComponent<ToggleSprite>();
+                else
+                    ToggleSprite = objectFactory.Get<ToggleSprite>((ushort)ActionData.ObjectId);
             }
 
             public void Change() {
@@ -128,15 +160,21 @@ namespace SystemShock.TriggerActions {
 
                 ToggleSprite.SetFrame(1);
             }
+
+            public Transform[] Targets { get { return new Transform[] { ToggleSprite.transform }; } }
         }
 
         private class ActivateDoor : IChanger {
             private Door Door;
             private ObjectInstance.Trigger.ChangeInstance.ActivateDoor ActionData;
 
-            public ActivateDoor(SystemShockObject target, byte[] data) {
-                Door = target.GetComponent<Door>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ActivateDoor>();
+            public ActivateDoor(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ActivateDoor>();
+
+                if (ActionData.ObjectId == 0)
+                    Door = instance.GetComponent<Door>();
+                else
+                    Door = objectFactory.Get<Door>((ushort)ActionData.ObjectId);
             }
 
             public void Change() {
@@ -150,6 +188,8 @@ namespace SystemShock.TriggerActions {
                 else
                     Door.Activate();
             }
+
+            public Transform[] Targets { get { return new Transform[] { Door.transform }; } }
         }
 
         private class ChangeYaw : IChanger {
@@ -159,10 +199,14 @@ namespace SystemShock.TriggerActions {
             private byte State;
             private short Value;
 
-            public ChangeYaw(SystemShockObject target, byte[] data) {
-                Target = target;
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeYaw>();
+            public ChangeYaw(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeYaw>();
 
+                if (ActionData.ObjectId == 0)
+                    Target = instance.GetComponent<SystemShockObject>();
+                else
+                    Target = objectFactory.Get<SystemShockObject>((ushort)ActionData.ObjectId);
+                
                 State = 0;
                 Value = Target.ObjectInstance.Yaw;
             }
@@ -178,14 +222,20 @@ namespace SystemShock.TriggerActions {
 
                 Target.transform.localRotation = Quaternion.AngleAxis(Value / 256f * 360f, Vector3.up);
             }
+
+            public Transform[] Targets { get { return new Transform[] { Target.transform }; } }
         }
 
         private class ChangeInterfaceCondition : IChanger {
             private InstanceObjects.Interface Interface;
             private ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition ActionData;
-            public ChangeInterfaceCondition(SystemShockObject target, byte[] data) {
-                Interface = target.GetComponent<InstanceObjects.Interface>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition>();
+            public ChangeInterfaceCondition(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition>();
+
+                if (ActionData.ObjectId == 0)
+                    Interface = instance.GetComponent<InstanceObjects.Interface>();
+                else
+                    Interface = objectFactory.Get<InstanceObjects.Interface>((ushort)ActionData.ObjectId);                
             }
 
             public void Change() {
@@ -196,15 +246,16 @@ namespace SystemShock.TriggerActions {
                 Interface.ClassData.ConditionValue = ActionData.Value;
                 Interface.ClassData.ConditionFailedMessage = ActionData.FailedMessage;
             }
+
+            public Transform[] Targets { get { return new Transform[] { Interface.transform }; } }
         }
 
         private class RadiatePlayer : IChanger {
             private GameObject Player;
             private SystemShockObject Watched;
             private ObjectInstance.Trigger.ChangeInstance.RadiatePlayer ActionData;
-            public RadiatePlayer(SystemShockObject target, byte[] data, ObjectFactory objectFactory) {
-                //Interface = target.GetComponent<InstanceObjects.Interface>();
-                ActionData = data.Read<ObjectInstance.Trigger.ChangeInstance.RadiatePlayer>();
+            public RadiatePlayer(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.RadiatePlayer>();
 
                 Watched = objectFactory.Get((ushort)ActionData.ObjectId);
             }
@@ -216,14 +267,31 @@ namespace SystemShock.TriggerActions {
                 if (Watched.ObjectInstance.State >= ActionData.MinimumState)
                     Debug.Log("Radiation");
             }
+
+            public Transform[] Targets { get { return new Transform[] { }; } }
         }
 
-        
+        private class ChangeEnemyType : IChanger {
+            private ObjectInstance.Trigger.ChangeInstance.ChangeEnemyType ActionData;
+            public ChangeEnemyType(ChangeInstance instance, ObjectFactory objectFactory) {
+                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeEnemyType>();
+
+                // objectFactory.GetObjectsByType(ActionData.CombinedId);
+            }
+
+            public void Change() {
+
+            }
+
+            public Transform[] Targets { get { return new Transform[] { }; } }
+        }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
-            if (Target != null)
-                Gizmos.DrawLine(transform.position, Target.transform.position);
+            if (changer != null && changer.Targets != null) {
+                foreach (Transform target in changer.Targets)
+                    Gizmos.DrawLine(transform.position, target.position);
+            }
         }
 
         private void OnDrawGizmosSelected() {

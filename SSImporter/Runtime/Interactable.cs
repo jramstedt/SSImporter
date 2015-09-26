@@ -4,7 +4,7 @@ using SystemShock.Object;
 
 namespace SystemShock {
     public class Interactable<DataType> : MonoBehaviour {
-        protected DataType ActionData;
+        public DataType ActionData;
         protected ObjectFactory ObjectFactory;
 
         protected virtual void Awake() {
