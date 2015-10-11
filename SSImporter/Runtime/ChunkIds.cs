@@ -35,6 +35,9 @@ namespace SystemShock.Resource {
 
         ModelsStart = 0x08FC,
 
+        NameOfArchive = 0x0FA0,
+        GameVariables = 0x0FA1,
+
         LevelRStart = 0x0FA0,
         Level1Start = 0x1004,
         Level2Start = 0x1068,

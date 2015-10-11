@@ -5,8 +5,6 @@ using SystemShock.Object;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class SetPosition : TriggerAction<ObjectInstance.Trigger.SetPosition> {
-        public SystemShockObject Target;
-
         private Vector3 targetPosition;
 
         protected override void Awake() {
@@ -15,11 +13,9 @@ namespace SystemShock.TriggerActions {
             targetPosition = new Vector3(ActionData.TileX, ActionData.Z * ObjectFactory.LevelInfo.HeightFactor, ActionData.TileY);
         }
 
-        private void Start() {
-            Target = ObjectFactory.Get(ActionData.ObjectId);
-        }
-
         protected override void DoAct() {
+            SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
+
             Rigidbody rigidbody = Target.GetComponent<Rigidbody>();
             if (rigidbody != null) {
                 Vector3 oldPos = rigidbody.position;

@@ -6,9 +6,6 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class Spawn : TriggerAction<ObjectInstance.Trigger.Spawn> {
-        public SystemShockObject FirstCorner;
-        public SystemShockObject SecondCorner;
-
         private ObjectPropertyLibrary objectPropertyLibrary;
 
         protected override void Awake() {
@@ -17,13 +14,9 @@ namespace SystemShock.TriggerActions {
             objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
         }
 
-        private void Start() {
-            FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId);
-            SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
-        }
-
         protected override void DoAct() {
-            Debug.Log("SPAWN! " + FirstCorner + " " + SecondCorner, this);
+            SystemShockObject FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId);
+            SystemShockObject SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
 
             if (FirstCorner == null || SecondCorner == null)
                 return;
@@ -76,6 +69,9 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            SystemShockObject FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId);
+            SystemShockObject SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
+
             if (FirstCorner == null || SecondCorner == null)
                 return;
 

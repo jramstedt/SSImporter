@@ -34,8 +34,8 @@ namespace SSImporter.Resource {
                 return;
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
-
-            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
+            
+            LoadLevel(KnownChunkId.Level5Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -177,12 +177,14 @@ namespace SSImporter.Resource {
                 #endregion
 
                 #region Loop Configurations
-                EditorUtility.DisplayProgressBar(@"Map Import", "Adding loop configurations", progress);
+                if(mapLibrary.HasChunk(mapId + 0x0033)) {
+                    EditorUtility.DisplayProgressBar(@"Map Import", "Adding loop configurations", progress);
 
-                LoopConfiguration[] loopConfigurations = mapLibrary.ReadArrayOf<LoopConfiguration>(mapId + 0x0033);
-                foreach (LoopConfiguration loopConfiguration in loopConfigurations) {
-                    if (loopConfiguration.ObjectId != 0)
-                        runtimeLevelInfo.LoopConfigurations[loopConfiguration.ObjectId] = loopConfiguration;
+                    LoopConfiguration[] loopConfigurations = mapLibrary.ReadArrayOf<LoopConfiguration>(mapId + 0x0033);
+                    foreach (LoopConfiguration loopConfiguration in loopConfigurations) {
+                        if (loopConfiguration.ObjectId != 0)
+                            runtimeLevelInfo.LoopConfigurations[loopConfiguration.ObjectId] = loopConfiguration;
+                    }
                 }
 
                 progress += progressStep;

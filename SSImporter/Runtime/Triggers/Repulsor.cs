@@ -33,7 +33,11 @@ namespace SystemShock.Triggers {
 
         private void OnTriggerStay(Collider other) {
             if (other.attachedRigidbody)
-                other.attachedRigidbody.AddForce((Data.ForceDirection == RepulsorData.Direction.Up ? -Physics.gravity : Physics.gravity) * 1.2f, ForceMode.Acceleration);
+                other.attachedRigidbody.AddForce((Data.ForceDirection == RepulsorData.Direction.Up ? -Physics.gravity * 1.2f : -Physics.gravity * 0.5f), ForceMode.Acceleration);
+        }
+
+        private void OnTriggerEnter(Collider other) {
+            OnTriggerStay(other);
         }
 
         [Serializable]

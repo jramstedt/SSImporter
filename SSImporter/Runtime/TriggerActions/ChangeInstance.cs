@@ -3,6 +3,7 @@ using UnityEngine;
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using SystemShock.Gameplay;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
@@ -14,27 +15,27 @@ namespace SystemShock.TriggerActions {
                 return;
 
             if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeRepulsor)
-                changer = new ChangeRepulsor(this, ObjectFactory);
+                changer = new ChangeRepulsor(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeScreen)
-                changer = new ChangeScreen(this, ObjectFactory);
+                changer = new ChangeScreen(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeCode)
-                changer = new ChangeCode(this, ObjectFactory);
+                changer = new ChangeCode(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ResetButton)
-                changer = new ResetButton(this, ObjectFactory);
+                changer = new ResetButton(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ActivateDoor)
-                changer = new ActivateDoor(this, ObjectFactory);
+                changer = new ActivateDoor(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ReturnToMenu)
                 changer = null; // TODO Return player to main menu
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeYaw)
-                changer = new ChangeYaw(this, ObjectFactory);
+                changer = new ChangeYaw(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeEnemy)
                 changer = null; // TODO Behaviour unknown
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeInterfaceCondition)
-                changer = new ChangeInterfaceCondition(this, ObjectFactory);
+                changer = new ChangeInterfaceCondition(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ShowSystemAnalyzer)
                 changer = null; // TODO Shows system analyzer in HUD
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.RadiatePlayer)
-                changer = new RadiatePlayer(this, ObjectFactory);
+                changer = new RadiatePlayer(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ActivateIfPlayerYaw)
                 changer = null; // TODO Should activate object if player looking between -45 and +45 from target yaw angle.
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.DisableKeypad)
@@ -42,7 +43,7 @@ namespace SystemShock.TriggerActions {
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.GameFailed)
                 changer = null; // TODO Behaviour unknown
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeEnemyType)
-                changer = new ChangeEnemyType(this, ObjectFactory);
+                changer = new ChangeEnemyType(this);
         }
 
         protected override void DoAct() {
@@ -54,30 +55,48 @@ namespace SystemShock.TriggerActions {
             void Change();
 
 #if UNITY_EDITOR
-            Transform[] Targets { get; }
+            void OnDrawGizmos();
 #endif
         }
 
-        private class ChangeRepulsor : IChanger {
-            private Triggers.Repulsor Repulsor;
-            private ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor ActionData;
+        private abstract class BaseChanger<D, T> : IChanger where T : class {
+            protected readonly D ActionData;
 
-            public ChangeRepulsor(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor>();
+            protected readonly ChangeInstance changeInstance;
+            protected readonly ObjectFactory objectFactory;
 
-                if (ActionData.ObjectId == 0)
-                    Repulsor = instance.GetComponent<Triggers.Repulsor>();
-                else
-                    Repulsor = objectFactory.Get<Triggers.Repulsor>((ushort)ActionData.ObjectId);                
+            public BaseChanger(ChangeInstance changeInstance) {
+                ActionData = changeInstance.ActionData.Data.Read<D>();
+
+                this.changeInstance = changeInstance;
+                objectFactory = ObjectFactory.GetController();
             }
 
-            public void Change() {
+            protected T GetTarget(ushort objectId) {
+                if (objectId == 0)
+                    return changeInstance.GetComponent<T>();
+                else
+                    return objectFactory.Get<T>(objectId);
+            }
+
+            public abstract void Change();
+
+#if UNITY_EDITOR
+            public abstract void OnDrawGizmos();
+#endif
+        }
+
+        private class ChangeRepulsor : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor, Triggers.Repulsor> {
+            public ChangeRepulsor(ChangeInstance changeInstance) : base(changeInstance) { }
+
+            public override void Change() {
+                var Repulsor = GetTarget((ushort)ActionData.ObjectId);
                 if (Repulsor == null)
                     return;
 
-                if(ActionData.ForceDirection == ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor.Direction.Up) {
+                if (ActionData.ForceDirection == ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor.Direction.Up) {
                     Repulsor.Data.ForceDirection = Triggers.Repulsor.RepulsorData.Direction.Up;
-                } else if(ActionData.ForceDirection == ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor.Direction.Down) {
+                } else if (ActionData.ForceDirection == ObjectInstance.Trigger.ChangeInstance.ChangeRepulsor.Direction.Down) {
                     Repulsor.Data.ForceDirection = Triggers.Repulsor.RepulsorData.Direction.Down;
                 } else {
                     if (Repulsor.Data.ForceDirection == Triggers.Repulsor.RepulsorData.Direction.Up)
@@ -87,23 +106,19 @@ namespace SystemShock.TriggerActions {
                 }
             }
 
-            public Transform[] Targets { get { return new Transform[] { Repulsor.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ChangeScreen : IChanger {
-            private TextScreen Screen;
-            private ObjectInstance.Trigger.ChangeInstance.ChangeScreen ActionData;
+        private class ChangeScreen : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeScreen, TextScreen> {
+            public ChangeScreen(ChangeInstance changeInstance) : base(changeInstance) { }
 
-            public ChangeScreen(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeScreen>();
-
-                if (ActionData.ObjectId == 0)
-                    Screen = instance.GetComponent<TextScreen>();
-                else
-                    Screen = objectFactory.Get<TextScreen>((ushort)ActionData.ObjectId);                
-            }
-
-            public void Change() {
+            public override void Change() {
+                var Screen = GetTarget((ushort)ActionData.ObjectId);
                 if (Screen == null)
                     return;
 
@@ -114,23 +129,19 @@ namespace SystemShock.TriggerActions {
                 Screen.SmallText = false;
             }
 
-            public Transform[] Targets { get { return new Transform[] { Screen.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ChangeCode : IChanger {
-            private Interfaces.KeyPad KeyPad;
-            private ObjectInstance.Trigger.ChangeInstance.ChangeCode ActionData;
+        private class ChangeCode : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeCode, Interfaces.KeyPad> {
+            public ChangeCode(ChangeInstance changeInstance) : base(changeInstance) { }
 
-            public ChangeCode(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeCode>();
-
-                if (ActionData.ObjectId == 0)
-                    KeyPad = instance.GetComponent<Interfaces.KeyPad>();
-                else
-                    KeyPad = objectFactory.Get<Interfaces.KeyPad>((ushort)ActionData.ObjectId);
-            }
-
-            public void Change() {
+            public override void Change() {
+                var KeyPad = GetTarget((ushort)ActionData.ObjectId);
                 if (KeyPad == null)
                     return;
 
@@ -139,45 +150,38 @@ namespace SystemShock.TriggerActions {
                 else if(ActionData.CodeIndex == 2)
                     KeyPad.ActionData.Combination2 = (ushort)ActionData.Code; // FIXME this is not the code. Code is somewhere else.
             }
-            public Transform[] Targets { get { return new Transform[] { KeyPad.transform }; } }
+
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ResetButton : IChanger {
-            private ToggleSprite ToggleSprite;
-            private ObjectInstance.Trigger.ChangeInstance.ResetButton ActionData;
-            public ResetButton(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ResetButton>();
+        private class ResetButton : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ResetButton, ToggleSprite> {
+            public ResetButton(ChangeInstance changeInstance) : base(changeInstance) { }
 
-                if (ActionData.ObjectId == 0)
-                    ToggleSprite = instance.GetComponent<ToggleSprite>();
-                else
-                    ToggleSprite = objectFactory.Get<ToggleSprite>((ushort)ActionData.ObjectId);
-            }
-
-            public void Change() {
+            public override void Change() {
+                var ToggleSprite = GetTarget((ushort)ActionData.ObjectId);
                 if (ToggleSprite == null)
                     return;
 
                 ToggleSprite.SetFrame(1);
             }
-
-            public Transform[] Targets { get { return new Transform[] { ToggleSprite.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ActivateDoor : IChanger {
-            private Door Door;
-            private ObjectInstance.Trigger.ChangeInstance.ActivateDoor ActionData;
+        private class ActivateDoor : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ActivateDoor, Door> {
+            public ActivateDoor(ChangeInstance changeInstance) : base(changeInstance) { }
 
-            public ActivateDoor(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ActivateDoor>();
-
-                if (ActionData.ObjectId == 0)
-                    Door = instance.GetComponent<Door>();
-                else
-                    Door = objectFactory.Get<Door>((ushort)ActionData.ObjectId);
-            }
-
-            public void Change() {
+            public override void Change() {
+                var Door = GetTarget((ushort)ActionData.ObjectId);
                 if (Door == null)
                     return;
 
@@ -188,30 +192,25 @@ namespace SystemShock.TriggerActions {
                 else
                     Door.Activate();
             }
-
-            public Transform[] Targets { get { return new Transform[] { Door.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ChangeYaw : IChanger {
-            private SystemShockObject Target;
-            private ObjectInstance.Trigger.ChangeInstance.ChangeYaw ActionData;
-
+        private class ChangeYaw : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeYaw, SystemShockObject> {
             private byte State;
             private short Value;
 
-            public ChangeYaw(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeYaw>();
-
-                if (ActionData.ObjectId == 0)
-                    Target = instance.GetComponent<SystemShockObject>();
-                else
-                    Target = objectFactory.Get<SystemShockObject>((ushort)ActionData.ObjectId);
-                
+            public ChangeYaw(ChangeInstance changeInstance) : base(changeInstance) {
                 State = 0;
-                Value = Target.ObjectInstance.Yaw;
+
+                Value = GetTarget((ushort)ActionData.ObjectId).ObjectInstance.Yaw;
             }
 
-            public void Change() {
+            public override void Change() {
                 if (Value == ActionData.Limit[State])
                     State = ActionData.Step[++State] > 0 ? State : (byte)0;
 
@@ -220,25 +219,21 @@ namespace SystemShock.TriggerActions {
                 else
                     Value += (short)(ActionData.Step[State] * ((Value - ActionData.Limit[State]) > 0 ? -1 : 1));
 
-                Target.transform.localRotation = Quaternion.AngleAxis(Value / 256f * 360f, Vector3.up);
+                GetTarget((ushort)ActionData.ObjectId).transform.localRotation = Quaternion.AngleAxis(Value / 256f * 360f, Vector3.up);
             }
-
-            public Transform[] Targets { get { return new Transform[] { Target.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ChangeInterfaceCondition : IChanger {
-            private InstanceObjects.Interface Interface;
-            private ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition ActionData;
-            public ChangeInterfaceCondition(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition>();
+        private class ChangeInterfaceCondition : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeInterfaceCondition, InstanceObjects.Interface> {
+            public ChangeInterfaceCondition(ChangeInstance changeInstance) : base(changeInstance) { }
 
-                if (ActionData.ObjectId == 0)
-                    Interface = instance.GetComponent<InstanceObjects.Interface>();
-                else
-                    Interface = objectFactory.Get<InstanceObjects.Interface>((ushort)ActionData.ObjectId);                
-            }
-
-            public void Change() {
+            public override void Change() {
+                var Interface = GetTarget((ushort)ActionData.ObjectId);
                 if (Interface == null)
                     return;
 
@@ -246,52 +241,77 @@ namespace SystemShock.TriggerActions {
                 Interface.ClassData.ConditionValue = ActionData.Value;
                 Interface.ClassData.ConditionFailedMessage = ActionData.FailedMessage;
             }
-
-            public Transform[] Targets { get { return new Transform[] { Interface.transform }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class RadiatePlayer : IChanger {
-            private GameObject Player;
-            private SystemShockObject Watched;
-            private ObjectInstance.Trigger.ChangeInstance.RadiatePlayer ActionData;
-            public RadiatePlayer(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.RadiatePlayer>();
+        private class RadiatePlayer : BaseChanger<ObjectInstance.Trigger.ChangeInstance.RadiatePlayer, SystemShockObject> {
+            private Hacker Player;
 
-                Watched = objectFactory.Get((ushort)ActionData.ObjectId);
+            public RadiatePlayer(ChangeInstance changeInstance) : base(changeInstance) {
+                Player = FindObjectOfType<Hacker>();
             }
 
-            public void Change() {
+            public override void Change() {
                 if (Player == null)
                     return;
 
+                var Watched = GetTarget((ushort)ActionData.ObjectId);
                 if (Watched.ObjectInstance.State >= ActionData.MinimumState)
                     Debug.Log("Radiation");
             }
-
-            public Transform[] Targets { get { return new Transform[] { }; } }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+            }
+#endif
         }
 
-        private class ChangeEnemyType : IChanger {
-            private ObjectInstance.Trigger.ChangeInstance.ChangeEnemyType ActionData;
-            public ChangeEnemyType(ChangeInstance instance, ObjectFactory objectFactory) {
-                ActionData = instance.ActionData.Data.Read<ObjectInstance.Trigger.ChangeInstance.ChangeEnemyType>();
+        private class ChangeEnemyType : BaseChanger<ObjectInstance.Trigger.ChangeInstance.ChangeEnemyType, SystemShockObject> {
+            public ChangeEnemyType(ChangeInstance changeInstance) : base(changeInstance) { }
 
-                // objectFactory.GetObjectsByType(ActionData.CombinedId);
+            public override void Change() {
+                uint combinedId = ActionData.CombinedId;
+                uint Class = (combinedId >> 16) & 0xFF;
+                uint Subclass = (combinedId >> 8) & 0xFF;
+                uint Type = combinedId & 0xFF;
+
+                SystemShockObject[] ssObjects = objectFactory.GetAll((ObjectClass)Class, (byte)Subclass, (byte)Type);
+                int i = ssObjects.Length;
+                while (i-- > 0) {
+                    SystemShockObject ssObject = ssObjects[i];
+
+                    ObjectInstance objectInstance = ssObject.ObjectInstance;
+                    objectInstance.Type = (byte)ActionData.NewType;
+
+                    IClassData classData = ssObject.GetClassData();
+
+                    objectFactory.Replace(ssObject.ObjectId, objectInstance, classData);
+                }
             }
+#if UNITY_EDITOR
+            public override void OnDrawGizmos() {
+                uint combinedId = ActionData.CombinedId;
+                uint Class = (combinedId >> 16) & 0xFF;
+                uint Subclass = (combinedId >> 8) & 0xFF;
+                uint Type = combinedId & 0xFF;
 
-            public void Change() {
-
+                SystemShockObject[] ssObjects = objectFactory.GetAll((ObjectClass)Class, (byte)Subclass, (byte)Type);
+                foreach(SystemShockObject Target in ssObjects)
+                    Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
             }
-
-            public Transform[] Targets { get { return new Transform[] { }; } }
+#endif
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
-            if (changer != null && changer.Targets != null) {
-                foreach (Transform target in changer.Targets)
-                    Gizmos.DrawLine(transform.position, target.position);
-            }
+            if (changer != null)
+                changer.OnDrawGizmos();
         }
 
         private void OnDrawGizmosSelected() {

@@ -474,6 +474,18 @@ namespace SSImporter.Resource {
             fileStream.Dispose();
         }
 
+        public ushort GetBlockCount(KnownChunkId chunkId) {
+            return GetBlockCount(chunkInfoPointers[chunkId]);
+        }
+
+        public ushort GetBlockCount(ChunkInfo chunkInfo) {
+            if (!chunkInfo.info.HasBlocks)
+                return 1;
+
+            fileStream.Position = chunkInfo.dataOffset;
+            return binaryReader.ReadUInt16();
+        }
+
         private byte[][] ReadBlocks(byte[] rawChunk) {
             using (MemoryStream ms = new MemoryStream(rawChunk)) {
                 BinaryReader msbr = new BinaryReader(ms);

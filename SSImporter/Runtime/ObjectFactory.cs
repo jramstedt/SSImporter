@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using System;
-using System.Collections;
+using System.Linq;
 using System.Collections.Generic;
 
 using SystemShock.Object;
@@ -12,9 +12,14 @@ namespace SystemShock.Resource {
 
         private Dictionary<string, ScriptableObject> LibraryMap;
 
+        public MessageBus MessageBus { get; private set; }
         public LevelInfo LevelInfo { get; private set; }
 
         private void Awake() {
+            UpdateLevelInfo();
+        }
+
+        private void Start() {
             UpdateLevelInfo();
         }
 
@@ -33,6 +38,7 @@ namespace SystemShock.Resource {
         }
 
         public void UpdateLevelInfo() {
+            MessageBus = MessageBus.GetController();
             LevelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
 
@@ -76,6 +82,14 @@ namespace SystemShock.Resource {
             return ssObject;
         }
 
+        public SystemShockObject[] GetAll(ObjectClass Class, byte Subclass, byte Type) {
+            return (from ssObject in LevelInfo.Objects.Values
+                    where ssObject.ObjectInstance.Class == Class && 
+                          ssObject.ObjectInstance.SubClass == Subclass &&
+                          ssObject.ObjectInstance.Type == Type
+                    select ssObject).ToArray();
+        }
+
         public T Get<T>(ushort objectId) where T : class {
             SystemShockObject ssObject = Get(objectId);
             if (ssObject == null)
@@ -86,6 +100,16 @@ namespace SystemShock.Resource {
                 Debug.LogWarningFormat(this, "Unable to find {0} {1}", typeof(T).FullName, objectId);
 
             return component;
+        }
+
+        public T[] GetAll<T>(ObjectClass Class, byte Subclass, byte Type) where T : class {
+            return (from ssObject in LevelInfo.Objects.Values
+                    where ssObject.ObjectInstance.Class == Class &&
+                          ssObject.ObjectInstance.SubClass == Subclass &&
+                          ssObject.ObjectInstance.Type == Type
+                    let component = ssObject.GetComponent<T>()
+                    where component != null
+                    select component).ToArray();
         }
 
         public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData) {
@@ -119,15 +143,44 @@ namespace SystemShock.Resource {
 
             LevelInfo.Objects.Add(instanceData.ObjectId, ssObject);
 
+            MessageBus.Send(new ObjectCreated(ssObject));
+
             return ssObject;
         }
 
         public void Destroy(ushort objectId) {
             SystemShockObject ssObject;
             if (LevelInfo.Objects.TryGetValue(objectId, out ssObject)) {
-                Destroy(ssObject.gameObject);
                 LevelInfo.Objects.Remove(objectId);
+
+                MessageBus.Send(new ObjectDestroying(ssObject));
+                
+                Destroy(ssObject.gameObject);
             }
         }
+
+        public SystemShockObject Replace(ushort objectId, ObjectInstance objectInstance, IClassData instanceData) {
+            if (objectId != instanceData.ObjectId)
+                throw new ArgumentException("Object Ids must match.", "instanceData");
+
+            Destroy(objectId);
+            SystemShockObject ssObject = Instantiate(objectInstance, instanceData);
+
+            MessageBus.Send(new ObjectReplaced(ssObject));
+
+            return ssObject;
+        }
+    }
+
+    public sealed class ObjectDestroying : GenericMessage<SystemShockObject> {
+        public ObjectDestroying(SystemShockObject target) : base(target) { }
+    }
+
+    public sealed class ObjectCreated : GenericMessage<SystemShockObject> {
+        public ObjectCreated(SystemShockObject target) : base(target) { }
+    }
+
+    public sealed class ObjectReplaced : GenericMessage<SystemShockObject> {
+        public ObjectReplaced(SystemShockObject target) : base(target) { }
     }
 }

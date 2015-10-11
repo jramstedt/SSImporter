@@ -743,13 +743,13 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Message {
-                public ushort Success;
-                public ushort Fail;
+                public uint Type;
 
-                public uint Sound;
+                public uint MessageId;
 
-                [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
-                public byte[] Unknown;
+                public uint Unknown;
+
+                public uint Unknown2;
             }
 
             [Serializable]

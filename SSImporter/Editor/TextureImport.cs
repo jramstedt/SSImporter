@@ -48,7 +48,7 @@ namespace SSImporter.Resource {
                 ResourceFile textureResource = new ResourceFile(textureLibraryPath);
 
                 foreach (KnownChunkId chunkId in textureResource.GetChunkList())
-                    Debug.Log(chunkId);
+                    Debug.Log(textureResource.GetChunkInfo(chunkId).info);
 
                 return;
             }
@@ -138,8 +138,10 @@ namespace SSImporter.Resource {
 
                     ResourceFile textureResource = new ResourceFile(textureLibraryPath);
 
+                    ushort textureCount = textureResource.GetBlockCount(KnownChunkId.Textures16x16);
+
                     List<TextureSet> textures = new List<TextureSet>();
-                    for (ushort i = 0; i < 273; ++i)
+                    for (ushort i = 0; i < textureCount; ++i)
                         textures.Add(CreateTexture(i, textureResource, gamePalette));
 
                     TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
@@ -460,15 +462,13 @@ namespace SSImporter.Resource {
         }
 
         private static TextureSet CreateTexture(ushort textureId, ResourceFile textureResource, PaletteChunk palette) {
-            TextureSet fullSizeTexture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, palette, textureId.ToString());
-            fullSizeTexture.Dispose();
 
             Texture2D completeDiffuse = new Texture2D(128, 128, TextureFormat.RGB24, true, true);
             Texture2D completeEmission = new Texture2D(128, 128, TextureFormat.RGB24, true, true);
             bool emissionHasPixels = false;
 
             #region 128x128
-            {
+            if (textureResource.HasChunk(KnownChunkId.Textures128x128Start + textureId)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, palette, textureId.ToString());
 
                 completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 0);
@@ -482,7 +482,7 @@ namespace SSImporter.Resource {
             completeEmission.Apply();
 
             #region 64x64
-            {
+            if (textureResource.HasChunk(KnownChunkId.Textures64x64Start + textureId)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures64x64Start + textureId, palette, textureId.ToString());
 
                 completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 1);
@@ -493,7 +493,7 @@ namespace SSImporter.Resource {
             #endregion
 
             #region 32x32
-            {
+            if (textureResource.HasChunk(KnownChunkId.Textures32x32)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures32x32, palette, textureId.ToString(), textureId);
 
                 completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 2);
@@ -504,7 +504,7 @@ namespace SSImporter.Resource {
             #endregion
 
             #region 16x16
-            {
+            if (textureResource.HasChunk(KnownChunkId.Textures16x16)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures16x16, palette, textureId.ToString(), textureId);
 
                 completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 3);
@@ -526,7 +526,7 @@ namespace SSImporter.Resource {
             }
 
             return new TextureSet() {
-                Name = fullSizeTexture.Name,
+                Name = textureId.ToString(),
                 Diffuse = completeDiffuse,
                 Emission = completeEmission,
                 Emissive = emissionHasPixels

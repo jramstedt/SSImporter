@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 
 using SystemShock.Resource;
+using SystemShock.Gameplay;
 
 namespace SystemShock.Triggers {
     [RequireComponent(typeof(BoxCollider))]
@@ -21,9 +22,7 @@ namespace SystemShock.Triggers {
         }
 
         private void OnTriggerEnter(Collider collider) {
-            // TODO Better check if player
-
-            if (triggerable != null && collider.tag == "Player")
+            if (collider.GetComponentInChildren<Hacker>() != null)
                 triggerable.Act();
         }
     }

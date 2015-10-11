@@ -7,43 +7,28 @@ using SystemShock.Object;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class Propagate : TriggerAction<ObjectInstance.Trigger.Propagate> {
-        public TriggerAction Target1;
-        public TriggerAction Target2;
-        public TriggerAction Target3;
-        public TriggerAction Target4;
-
-        private void Start() {
-            Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
-            Target2 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger2);
-            Target3 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger3);
-            Target4 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger4);
-        }
-
         protected override void DoAct() {
-            if (Target1 != null)
-                StartCoroutine(WaitAndTrigger(Target1, ActionData.Delay1));
-
-            if (Target2 != null)
-                StartCoroutine(WaitAndTrigger(Target2, ActionData.Delay2));
-
-            if (Target3 != null)
-                StartCoroutine(WaitAndTrigger(Target3, ActionData.Delay3));
-
-            if (Target4 != null)
-                StartCoroutine(WaitAndTrigger(Target4, ActionData.Delay4));
+            WaitAndTrigger(ActionData.ObjectToTrigger1, ActionData.Delay1);
+            WaitAndTrigger(ActionData.ObjectToTrigger2, ActionData.Delay2);
+            WaitAndTrigger(ActionData.ObjectToTrigger3, ActionData.Delay3);
+            WaitAndTrigger(ActionData.ObjectToTrigger4, ActionData.Delay4);
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            TriggerAction Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
             if (Target1 != null)
                 Gizmos.DrawLine(transform.position, Target1.transform.position);
 
+            TriggerAction Target2 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger2);
             if (Target2 != null)
                 Gizmos.DrawLine(transform.position, Target2.transform.position);
 
+            TriggerAction Target3 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger3);
             if (Target3 != null)
                 Gizmos.DrawLine(transform.position, Target3.transform.position);
 
+            TriggerAction Target4 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger4);
             if (Target4 != null)
                 Gizmos.DrawLine(transform.position, Target4.transform.position);
         }

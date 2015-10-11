@@ -23,6 +23,11 @@ namespace SystemShock.Triggers {
             if (hasBeenActivated && trigger.OnceOnly == 1)
                 return false;
 
+            if (trigger.ConditionVariable == 0) {
+                hasBeenActivated = true;
+                return true;
+            }
+
             bool invert = (trigger.ConditionVariable & INVERT) == INVERT;
             ushort ConditionVariable = (ushort)(trigger.ConditionVariable & VARIABLEMASK);
 

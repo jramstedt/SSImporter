@@ -26,6 +26,9 @@ namespace SystemShock.Interfaces {
             //if (hasBeenActivated && interf.OnceOnly == 1)
             //    return false;
 
+            if (interf.ConditionVariable == 0)
+                return true;
+
             bool invert = (interf.ConditionVariable & INVERT) == INVERT;
             ushort ConditionVariable = (ushort)(interf.ConditionVariable & VARIABLEMASK);
 

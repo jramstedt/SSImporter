@@ -4,6 +4,7 @@ using UnityEditor;
 using System.IO;
 using System.Collections;
 
+using SystemShock;
 using SystemShock.Resource;
 
 namespace SSImporter.Resource {
@@ -32,6 +33,8 @@ namespace SSImporter.Resource {
                     UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(@"Assets/SystemShock/Resources/GameController.prefab");
                     PrefabUtility.ReplacePrefab(gameControllerPrefab, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
                 }
+
+                MessageBus messageBus = gameControllerPrefab.GetComponent<MessageBus>() ?? gameControllerPrefab.AddComponent<MessageBus>();
 
                 ObjectFactory objectFactory = gameControllerPrefab.GetComponent<ObjectFactory>() ?? gameControllerPrefab.AddComponent<ObjectFactory>();
                 objectFactory.Reset();

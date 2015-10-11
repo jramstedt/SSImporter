@@ -34,6 +34,12 @@ namespace SystemShock {
         }
 
         protected abstract void DoAct();
+
+        protected void WaitAndTrigger(ushort objectId, ushort delay) {
+            TriggerAction Target = ObjectFactory.Get<TriggerAction>(objectId);
+            if (Target != null)
+                StartCoroutine(WaitAndTrigger(Target, delay));
+        }
     }
 
     public interface IActionProvider {

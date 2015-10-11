@@ -6,12 +6,9 @@ using System.Collections;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class PropagateRepeat : TriggerAction<ObjectInstance.Trigger.PropagateRepeat> {
-        public TriggerAction Target;
-
         public int Count;
 
         private void Start() {
-            Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
         }
 
         protected override void DoAct() {
@@ -22,7 +19,11 @@ namespace SystemShock.TriggerActions {
         private IEnumerator RepeatTrigger() {
             long delay = ActionData.Delay + Random.Range(ActionData.DelayVariationMin, ActionData.DelayVariationMax);
 
-            Target.Act();
+            TriggerAction Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
+            if (Target != null)
+                Target.Act();
+            else
+                yield break;
 
             if (ActionData.Count == 0 || Count-- > 0) {
                 yield return new WaitForSeconds(delay / 10f);
@@ -32,6 +33,7 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            TriggerAction Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
             if (Target != null)
                 Gizmos.DrawLine(transform.position, Target.transform.position);
         }

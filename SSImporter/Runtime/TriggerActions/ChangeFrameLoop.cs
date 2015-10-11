@@ -7,9 +7,6 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class ChangeFrameLoop : TriggerAction<ObjectInstance.Trigger.ChangeFrameLoop> {
-        public SystemShockObject Target1;
-        public SystemShockObject Target2;
-
         private TextureLibrary animationLibrary;
 
         // TODO Should this support all animation and screen types like in Decoration material override?
@@ -20,15 +17,12 @@ namespace SystemShock.TriggerActions {
             animationLibrary = TextureLibrary.GetLibrary(@"texture.res.anim");
         }
 
-        private void Start() {
-            Target1 = ObjectFactory.Get(ActionData.ObjectId1);
-            Target2 = ObjectFactory.Get(ActionData.ObjectId2);
-        }
-
         protected override void DoAct() {
+            SystemShockObject Target1 = ObjectFactory.Get(ActionData.ObjectId1);
             if (Target1 != null)
                 ChangeAnimation(Target1);
 
+            SystemShockObject Target2 = ObjectFactory.Get(ActionData.ObjectId2);
             if (Target2 != null)
                 ChangeAnimation(Target2);
         }
@@ -46,6 +40,9 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            SystemShockObject Target1 = ObjectFactory.Get(ActionData.ObjectId1);
+            SystemShockObject Target2 = ObjectFactory.Get(ActionData.ObjectId2);
+
             if (Target1 != null)
                 Gizmos.DrawLine(transform.position, Target1.transform.position);
 
