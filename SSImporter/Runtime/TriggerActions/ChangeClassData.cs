@@ -10,7 +10,8 @@ namespace SystemShock.TriggerActions {
             SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
 
             ObjectInstance objectInstance = Target.ObjectInstance;
-            IClassData classData = (IClassData)ActionData.Data.Read(Target.GetClassData().GetType());
+            //IClassData classData = (IClassData)ActionData.Data.Read(Target.GetClassData().GetType());
+            IClassData classData = (IClassData)Extensions.Write(ActionData).Read(Target.GetClassData().GetType());
 
             ObjectFactory.Replace(Target.ObjectId, objectInstance, classData);
         }

@@ -114,18 +114,12 @@ namespace SSImporter.Resource {
                             else if (baseProperties.DrawType == DrawType.Special)
                                 AddSpecial(combinedId, baseProperties, gameObject);
                             else if (baseProperties.DrawType == DrawType.ForceDoor)
-                                AddForceDoor(combinedId, baseProperties, gameObject);
+                                AddForceDoor(combinedId, baseProperties, gameObject, prefabAsset);
 
                             StaticEditorFlags staticFlags = 0;
 
                             if (baseProperties.DrawType == DrawType.Decal || baseProperties.DrawType == DrawType.Screen)
                                 staticFlags |= StaticEditorFlags.BatchingStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.NavigationStatic;
-
-                            {
-                                MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
-                                if (meshFilter && meshFilter.sharedMesh)
-                                    AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
-                            }
 
                             bool HasPhysics = baseProperties.Rigidbody != 0;
 
@@ -224,7 +218,13 @@ namespace SSImporter.Resource {
                             foreach(Transform child in gameObject.transform)
                                 GameObjectUtility.SetStaticEditorFlags(child.gameObject, staticFlags);
 
-                            PostProcess(properties, (ObjectClass)classIndex, subclassIndex, typeIndex);
+                            PostProcess(properties, (ObjectClass)classIndex, subclassIndex, typeIndex, prefabAsset);
+
+                            {
+                                MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
+                                if (meshFilter && meshFilter.sharedMesh)
+                                    AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
+                            }
 
                             EditorUtility.SetDirty(gameObject);
                             GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
@@ -245,7 +245,7 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        private static void PostProcess(SystemShockObjectProperties properties, ObjectClass objectClass, byte subclassIndex, byte typeIndex) {
+        private static void PostProcess(SystemShockObjectProperties properties, ObjectClass objectClass, byte subclassIndex, byte typeIndex, UnityEngine.Object prefabAsset) {
             GameObject gameObject = properties.gameObject;
 
             if (objectClass == ObjectClass.Decoration) {
@@ -253,16 +253,112 @@ namespace SSImporter.Resource {
                     if (typeIndex == 3) { // Text
                         GameObject.DestroyImmediate(gameObject.GetComponent<MeshProjector>());
                         gameObject.AddComponent<MeshText>();
+
+                        // TODO create text material. Add to same place as screen material
+
+                        Material material = new Material(Shader.Find(@"Standard"));
+                        material.color = Color.white;
+                        material.SetFloat(@"_Mode", 1f); // Cutout
+                        material.SetFloat(@"_Cutoff", 0.25f);
+                        material.SetColor(@"_EmissionColor", Color.white);
+                        material.SetFloat(@"_Glossiness", 0f);
+
+                        material.SetOverrideTag("RenderType", "TransparentCutout");
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                        material.SetInt("_ZWrite", 1);
+                        material.EnableKeyword("_ALPHATEST_ON");
+                        material.DisableKeyword("_ALPHABLEND_ON");
+                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.renderQueue = 2450;
+
+                        material.EnableKeyword(@"_EMISSION");
+
+                        AssetDatabase.AddObjectToAsset(material, prefabAsset); // TODO remove when in global materials
+
+                        gameObject.GetComponent<MeshRenderer>().sharedMaterial = material;
                     }
                 } else if (subclassIndex == 3) {
                     Light light = gameObject.AddComponent<Light>();
                     light.type = LightType.Point;
                     light.range = 4f;
                     light.shadows = LightShadows.Soft;
+                } else if (subclassIndex == 7) { // Bridges, catwalks etc.
+                    if (properties.Base.DrawType == DrawType.Special) {
+                        Material[] materials = new Material[2];
+
+                        if (typeIndex == 7 || typeIndex == 9) { // forcebridge
+                            // TODO create force material. Add to same place as screen material
+
+                            Material colorMaterial = new Material(Shader.Find(@"Standard"));
+                            colorMaterial.color = Color.magenta;
+                            colorMaterial.SetFloat(@"_Mode", 2f); // Fade
+                            colorMaterial.SetColor(@"_EmissionColor", Color.magenta);
+                            colorMaterial.SetFloat(@"_Glossiness", 0f);
+
+                            colorMaterial.SetOverrideTag("RenderType", "Transparent");
+                            colorMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                            colorMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                            colorMaterial.SetInt("_ZWrite", 0);
+                            colorMaterial.DisableKeyword("_ALPHATEST_ON");
+                            colorMaterial.EnableKeyword("_ALPHABLEND_ON");
+                            colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                            colorMaterial.renderQueue = 3000;
+
+                            colorMaterial.EnableKeyword(@"_EMISSION");
+
+                            AssetDatabase.AddObjectToAsset(colorMaterial, prefabAsset); // TODO remove when in global materials
+
+                            materials[0] = materials[1] = colorMaterial;
+                        }
+
+                        gameObject.GetComponent<MeshFilter>().sharedMesh = MeshUtils.CreateCubeTopPivot(1, 1, 1f / 32f);
+                        gameObject.GetComponent<MeshRenderer>().sharedMaterials = materials;
+                    }
+                }
+            } else if (objectClass == ObjectClass.DoorAndGrating) {
+                MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
+                MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
+
+                if (properties.Base.DrawType == DrawType.Decal) {
+                    int startIndex = objectPropertyLibrary.GetIndex(ObjectClass.DoorAndGrating, 0, 0);
+                    int spriteIndex = objectPropertyLibrary.GetIndex(objectClass, subclassIndex, typeIndex);
+
+                    SpriteAnimation spriteAnimation = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)));
+
+                    SpriteDefinition sprite = spriteAnimation[0];
+                    Material material = objart3Library.GetMaterial();
+
+                    meshRenderer.sharedMaterial = material;
+
+                    if (spriteAnimation.Sprites.Length > 1) {
+                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
+                            sprite.Pivot,
+                            Vector2.one);
+                        meshFilter.sharedMesh.name = sprite.Name;
+
+                        Door door = gameObject.AddComponent<Door>();
+                        door.Frames = spriteAnimation.Sprites;
+                        door.CurrentFrame = 0;
+
+                        if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable)
+                            gameObject.AddComponent<ActivableDoor>();
+                    } else {
+                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
+                            sprite.Pivot,
+                            new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
+                            sprite.Rect);
+                        meshFilter.sharedMesh.name = sprite.Name;
+                    }
+                }
+                
+                if(meshFilter) {
+                    BoxCollider boxCollider = gameObject.GetComponent<BoxCollider>();
+                    boxCollider.center = meshFilter.sharedMesh.bounds.center;
+                    boxCollider.size = meshFilter.sharedMesh.bounds.size;
                 }
             }
         }
-
         private static void CalculateAnimationIndices() {
             List<EnemyAnimations> enemyAnimations = new List<EnemyAnimations>();
 
@@ -410,16 +506,37 @@ namespace SSImporter.Resource {
         }
 
         private static void AddSpecial(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
-            gameObject.AddComponent<MeshFilter>();
-            gameObject.AddComponent<MeshRenderer>();
+            MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
         }
 
-        private static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(baseProperties.Size);
-            gameObject.AddComponent<MeshRenderer>();
+            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
 
-            // Material is added on instance creation.
+            // TODO create force material. Add to same place as screen material
+
+            Material colorMaterial = new Material(Shader.Find(@"Standard"));
+            colorMaterial.color = Color.magenta;
+            colorMaterial.SetFloat(@"_Mode", 2f); // Fade
+            colorMaterial.SetColor(@"_EmissionColor", Color.magenta);
+            colorMaterial.SetFloat(@"_Glossiness", 0f);
+
+            colorMaterial.SetOverrideTag("RenderType", "Transparent");
+            colorMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            colorMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            colorMaterial.SetInt("_ZWrite", 0);
+            colorMaterial.DisableKeyword("_ALPHATEST_ON");
+            colorMaterial.EnableKeyword("_ALPHABLEND_ON");
+            colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            colorMaterial.renderQueue = 3000;
+
+            colorMaterial.EnableKeyword(@"_EMISSION");
+
+            AssetDatabase.AddObjectToAsset(colorMaterial, prefabAsset); // TODO remove when in global materials
+
+            meshRenderer.sharedMaterial = colorMaterial;
         }
 
         private const string AttackPrimaryParameter = @"AttackPrimary";

@@ -8,7 +8,36 @@ using System;
 using System.Linq;
 
 namespace SystemShock.InstanceObjects {
+    [ExecuteInEditMode]
     public partial class Decoration : SystemShockObject<ObjectInstance.Decoration> {
+        [SerializeField, HideInInspector]
+        protected bool overrideColor;
+        [SerializeField, HideInInspector]
+        protected Color colorOverride;
+
+        [SerializeField, HideInInspector]
+        protected bool overrideEmission;
+        [SerializeField, HideInInspector]
+        protected Color emissionOverride;
+
+        protected void Start() {
+            MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
+            if(meshRenderer) {
+                MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
+                meshRenderer.GetPropertyBlock(materialPropertyBlock);
+
+                if (overrideColor)
+                    materialPropertyBlock.SetColor(@"_Color", colorOverride);
+
+                if(overrideEmission)
+                    materialPropertyBlock.SetColor(@"_EmissionColor", emissionOverride);
+
+
+                meshRenderer.SetPropertyBlock(materialPropertyBlock);
+            }
+
+        }
+
         protected override void InitializeInstance() {
             SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
 
@@ -22,7 +51,7 @@ namespace SystemShock.InstanceObjects {
             Material nullMaterial = modelTextureLibrary.GetMaterial(0);
 
             ObjectFactory objectFactory = ObjectFactory.GetController();
-            
+
             if (SubClass == 2) {
                 if (Type == 6 || Type == 7 || Type == 8 || Type == 9 || Type == 10) {
                     // Nothing
@@ -43,12 +72,19 @@ namespace SystemShock.InstanceObjects {
 
                     CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.DecalWords);
 
+                    Color color = gamePalette[text.Color != 0 ? (uint)text.Color : 53];
+
                     MeshText meshText = GetComponent<MeshText>();
-                    meshText.Color = gamePalette[text.Color != 0 ? (uint)text.Color : 53];
                     meshText.Font = font;
                     meshText.Text = decalWords[text.TextIndex];
 
-                    float scale = 1f/64f * sizeMap[(text.Font & 0x00F0) >> 4];
+                    overrideColor = true;
+                    overrideEmission = true;
+
+                    colorOverride = color;
+                    emissionOverride = color * 0.1f;
+
+                    float scale = 1f / 64f * sizeMap[(text.Font & 0x00F0) >> 4];
                     meshText.transform.localScale = new Vector3(scale, scale, scale);
                 } else { // Sprite
                     SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
@@ -104,46 +140,24 @@ namespace SystemShock.InstanceObjects {
 
                     float width = bridgeWidth > 0 ? (float)bridgeWidth / (float)0x04 : defaultWidth;
                     float length = bridgeLength > 0 ? (float)bridgeLength / (float)0x04 : defaultLength;
-                    float height = bridge.Height > 0 ? (float)bridge.Height / 32f : 1f / 32f;
+                    float height = bridge.Height > 0 ? (float)bridge.Height : 1f;
 
-                    MeshFilter meshFilter = GetComponent<MeshFilter>();
-                    meshFilter.sharedMesh = MeshUtils.CreateCubeTopPivot(width, length, height);
+                    transform.localScale = new Vector3(width, height, length);
 
-                    if (Type == 7 || Type == 9) {
-                        Color color = new Color(0.5f, 0f, 0f, 0.75f);
-                        Color emission = new Color(0.25f, 0f, 0f, 1f);
+                    if (Type == 7 || Type == 9) { // forcebridge
+                        colorOverride = new Color(0.5f, 0f, 0f, 0.75f);
+                        emissionOverride = new Color(0.25f, 0f, 0f, 1f);
 
                         if (bridge.ForceColor == 253) {
-                            color = new Color(0f, 0f, 0.75f, 0.75f);
-                            emission = new Color(0f, 0f, 0.4f, 1f);
+                            colorOverride = new Color(0f, 0f, 0.75f, 0.75f);
+                            emissionOverride = new Color(0f, 0f, 0.4f, 1f);
                         } else if (bridge.ForceColor == 254) {
-                            color = new Color(0f, 0.75f, 0f, 0.75f);
-                            emission = new Color(0f, 0.4f, 0f, 1f);
+                            colorOverride = new Color(0f, 0.75f, 0f, 0.75f);
+                            emissionOverride = new Color(0f, 0.4f, 0f, 1f);
                         }
 
-                        Material colorMaterial = new Material(Shader.Find(@"Standard")); // TODO should be screen blendmode?
-                        colorMaterial.color = color;
-                        colorMaterial.SetFloat(@"_Mode", 2f); // Fade
-                        colorMaterial.SetColor(@"_EmissionColor", emission);
-                        colorMaterial.SetFloat(@"_Glossiness", 0f);
-
-                        colorMaterial.SetColor("_EmissionColorUI", colorMaterial.GetColor(@"_EmissionColor"));
-                        colorMaterial.SetFloat("_EmissionScaleUI", 1f);
-
-                        colorMaterial.EnableKeyword(@"_EMISSION");
-
-                        colorMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                        colorMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                        colorMaterial.SetInt("_ZWrite", 0);
-                        colorMaterial.DisableKeyword("_ALPHATEST_ON");
-                        colorMaterial.EnableKeyword("_ALPHABLEND_ON");
-                        colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                        colorMaterial.renderQueue = 3000;
-
-                        meshRenderer.sharedMaterials = new Material[] {
-                            colorMaterial,
-                            colorMaterial
-                        };
+                        overrideColor = true;
+                        overrideEmission = true;
                     } else {
                         byte topBottomTexture = (byte)(bridge.TopBottomTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.Texture);
                         byte sideTexture = (byte)(bridge.SideTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.Texture);
@@ -164,9 +178,9 @@ namespace SystemShock.InstanceObjects {
                             topBottomMaterial,
                             sideMaterial
                         };
-
                     }
 
+                    MeshFilter meshFilter = GetComponent<MeshFilter>();
                     GetComponent<MeshCollider>().sharedMesh = meshFilter.sharedMesh;
                 }
             } else if (SubClass == 5) {
@@ -189,15 +203,9 @@ namespace SystemShock.InstanceObjects {
                         nullMaterialIndices.Add(i);
                 }
 
-                Material overridingMaterial;
+                Material overridingMaterial = null;
 
                 bool isAnimated = false;
-                bool isSurveillance = materialOverride.StartFrameIndex >= 0x00F8 && materialOverride.StartFrameIndex <= 0x00FF;
-
-                if (isSurveillance && objectFactory.LevelInfo.SurveillanceCameras[materialOverride.StartFrameIndex & 0x07] == null) { // No surveillance camera found.
-                    materialOverride.StartFrameIndex = 0x00F7; // Override with noise.
-                    isSurveillance = false;
-                }
 
                 bool isScreen = SubClass == 2 && (Type == 6 || Type == 8 || Type == 9); // Special case for broken screens where Frames == 0
 
@@ -211,18 +219,18 @@ namespace SystemShock.InstanceObjects {
                     //materialOverride.AnimationType = 2;
                     materialOverride.StartFrameIndex = 63;
 
-                    overridingMaterial = animationLibrary.GetMaterial(63);
-
+                    Material tmpRef = null;
                     NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
-                    noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
+                    noiseScreen.SetupMaterial(ref tmpRef, nullMaterialIndices.ToArray());
 
+                    overridingMaterial = animationLibrary.GetMaterial(63);
                     gameObject.AddComponent<ShodanScreen>();
                 } else if (materialOverride.StartFrameIndex == 0x00F7) { // Noise
                     NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
-                    overridingMaterial = noiseScreen.SetupMaterial();
-                    noiseScreen.MaterialIndices = nullMaterialIndices.ToArray();
-                } else if (isSurveillance) { // Surveillance
-                    overridingMaterial = new Material(Shader.Find(@"Standard"));
+                    noiseScreen.SetupMaterial(ref overridingMaterial, nullMaterialIndices.ToArray());
+                } else if (materialOverride.StartFrameIndex >= 0x00F8 && materialOverride.StartFrameIndex <= 0x00FF) { // Surveillance
+                    SurveillanceScreen surveillance = gameObject.AddComponent<SurveillanceScreen>();
+                    surveillance.SetupMaterial(ref overridingMaterial, nullMaterialIndices.ToArray());
                 } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text screen
                     StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
 
@@ -253,6 +261,8 @@ namespace SystemShock.InstanceObjects {
                             textScreen.Texts[i] = stringLibrary.GetStrings(KnownChunkId.ScreenTexts)[(uint)(stringIndex + i)];
                     }
 
+                    // TODO get global screen material.
+
                     overridingMaterial = new Material(Shader.Find(@"Standard"));
                     overridingMaterial.color = Color.black;
                     overridingMaterial.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
@@ -269,28 +279,12 @@ namespace SystemShock.InstanceObjects {
                     }
                 }
 
-                if (isSurveillance) {
-                    LevelInfo.SurveillanceCamera surveillanceCamera = objectFactory.LevelInfo.SurveillanceCameras[materialOverride.StartFrameIndex & 0x07];
-                    Camera camera = surveillanceCamera.Camera;
-                    overridingMaterial.color = Color.black;
-
-                    //Screens are blacklit, so use diffuse texture as emission!
-                    overridingMaterial.SetTexture(@"_EmissionMap", camera.targetTexture);
-                    overridingMaterial.SetColor(@"_EmissionColor", Color.white);
-                    overridingMaterial.EnableKeyword(@"_EMISSION");
-
-                    Surveillance surveillance = gameObject.AddComponent<Surveillance>();
-                    surveillance.Camera = camera;
-
-                    // TODO Add death watch to screen.
-                }
-
                 if (meshProjector != null) {
                     Texture projectedTexture = overridingMaterial.mainTexture ?? overridingMaterial.GetTexture(@"_EmissionMap");
-                    meshProjector.Size = properties.Base.GetRenderSize(projectedTexture.GetSize());
+                    meshProjector.Size = properties.Base.GetRenderSize(projectedTexture != null ? projectedTexture.GetSize() : new Vector2(64f, 64f));
                 }
 
-                foreach(int nullMaterialIndex in nullMaterialIndices)
+                foreach (int nullMaterialIndex in nullMaterialIndices)
                     sharedMaterials[nullMaterialIndex] = overridingMaterial;
 
                 if (isAnimated) {
@@ -298,7 +292,7 @@ namespace SystemShock.InstanceObjects {
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
 
                     LoopConfiguration loopConfiguration;
-                    if(objectFactory.LevelInfo.LoopConfigurations.TryGetValue(ObjectId, out loopConfiguration)) {
+                    if (objectFactory.LevelInfo.LoopConfigurations.TryGetValue(ObjectId, out loopConfiguration)) {
                         float fps = 256f / loopConfiguration.Frametime;
 
                         int wrapModeIndex = loopConfiguration.LoopWrapMode % (int)AnimateMaterial.WrapMode.EnumLength;

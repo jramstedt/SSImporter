@@ -43,7 +43,6 @@ namespace SystemShock.Resource {
         public static byte[] Write<T>(T obj) {
             int size = Marshal.SizeOf(obj);
             
-
             IntPtr ptr = Marshal.AllocHGlobal(size);
             Marshal.StructureToPtr(obj, ptr, false);
 
@@ -75,6 +74,22 @@ namespace SystemShock.Resource {
 
         public static Vector2 GetSize(this Texture texture) {
             return new Vector2(texture.width, texture.height);
+        }
+
+        public static void PrintBinary(uint bin) {
+            Debug.Log(Convert.ToString(bin, 2).PadLeft(32, '0'));
+        }
+
+        public static void PrintBinary(int bin) {
+            Debug.Log(Convert.ToString(bin, 2).PadLeft(32, '0'));
+        }
+
+        public static void PrintBinary(ulong bin) {
+            Debug.Log(Convert.ToString((long)bin, 2).PadLeft(64, '0'));
+        }
+
+        public static void PrintBinary(long bin) {
+            Debug.Log(Convert.ToString(bin, 2).PadLeft(64, '0'));
         }
     }
 }

@@ -8,7 +8,7 @@ namespace SystemShock.Resource {
     [RequireComponent(typeof(MeshRenderer))]
     [ExecuteInEditMode]
     public class MeshProjector : MonoBehaviour {
-        public Vector3 Size = Vector3.one;
+        public Vector3 Size = new Vector2(1f, 1f);
         public Rect UVRect = new Rect(0f, 0f, 1f, 1f);
         public float ThresholdAngle = Mathf.Cos(Mathf.PI / 4f);
         public float Offset = 0.002f;

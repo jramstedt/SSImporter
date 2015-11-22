@@ -12,6 +12,7 @@ using SystemShock;
 using SystemShock.Object;
 using SystemShock.Resource;
 using InstanceObjects = SystemShock.InstanceObjects;
+using UnityEngine.Assertions;
 
 namespace SSImporter.Resource {
     public static class MapImport {
@@ -35,7 +36,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
             
-            LoadLevel(KnownChunkId.Level5Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -339,30 +340,6 @@ namespace SSImporter.Resource {
 
                 #endregion
 
-                ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
-
-                #region Surveillance nodes
-                ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
-
-                stepPercentage = progressStep / surveillanceNodeIndices.Length;
-
-                List<SystemShock.LevelInfo.SurveillanceCamera> surveillanceCamera = new List<SystemShock.LevelInfo.SurveillanceCamera>(surveillanceNodeIndices.Length);
-                for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
-                    EditorUtility.DisplayProgressBar(@"Map Import", "Creating surveillance nodes", progress);
-
-                    ushort instanceIndex = surveillanceNodeIndices[nodeIndex];
-
-                    if (instanceIndex == 0)
-                        surveillanceCamera.Add(null);
-                    else
-                        surveillanceCamera.Add(CreateCamera(objectInstances[instanceIndex]));
-
-                    progress += stepPercentage;
-                }
-
-                runtimeLevelInfo.SurveillanceCameras = surveillanceCamera.ToArray();
-                #endregion
-
                 #region Text screen
                 EditorUtility.DisplayProgressBar(@"Map Import", "Creating text screen renderer", progress);
                 {
@@ -419,6 +396,8 @@ namespace SSImporter.Resource {
                 #endregion
 
                 #region Objects
+                ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
+
                 ObjectFactory objectFactory = ObjectFactory.GetController();
                 objectFactory.UpdateLevelInfo();
 
@@ -458,19 +437,43 @@ namespace SSImporter.Resource {
 
                     EditorUtility.SetDirty(ssObject.gameObject);
                 }
-                
+
                 #endregion
 
-                #region Surveillance camera deathwatch object
+                #region Surveillance cameras
+                ushort[] surveillanceNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002B);
                 ushort[] surveillanceDeathWatchNodeIndices = mapLibrary.ReadArrayOf<ushort>(mapId + 0x002C);
-                for (int nodeIndex = 0; nodeIndex < surveillanceDeathWatchNodeIndices.Length; ++nodeIndex) {
-                    ushort objectIndex = surveillanceDeathWatchNodeIndices[nodeIndex];
-                    if(runtimeLevelInfo.Objects.ContainsKey(objectIndex))
-                        runtimeLevelInfo.SurveillanceCameras[nodeIndex].DeathwatchObject = runtimeLevelInfo.Objects[objectIndex];
+
+                Assert.AreEqual(surveillanceNodeIndices.Length, surveillanceDeathWatchNodeIndices.Length);
+
+                stepPercentage = progressStep / surveillanceNodeIndices.Length;
+
+                runtimeLevelInfo.SurveillanceCameras = new SystemShock.LevelInfo.SurveillanceCamera[surveillanceNodeIndices.Length];
+                for (int nodeIndex = 0; nodeIndex < surveillanceNodeIndices.Length; ++nodeIndex) {
+                    EditorUtility.DisplayProgressBar(@"Map Import", "Creating surveillance cameras", progress);
+
+                    SystemShockObject cameraObject;
+                    if(runtimeLevelInfo.Objects.TryGetValue(surveillanceNodeIndices[nodeIndex], out cameraObject)) {
+                        Camera camera = cameraObject.gameObject.AddComponent<Camera>();
+                        camera.targetTexture = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                        camera.fieldOfView = 80f;
+                        camera.nearClipPlane = 0.1f;
+                        camera.enabled = false;
+
+                        SystemShockObject deathWatchObject;
+                        runtimeLevelInfo.Objects.TryGetValue(surveillanceDeathWatchNodeIndices[nodeIndex], out deathWatchObject);
+
+                        runtimeLevelInfo.SurveillanceCameras[nodeIndex] = new SystemShock.LevelInfo.SurveillanceCamera() {
+                            Camera = camera,
+                            DeathwatchObject = deathWatchObject
+                        };
+                    }
+                    
+                    progress += stepPercentage;
                 }
                 #endregion
 
-                EditorUtility.DisplayProgressBar(@"Map Import", "Calculating occlusion culling", progress);
+                //EditorUtility.DisplayProgressBar(@"Map Import", "Calculating occlusion culling", progress);
 
                 StaticOcclusionCulling.smallestOccluder = 0.5f;
                 StaticOcclusionCulling.smallestHole = runtimeLevelInfo.HeightFactor;
@@ -478,7 +481,6 @@ namespace SSImporter.Resource {
 
                 progress += progressStep;
             } catch(Exception e) {
-                EditorUtility.ClearProgressBar();
                 Debug.LogException(e);
             } finally {
                 EditorUtility.ClearProgressBar();
@@ -541,7 +543,7 @@ namespace SSImporter.Resource {
             flipX = false; 
             flipY = false;
             if (tile.TextureAlternate) {
-                flipX = ((tileX & 1) == 1) ^ ((tileY & 1) == 0);
+                flipX = ((tileX ^ ~tileY) & 1) == 1;
                 flipY = !flipX;
             }
 
@@ -692,26 +694,6 @@ namespace SSImporter.Resource {
             return new CombinedTileMesh() {
                 Mesh = mesh,
                 Materials = tileMaterials.ToArray()
-            };
-        }
-
-        private static SystemShock.LevelInfo.SurveillanceCamera CreateCamera(ObjectInstance objectInstance) {
-            GameObject cameraGO = new GameObject();
-            cameraGO.name = "Surveillance Camera";
-
-            float yFactor = (float)Tile.MAX_HEIGHT / ((1 << (int)levelInfo.HeightShift) * 256f);
-
-            cameraGO.transform.localPosition = new Vector3(objectInstance.X / 256f, objectInstance.Z * yFactor, objectInstance.Y / 256f);
-            cameraGO.transform.localRotation = Quaternion.Euler(-objectInstance.Pitch / 256f * 360f, objectInstance.Yaw / 256f * 360f, -objectInstance.Roll / 256f * 360f);
-
-            Camera camera = cameraGO.AddComponent<Camera>();
-            camera.targetTexture = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            camera.fieldOfView = 80f;
-            camera.nearClipPlane = 0.1f;
-            camera.enabled = false;
-
-            return new SystemShock.LevelInfo.SurveillanceCamera() {
-                Camera = camera
             };
         }
         

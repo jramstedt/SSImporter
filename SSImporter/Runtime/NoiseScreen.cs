@@ -2,13 +2,10 @@
 using System.Collections;
 
 namespace SystemShock {
-    public class NoiseScreen : MonoBehaviour {
-        private Material Material;
+    public class NoiseScreen : Screen {
         private Texture2D NoiseTexture;
 
         private byte[] Hash;
-
-        private Renderer Renderer;
 
         [Range(2, 1024)]
         public int Resolution = 128;
@@ -24,46 +21,34 @@ namespace SystemShock {
 
         private double timeAccumulator;
 
-        [HideInInspector]
-        public int[] MaterialIndices;
+        protected override void Awake() {
+            base.Awake();
 
-        private void Awake() {
-            Renderer = GetComponentInChildren<Renderer>();
-
-            if (NoiseTexture == null)
-                SetupMaterial();
-            else if (NoiseTexture.width != Resolution || NoiseTexture.height != Resolution)
-                NoiseTexture.Resize(Resolution, Resolution);
+            NoiseTexture = new Texture2D(Resolution, Resolution, TextureFormat.RGB24, false, true);
+            NoiseTexture.name = @"Noise";
+            NoiseTexture.anisoLevel = 9;
 
             Hash = new byte[256];
             for (int i = 0; i < 256; ++i)
                 Hash[i] = (byte)(Random.value * 256);
         }
 
-        public Material SetupMaterial() {
-            NoiseTexture = new Texture2D(Resolution, Resolution, TextureFormat.RGB24, false, true);
-            NoiseTexture.name = @"Noise";
-            NoiseTexture.anisoLevel = 9;
-
-            Material = new Material(Shader.Find(@"Standard"));
-            Material.color = Color.black;
-            Material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
-            Material.SetTexture(@"_EmissionMap", NoiseTexture);
-            Material.SetColor(@"_EmissionColor", Color.white);
-            Material.EnableKeyword(@"_EMISSION");
-
-            return Material;
+        public void OnDestroy() {
+            Destroy(NoiseTexture);
         }
 
-        private void OnEnable() {
-            Material[] sharedMaterials = Renderer.sharedMaterials;
+        private void Start() {
+            OnEnable();
+        }
 
-            for (int i = 0; i < MaterialIndices.Length; ++i)
-                sharedMaterials[MaterialIndices[i]] = Material;
+        protected override void OnEnable() {
+            base.OnEnable();
 
-            Renderer.sharedMaterials = sharedMaterials;
+            if (NoiseTexture.width != Resolution || NoiseTexture.height != Resolution)
+                NoiseTexture.Resize(Resolution, Resolution);
 
-            DynamicGI.UpdateMaterials(Renderer);
+            if(Material != null)
+                Material.SetTexture(@"_EmissionMap", NoiseTexture);
         }
 
         private void Update() {

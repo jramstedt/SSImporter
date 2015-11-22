@@ -21,10 +21,10 @@ namespace SystemShock {
             text.alignment = textScreen.Alignment;
             textRectTransform.localScale = textScreen.SmallText ? Vector3.one * 0.60f : Vector3.one;
 
-            camera.enabled = true;
+            //camera.enabled = true;
             camera.targetTexture = textScreen.Texture;
             camera.Render();
-            camera.enabled = false;
+            //camera.enabled = false;
         }
     }
 }

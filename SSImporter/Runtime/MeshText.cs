@@ -10,40 +10,22 @@ namespace SystemShock.Resource {
         private MeshFilter meshFilter;
         private MeshRenderer meshRenderer;
 
+        [SerializeField, HideInInspector]
         private Mesh mesh;
 
         private void Awake() {
             meshFilter = GetComponent<MeshFilter>();
             meshRenderer = GetComponent<MeshRenderer>();
-
-            meshFilter.sharedMesh = mesh = new Mesh();
-
-            //Material material = new Material(Shader.Find(@"UI/Default Font"));
-
-            Material material = new Material(Shader.Find(@"Standard"));
-            material.color = Color.white;
-            material.SetFloat(@"_Mode", 2f); // Fade
-            material.SetFloat(@"_Glossiness", 0f);
-
-            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            material.SetInt("_ZWrite", 0);
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.EnableKeyword("_ALPHABLEND_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.renderQueue = 3000;
-
-            material.EnableKeyword(@"_EMISSION");
-
-            meshRenderer.sharedMaterial = material;
         }
 
         private void Start() {
             Font.textureRebuilt += OnFontTextureRebuilt;
 
             Update();
+            UpdateTexture();
 
-            RebuildMesh();
+            if (!Application.isPlaying)
+                RebuildMesh();
         }
 
         private void OnFontTextureRebuilt(Font changedFont) {
@@ -52,13 +34,21 @@ namespace SystemShock.Resource {
             RebuildMesh();
         }
 
+        private void UpdateTexture() {
+            MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
+            meshRenderer.GetPropertyBlock(materialPropertyBlock);
+            materialPropertyBlock.SetTexture(@"_MainTex", Font.material.mainTexture);
+            meshRenderer.SetPropertyBlock(materialPropertyBlock);
+        }
+
         private void RebuildMesh() {
             if (Font == null)
                 return;
 
-            meshRenderer.sharedMaterial.mainTexture = Font.material.mainTexture;
-            meshRenderer.sharedMaterial.color = Color;
-            meshRenderer.sharedMaterial.SetColor(@"_EmissionColor", Color * 0.1f);
+            if (mesh == null)
+                meshFilter.mesh = mesh = new Mesh();
+
+            UpdateTexture();
 
             textGenerator.Invalidate();
 
@@ -110,7 +100,7 @@ namespace SystemShock.Resource {
             TextGenerationSettings settings = new TextGenerationSettings();
 
             settings.textAnchor = TextAnchor.LowerLeft;
-            settings.color = Color;
+            settings.color = Color.white;
             settings.font = Font;
             settings.pivot = new Vector2(0.5f, 0.5f);
             settings.richText = false;
@@ -143,13 +133,6 @@ namespace SystemShock.Resource {
         public string Text {
             get { return text; }
             set { text = value; RebuildMesh(); }
-        }
-
-        [SerializeField]
-        private Color color;
-        public Color Color {
-            get { return color; }
-            set { color = value; RebuildMesh(); }
         }
 
         [SerializeField]
