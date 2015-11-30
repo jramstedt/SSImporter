@@ -36,7 +36,7 @@ namespace SSImporter.Resource {
             
             ResourceFile mapLibrary = new ResourceFile(mapLibraryPath);
             
-            LoadLevel(KnownChunkId.Level2Start, mapLibrary);
+            LoadLevel(KnownChunkId.Level1Start, mapLibrary);
         }
 
         private static LevelInfo levelInfo;
@@ -399,7 +399,7 @@ namespace SSImporter.Resource {
                 ObjectInstance[] objectInstances = mapLibrary.ReadArrayOf<ObjectInstance>(mapId + 0x0008);
 
                 ObjectFactory objectFactory = ObjectFactory.GetController();
-                objectFactory.UpdateLevelInfo();
+                objectFactory.Start();
 
                 stepPercentage = progressStep / objectInstances.Length;
                 

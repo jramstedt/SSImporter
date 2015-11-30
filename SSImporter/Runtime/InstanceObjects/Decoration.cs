@@ -22,11 +22,11 @@ namespace SystemShock.InstanceObjects {
 
         protected void Start() {
             MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
-            if(meshRenderer) {
+            if(meshRenderer && (overrideColor || overrideEmission)) {
                 MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
                 meshRenderer.GetPropertyBlock(materialPropertyBlock);
 
-                if (overrideColor)
+                if(overrideColor)
                     materialPropertyBlock.SetColor(@"_Color", colorOverride);
 
                 if(overrideEmission)
@@ -207,7 +207,7 @@ namespace SystemShock.InstanceObjects {
 
                 bool isAnimated = false;
 
-                bool isScreen = SubClass == 2 && (Type == 6 || Type == 8 || Type == 9); // Special case for broken screens where Frames == 0
+                bool isScreen = properties.Base.DrawType == Resource.DrawType.Screen;
 
                 if (materialOverride.StartFrameIndex < 0x007F && (materialOverride.Frames > 0 || isScreen)) { // Animated texture
                     isAnimated = true;

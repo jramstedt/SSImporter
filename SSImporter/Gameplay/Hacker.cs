@@ -29,6 +29,8 @@ namespace SystemShock.Gameplay {
             messageBus.Receive<RadiationTreatmentMessage>(msg => {
                 Radiation = 0;
             });
+
+            Cursor.lockState = CursorLockMode.Locked;
         }
 
         public void DamagePlayer(ushort amount) {

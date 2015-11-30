@@ -3,7 +3,6 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    [ExecuteInEditMode]
     public class MovePlatform : TriggerAction<ObjectInstance.Trigger.MovePlatform> {
         public MovableCeiling Ceiling;
         public MovableFloor Floor;
@@ -11,16 +10,23 @@ namespace SystemShock.TriggerActions {
         public int Speed;
 
         private void Start() {
-            LevelInfo.Tile tile = ObjectFactory.LevelInfo.Tiles[ActionData.TileX, ActionData.TileY];
-            GameObject tileGo = tile.GameObject;
+            if(Ceiling == null && Floor == null) {
+                LevelInfo.Tile tile = ObjectFactory.LevelInfo.Tiles[ActionData.TileX, ActionData.TileY];
+                GameObject tileGo = tile.GameObject;
 
-            Speed = ActionData.Speed;
+                Speed = ActionData.Speed;
 
-            if (Ceiling == null)
-                Ceiling = tileGo.GetComponentInChildren<MovableCeiling>();
+                if (ActionData.TargetCeilingHeight != 0xFF && Ceiling == null)
+                    Ceiling = tileGo.GetComponentInChildren<MovableCeiling>();
 
-            if(Floor == null)
-                Floor = tileGo.GetComponentInChildren<MovableFloor>();
+                if (ActionData.TargetFloorHeight != 0xFF && Floor == null)
+                    Floor = tileGo.GetComponentInChildren<MovableFloor>();
+            }
+        }
+
+        private void Reset() {
+            Awake();
+            Start();
         }
 
         protected override void DoAct() {

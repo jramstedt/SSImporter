@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using SystemShock.Object;
 
 namespace SystemShock.Resource {
+    [ExecuteInEditMode]
     public sealed class ObjectFactory : AbstractGameController<ObjectFactory>, ISerializationCallbackReceiver {
         [SerializeField]
         private List<ScriptableObject> Libraries;
@@ -13,13 +14,18 @@ namespace SystemShock.Resource {
         private Dictionary<string, ScriptableObject> LibraryMap;
 
         public MessageBus MessageBus { get; private set; }
-        public LevelInfo LevelInfo { get; private set; }
+
+        private LevelInfo levelInfo;
+        public LevelInfo LevelInfo {
+            get { return levelInfo ?? UpdateLevelInfo(); }
+        }
 
         private void Awake() {
             UpdateLevelInfo();
         }
 
-        private void Start() {
+        public void Start() {
+            MessageBus = MessageBus.GetController();
             UpdateLevelInfo();
         }
 
@@ -27,19 +33,8 @@ namespace SystemShock.Resource {
             UpdateLevelInfo();
         }
 
-        public void Reset() {
-            if (Libraries != null)
-                Libraries.Clear();
-
-            if (LibraryMap != null)
-                LibraryMap.Clear();
-
-            UpdateLevelInfo();
-        }
-
-        public void UpdateLevelInfo() {
-            MessageBus = MessageBus.GetController();
-            LevelInfo = GameObject.FindObjectOfType<LevelInfo>();
+        public LevelInfo UpdateLevelInfo() {
+            return levelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
 
         public void AddLibrary<T>(AbstractResourceLibrary<T> library) where T : AbstractResourceLibrary<T> {

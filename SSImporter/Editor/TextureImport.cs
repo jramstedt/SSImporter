@@ -112,7 +112,7 @@ namespace SSImporter.Resource {
                 {
                     ResourceFile spritesResource = new ResourceFile(objartPath);
 
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette, true);
                 }
                 #endregion
 
@@ -120,7 +120,7 @@ namespace SSImporter.Resource {
                 {
                     ResourceFile spritesResource = new ResourceFile(objart2Path);
 
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette, true);
                 }
                 #endregion
 
@@ -128,7 +128,7 @@ namespace SSImporter.Resource {
                 {
                     ResourceFile spritesResource = new ResourceFile(objart3Path);
 
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart3.res.asset", gamePalette);
+                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart3.res.asset", gamePalette, true);
                 }
                 #endregion
 
@@ -151,9 +151,17 @@ namespace SSImporter.Resource {
                         TextureSet texture = textures[textureId];
 
                         string assetPath = string.Format(@"Assets/SystemShock/texture.res/{0}.asset", textureId + " (" + textureNames[textureId] + ")");
+
+                        texture.Diffuse.Apply();
+                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
                         AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
-                        if (texture.Emission != null)
+
+                        if (texture.Emission != null) {
+                            texture.Emission.Apply();
+                            EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
                             AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
+                        }
+                            
 
                         Material material = new Material(Shader.Find(@"Standard"));
                         material.name = textureNames[textureId];
@@ -200,15 +208,16 @@ namespace SSImporter.Resource {
                         TextureSet texture = textures[textureId];
 
                         string assetPath = string.Format(@"Assets/SystemShock/texture.res.anim/{0}.asset", textureId);
+
+                        texture.Diffuse.Apply();
+                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
                         AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
 
                         Material material = new Material(Shader.Find(@"Standard"));
                         material.name = textureNames[textureId];
-                        //material.mainTexture = texture.Diffuse;
                         material.color = Color.black;
                         material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
 
-                        //Screens are blacklit, so use diffuse texture as emission!
                         material.SetTexture(@"_EmissionMap", texture.Diffuse);
                         material.SetColor(@"_EmissionColor", Color.white);
                         material.EnableKeyword(@"_EMISSION");
@@ -239,19 +248,17 @@ namespace SSImporter.Resource {
                     foreach (KnownChunkId chunkId in materialResource.GetChunkList()) {
                         TextureSet texture = materialResource.ReadBitmap(chunkId, gamePalette, materialId.ToString());
 
+                        string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", materialId);
+
                         texture.Diffuse.Apply();
-                        //EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
 
                         if (texture.Emission != null) {
                             texture.Emission.Apply();
-                            //EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
-                        }
-
-                        string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", materialId);
-
-                        AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
-                        if (texture.Emission != null)
+                            EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
                             AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
+                        }
 
                         Material material = new Material(Shader.Find(@"Standard"));
                         material.mainTexture = texture.Diffuse;
@@ -282,7 +289,7 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        private static void CreateSpriteLibrary(ResourceFile spritesResource, string libraryAssetPath, PaletteChunk gamePalette) {
+        private static void CreateSpriteLibrary(ResourceFile spritesResource, string libraryAssetPath, PaletteChunk gamePalette, bool compressed) {
             ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
 
             List<Texture2D> allSpritesDiffuse = new List<Texture2D>();
@@ -313,7 +320,7 @@ namespace SSImporter.Resource {
             atlasDiffuse.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Diffuse";
             atlasDiffuse.alphaIsTransparency = true;
             atlasDiffuse.Apply(true, false);
-            //EditorUtility.CompressTexture(atlasDiffuse, TextureFormat.DXT5, TextureCompressionQuality.Best);
+            EditorUtility.CompressTexture(atlasDiffuse, compressed ? TextureFormat.DXT5 : TextureFormat.RGBA32, TextureCompressionQuality.Best);
 
             Texture2D atlasEmission = new Texture2D(atlasDiffuse.width, atlasDiffuse.height, TextureFormat.RGB24, true, true);
             if (hasEmission) {
@@ -332,7 +339,7 @@ namespace SSImporter.Resource {
                 }
                 atlasEmission.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Emission";
                 atlasEmission.Apply(true, false);
-                //EditorUtility.CompressTexture(atlasEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                EditorUtility.CompressTexture(atlasEmission, compressed ? TextureFormat.DXT1 : TextureFormat.RGB24, TextureCompressionQuality.Best);
             }
 
             /*

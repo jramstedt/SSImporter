@@ -46,26 +46,22 @@ namespace SystemShock {
         }
 
         private void Start() {
-            LevelInfo levelInfo = ObjectFactory.GetController().LevelInfo;
+            ObjectFactory objectFactory = ObjectFactory.GetController();
+
             //StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
             //CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.StateMessages);
 
             //if (ClassData.Lock != 0)
             //    Debug.Log("DOOR MESSAGE " + decalWords[(uint)ClassData.LockMessage + 0x07]);
 
-            SystemShockObject ssObject;
-            if (ClassData.ObjectToTrigger != 0 && levelInfo.Objects.TryGetValue(ClassData.ObjectToTrigger, out ssObject) && ssObject != null) {
-                PairedDoor = ssObject.GetComponent<Door>();
-
-                if (PairedDoor == null) {
-                    Debug.Log("1Tried to link trigger! " + ssObject, ssObject);
-                    Debug.Log("2Tried to link trigger! " + ssObject, this);
-                }
-            } else if (ClassData.ObjectToTrigger != 0) {
-                Debug.Log("Tried to find object! " + ClassData.ObjectToTrigger, this);
-            }
+            if(ClassData.ObjectToTrigger != 0 && PairedDoor == null)
+                PairedDoor = objectFactory.Get<Door>(ClassData.ObjectToTrigger);
 
             UpdateFrame();
+        }
+
+        private void Reset() {
+            Start();
         }
 
         private void Update() {
