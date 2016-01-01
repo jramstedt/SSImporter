@@ -9,9 +9,6 @@ namespace SystemShock.TriggerActions {
     public class SetVariable : TriggerAction<ObjectInstance.Trigger.SetVariable> {
         private GameVariables gameVariables;
 
-        private const ushort SCOPEMASK = 0xE000;
-        private const ushort VARIABLEMASK = 0x1FFF;
-
         private void Start() {
             gameVariables = GameVariables.GetController();
 
@@ -21,7 +18,7 @@ namespace SystemShock.TriggerActions {
         protected override void DoAct() {
             for (int i = 0; i < ActionData.Variable.Length; ++i) {
                 ObjectInstance.Trigger.SetVariable.VariableAction action = ActionData.Action;
-                ushort variable = (ushort)(ActionData.Variable[i] & VARIABLEMASK);
+                ushort variable = (ushort)(ActionData.Variable[i] & GameVariables.VARIABLEMASK);
 
                 if ((action & ObjectInstance.Trigger.SetVariable.VariableAction.Set) == ObjectInstance.Trigger.SetVariable.VariableAction.Set) {
                     ushort currentValue;

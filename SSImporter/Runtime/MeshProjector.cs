@@ -18,16 +18,33 @@ namespace SystemShock.Resource {
 
         protected Mesh projectedMesh;
 
+        private bool dynamicUpdateEnabled;
+        public bool DynamicUpdateEnabled {
+            set { dynamicUpdateEnabled = value; Project(); }
+            get { return dynamicUpdateEnabled; }
+        }
+
         protected virtual void Awake() {
             meshFilter = GetComponent<MeshFilter>();
             meshRenderer = GetComponent<MeshRenderer>();
+
+            projectedMesh = meshFilter.sharedMesh;
+        }
+
+        private void Start() {
+            if (projectedMesh == null)
+                Project();
         }
 
         private void Update() {
-            if (transform.hasChanged) {
+            if (dynamicUpdateEnabled && transform.hasChanged) {
                 Project();
                 transform.hasChanged = false;
-            } 
+            }
+        }
+
+        public void Reset() {
+            meshFilter.sharedMesh = null;
         }
 
         private Vector3[] ClipTriangle(Vector3 Back, Vector3 FaceNormal, Vector3[] vertices, Plane plane) {
@@ -197,10 +214,11 @@ namespace SystemShock.Resource {
         }
 
         protected void Project() {
-
             MeshFilter[] targetMeshFilters = FindObjectsOfType<MeshFilter>();
 
             if (projectedMesh == null)
+                projectedMesh = new Mesh();
+            else if(dynamicUpdateEnabled && !projectedMesh.isReadable)
                 projectedMesh = new Mesh();
             else
                 projectedMesh.Clear();
@@ -234,6 +252,7 @@ namespace SystemShock.Resource {
             projectedMesh.CombineMeshes(combineInstances.ToArray(), true, false);
             projectedMesh.RecalculateNormals();
             projectedMesh.Optimize();
+            projectedMesh.UploadMeshData(!dynamicUpdateEnabled);
 
             meshFilter.sharedMesh = projectedMesh;
 

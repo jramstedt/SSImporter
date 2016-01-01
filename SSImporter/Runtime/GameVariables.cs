@@ -9,6 +9,13 @@ namespace SystemShock.Resource {
     public class GameVariables : AbstractGameController<GameVariables>, IDictionary<ushort, ushort> {
         private Dictionary<ushort, ushort> variableDictionary = new Dictionary<ushort, ushort>();
 
+        public const ushort VARIABLEMASK = 0x01FF;
+
+        public const ushort ACCUM = 0x1000;
+        // 0x2000 Unknown
+        public const ushort SHODAN = 0x4000;
+        public const ushort INVERT = 0x8000;
+
         public ushort this[ushort key] {
             get { return variableDictionary[key]; }
             set { variableDictionary[key] = value; }

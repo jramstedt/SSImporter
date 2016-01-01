@@ -691,6 +691,8 @@ namespace SSImporter.Resource {
             mesh.Optimize();
             mesh.RecalculateBounds();
 
+            MeshUtility.Optimize(mesh);
+
             return new CombinedTileMesh() {
                 Mesh = mesh,
                 Materials = tileMaterials.ToArray()

@@ -10,6 +10,8 @@ namespace SystemShock.Triggers {
             base.Awake();
 
             triggerable = GetComponent<TriggerAction>();
+
+            // TODO wait for condition variable to be condition value then trigger
         }
     }
 }

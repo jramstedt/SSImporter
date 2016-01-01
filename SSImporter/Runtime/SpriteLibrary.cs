@@ -34,6 +34,10 @@ namespace SystemShock.Resource {
         public SpriteAnimation GetSpriteAnimation(ushort spriteId) {
             return animations[spriteId];
         }
+
+        public SpriteAnimation[] GetSpriteAnimations() {
+            return animations;
+        }
     }
 
     [Serializable]

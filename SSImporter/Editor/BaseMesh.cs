@@ -66,6 +66,7 @@ namespace SSImporter.Resource {
 
             if (orientation != Tile.Orientation.North) {
                 uint rotation = 0;
+
                 if (orientation == Tile.Orientation.East)
                     rotation = 1;
                 else if (orientation == Tile.Orientation.South)

@@ -34,7 +34,6 @@ They will have to be resized to match the level scale. 0.7 for height seems to w
 - Bitmap upsampling (some sprites seems to be upsampled)
 - Combine tiles to create uniform collision mesh from level geometry.
 - Code to weld and optimize level & decal mesh.
-- Sprite library inspector (preview sprites)
 - Music (http://wenchy.net/old/ssplayer.html) (Port https://github.com/CoderLine/alphaSynth to Unity?)
 - Intro/Ending movie import
 - Look into MAC resource files

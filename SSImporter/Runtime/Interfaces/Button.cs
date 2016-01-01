@@ -10,11 +10,6 @@ namespace SystemShock.Interfaces {
 
         private ObjectInstance.Interface interf;
 
-        private const ushort SCOPEMASK = 0xE000;
-        private const ushort VARIABLEMASK = 0x1FFF;
-
-        private const ushort INVERT = 0x8000;
-
         // Message index 255 == shodan security
 
         private void Awake() {
@@ -29,8 +24,11 @@ namespace SystemShock.Interfaces {
             if (interf.ConditionVariable == 0)
                 return true;
 
-            bool invert = (interf.ConditionVariable & INVERT) == INVERT;
-            ushort ConditionVariable = (ushort)(interf.ConditionVariable & VARIABLEMASK);
+            bool invert = (interf.ConditionVariable & GameVariables.INVERT) == GameVariables.INVERT;
+            bool shodan = (interf.ConditionVariable & GameVariables.SHODAN) == GameVariables.SHODAN;
+            ushort ConditionVariable = (ushort)(interf.ConditionVariable & GameVariables.VARIABLEMASK);
+
+            // TODO SHODAN get level security and check against it
 
             ushort conditionValue;
             gameVariables.TryGetValue(ConditionVariable, out conditionValue);

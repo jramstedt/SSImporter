@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.UI;
 
 namespace SystemShock.Resource {
     [RequireComponent(typeof(MeshFilter)), RequireComponent(typeof(MeshRenderer)), ExecuteInEditMode]
@@ -55,41 +56,17 @@ namespace SystemShock.Resource {
             textGenerator.Populate(text, GetTextGenerationSettings());
             mesh.name = text;
 
-            //Debug.LogFormat(gameObject, "Verts {0} {1}", text, textGenerator.vertexCount);
-            /*
-            Rect extents = textGenerator.rectExtents;
-            Vector2 refPoint = Vector2.zero;
+            using(VertexHelper vh = new VertexHelper()) {
+                vh.AddUIVertexStream(textGenerator.verts.ToList(), null);
 
-            Vector3[] vertices = new Vector3[textGenerator.verts.Count];
-            for(int vertexIndex = 0; vertexIndex < vertices.Length; ++vertexIndex) {
-                Vector3 position = textGenerator.verts[vertexIndex].position;
-                position.x -= extents.width / 2f;
-                position.y -= extents.height / 2f;
-                vertices[vertexIndex] = position;
+                for (int vertexIndex = 0; vertexIndex < textGenerator.vertexCount; vertexIndex += 4) {
+                    vh.AddTriangle(vertexIndex, vertexIndex + 1, vertexIndex + 2);
+                    vh.AddTriangle(vertexIndex + 2, vertexIndex + 3, vertexIndex);
+                }
+
+                vh.FillMesh(mesh);
             }
-
-            mesh.vertices = vertices;
-            */
-
-            mesh.vertices = textGenerator.verts.Select(v => v.position).ToArray();
-            mesh.colors32 = textGenerator.verts.Select(v => v.color).ToArray();
-            mesh.normals = textGenerator.verts.Select(v => v.normal).ToArray();
-            mesh.tangents = textGenerator.verts.Select(v => v.tangent).ToArray();
-            mesh.uv = textGenerator.verts.Select(v => v.uv0).ToArray();
-            mesh.uv2 = textGenerator.verts.Select(v => v.uv1).ToArray();
-
-            int[] triangles = new int[(textGenerator.vertexCount / 4) * 6];
-            for (int triangleIndex = 0, vertexIndex = 0; triangleIndex < triangles.Length; vertexIndex += 4) {
-                triangles[triangleIndex++] = vertexIndex;
-                triangles[triangleIndex++] = vertexIndex + 1;
-                triangles[triangleIndex++] = vertexIndex + 2;
-                triangles[triangleIndex++] = vertexIndex;
-                triangles[triangleIndex++] = vertexIndex + 2;
-                triangles[triangleIndex++] = vertexIndex + 3;
-            }
-
-            mesh.triangles = triangles;
-
+            
             //mesh.RecalculateNormals();
             mesh.RecalculateTangents();
             mesh.Optimize();
