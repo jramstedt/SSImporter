@@ -16,12 +16,12 @@ using UnityEngine.Assertions;
 
 namespace SSImporter.Resource {
     public static class MapImport {
-        [MenuItem("Assets/System Shock/10. Import Maps", false, 1010)]
+        [MenuItem("Assets/System Shock/11. Import Maps", false, 1011)]
         public static void Init() {
             CreateMapAssets();
         }
 
-        [MenuItem("Assets/System Shock/10. Import Maps", true)]
+        [MenuItem("Assets/System Shock/11. Import Maps", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }

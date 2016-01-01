@@ -12,12 +12,12 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public class SoundEffectImport {
-        [MenuItem("Assets/System Shock/11. Import Sound Effects", false, 1011)]
+        [MenuItem("Assets/System Shock/9. Import Sound Effects", false, 1009)]
         public static void Init() {
             CreateSoundEffectAssets();
         }
 
-        [MenuItem("Assets/System Shock/11. Import Sound Effects", true)]
+        [MenuItem("Assets/System Shock/9. Import Sound Effects", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
@@ -39,6 +39,9 @@ namespace SSImporter.Resource {
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock/digifx.res"))
                     AssetDatabase.CreateFolder(@"Assets/SystemShock", @"digifx.res");
 
+                SoundLibrary soundLibrary = ScriptableObject.CreateInstance<SoundLibrary>();
+                AssetDatabase.CreateAsset(soundLibrary, @"Assets/SystemShock/digifx.res.asset");
+
                 float progress = 0f;
                 float progressStep = 1f / soundEffectResource.GetChunkList().Count;
 
@@ -52,16 +55,14 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
 
-                    //AudioImporter audioImporter = AudioImporter.GetAtPath(assetPath) as AudioImporter;
-                    //audioImporter.SaveAndReimport();
-
-                    AudioClip audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath);
-
-                    // TODO add to library
+                    soundLibrary.AddSound(chunkId, AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath));
 
                     progress += progressStep;
                 }
 
+                EditorUtility.SetDirty(soundLibrary);
+
+                ObjectFactory.GetController().AddLibrary(soundLibrary);
             } finally {
                 EditorUtility.ClearProgressBar();
                 EditorApplication.SaveAssets();
@@ -83,11 +84,14 @@ namespace SSImporter.Resource {
                 msbw.Write((ushort)sfx.ChannelCount);
                 msbw.Write(sfx.SampleRate);
                 msbw.Write((uint)(sfx.ChannelCount * sfx.SampleRate * Mathf.Round(sfx.BitsPerSample / 8f)));
-                msbw.Write((ushort)(sfx.BitsPerSample * Mathf.Round(sfx.ChannelCount / 8f)));
+                msbw.Write((ushort)(sfx.ChannelCount * Mathf.Round(sfx.BitsPerSample / 8f)));
                 msbw.Write((ushort)sfx.BitsPerSample);
                 msbw.Write(@"data".ToCharArray());
                 msbw.Write((uint)sfx.Data.Length);
                 msbw.Write(sfx.Data);
+
+                if((sfx.Data.Length & 1) == 1) // If lenght is odd, add padding byte
+                    msbw.Write((byte)0);
 
                 msbw.Flush();
 

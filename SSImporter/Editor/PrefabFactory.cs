@@ -14,12 +14,12 @@ using SystemShock.Resource;
 
 namespace SSImporter.Resource {
     public static class PrefabFactory {
-        [MenuItem("Assets/System Shock/9. Create Object Prefabs", false, 1009)]
+        [MenuItem("Assets/System Shock/10. Create Object Prefabs", false, 1010)]
         public static void Init() {
             CreateObjectPrefabs();
         }
 
-        [MenuItem("Assets/System Shock/9. Create Object Prefabs", true)]
+        [MenuItem("Assets/System Shock/10. Create Object Prefabs", true)]
         public static bool Validate() {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }

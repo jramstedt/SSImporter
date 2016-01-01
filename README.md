@@ -28,7 +28,6 @@ They will have to be resized to match the level scale. 0.7 for height seems to w
 
 ## Todo
 - Trigger graph (partially done)
-- Sound import (partially done)
 - Palette rotated textures
   - Each palette chunk (5 colors) is rotated at different speed. Use multi layered material (one layer per chunk)?
 - Bitmap upsampling (some sprites seems to be upsampled)
