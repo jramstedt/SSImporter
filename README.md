@@ -1,6 +1,8 @@
 # SSImporter
 System Shock's assets importer for Unity. Requires Unity 5.2.
 
+[![Medical level from System Shock imported to Unity ](http://img.youtube.com/vi/5YejxnPEoo8/0.jpg)](https://www.youtube.com/watch?v=5YejxnPEoo8)
+
 ## Instructions  
 ###Notes
 **This project is still under heavy development. Anything can change!**
