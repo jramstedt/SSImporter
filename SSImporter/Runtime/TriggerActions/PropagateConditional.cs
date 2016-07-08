@@ -25,6 +25,9 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            if (ObjectFactory == null)
+                return;
+
             TriggerAction Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
             if (Target1 != null)
                 Gizmos.DrawLine(transform.position, Target1.transform.position);

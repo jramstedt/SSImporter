@@ -4,7 +4,6 @@ using System.Linq;
 using SystemShock.Object;
 
 namespace SystemShock {
-
     public interface IBusMessage {
 
     }
@@ -39,14 +38,8 @@ namespace SystemShock {
     }
 
     public sealed class MessageBusToken {
-        private Type messageType;
-
-        public MessageBusToken(Type messageType) {
-            if (!typeof(IBusMessage).IsAssignableFrom(messageType))
-                throw new ArgumentOutOfRangeException("messageType");
-        }
+        public MessageBusToken() { }
     }
-
 
     public sealed class MessageBus : AbstractGameController<MessageBus> {
         private readonly List<IMessageBusSubscription> subscriptions = new List<IMessageBusSubscription>();
@@ -55,7 +48,7 @@ namespace SystemShock {
             if (deliveryAction == null)
                 throw new ArgumentNullException("deliveryAction");
 
-            var subscriptionToken = new MessageBusToken(typeof(TMessage));
+            var subscriptionToken = new MessageBusToken();
 
             IMessageBusSubscription subscription = new StrongBusSubscription<TMessage>(subscriptionToken, deliveryAction);
 
@@ -68,36 +61,36 @@ namespace SystemShock {
             if (message == null)
                 throw new ArgumentNullException("message");
 
-            List<IMessageBusSubscription> currentlySubscribed = (from sub in subscriptions
-                                                                 where sub != null && typeof(TMessage).IsAssignableFrom(sub.GetType())
-                                                                 select sub).ToList();
+            var currentlySubscribed = subscriptions.Where(sub => typeof(TMessage).IsAssignableFrom(sub.messageType));
 
-            currentlySubscribed.ForEach(sub => sub.Deliver(message));
+            foreach (var sub in currentlySubscribed)
+                sub.Deliver(message);
         }
 
         public void StopReceiving(MessageBusToken token) {
             if (token == null)
-                throw new ArgumentNullException("subscriptionToken");
+                throw new ArgumentNullException("token");
 
-            var currentlySubscribed = (from sub in subscriptions
-                                       where object.ReferenceEquals(sub.Token, token)
-                                       select sub).ToList();
+            var currentlySubscribed = subscriptions.FirstOrDefault(sub => object.ReferenceEquals(sub.Token, token));
 
-            currentlySubscribed.ForEach(sub => subscriptions.Remove(sub));
+            if(currentlySubscribed != null)
+                subscriptions.Remove(currentlySubscribed);
         }
 
         public void SendAsync<TMessage>(TMessage message, AsyncCallback callback) where TMessage : class, IBusMessage {
-            Action publishAction = () => { Send<TMessage>(message); };
+            Action publishAction = () => Send<TMessage>(message);
             publishAction.BeginInvoke(callback, null);
         }
 
         private interface IMessageBusSubscription {
             MessageBusToken Token { get; }
+            Type messageType { get; }
             void Deliver(IBusMessage message);
         }
 
         private class StrongBusSubscription<TMessage> : IMessageBusSubscription where TMessage : class, IBusMessage {
             public MessageBusToken Token { get; private set; }
+            public Type messageType { get; private set; }
 
             private Action<TMessage> deliveryAction;
 
@@ -110,6 +103,7 @@ namespace SystemShock {
 
                 Token = token;
                 deliveryAction = action;
+                messageType = typeof(TMessage);
             }
 
             public void Deliver(IBusMessage message) {
@@ -120,5 +114,4 @@ namespace SystemShock {
             }
         }
     }
-
 }

@@ -3,6 +3,8 @@ using System.Collections;
 
 using SystemShock.Object;
 using SystemShock.Resource;
+using System;
+using SystemShock.UserInterface;
 
 namespace SystemShock.InstanceObjects {
     public partial class DoorAndGrating : SystemShockObject<ObjectInstance.DoorAndGrating> {
@@ -40,12 +42,6 @@ namespace SystemShock.InstanceObjects {
                     colorOverride = new Color(0f, 0.75f, 0f, 0.75f);
                     emissionOverride = new Color(0f, 0.4f, 0f, 1f);
                 }
-            }
-
-            Door door = gameObject.GetComponent<Door>();
-            if(door) {
-                door.ClassData = ClassData;
-                door.CurrentFrame = State;
             }
         }
     }

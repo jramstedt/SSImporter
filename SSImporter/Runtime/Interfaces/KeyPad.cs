@@ -5,8 +5,8 @@ using SystemShock.Object;
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
     public class KeyPad : Interactable<ObjectInstance.Interface.KeyPad> {
-        public TriggerAction Target1;
-        public TriggerAction Target2;
+        private TriggerAction Target1;
+        private TriggerAction Target2;
 
         private void Start() {
             Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);

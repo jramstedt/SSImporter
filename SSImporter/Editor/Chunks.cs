@@ -66,7 +66,7 @@ namespace SSImporter.Resource {
                 return colors;
             }
         }
-
+        
         public Color[] Colors {
             get {
                 Color[] colors = new Color[256];
@@ -76,7 +76,7 @@ namespace SSImporter.Resource {
                 return colors;
             }
         }
-
+        
         public static PaletteChunk Grayscale() {
             PaletteChunk ret = new PaletteChunk();
             ret.palette = new byte[256 * 3];

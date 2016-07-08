@@ -11,7 +11,7 @@ namespace SystemShock.TriggerActions {
         protected override void Awake() {
             base.Awake();
 
-            objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
+            objectPropertyLibrary = ResourceLibrary.GetController().ObjectPropertyLibrary;
         }
 
         protected override void DoAct() {

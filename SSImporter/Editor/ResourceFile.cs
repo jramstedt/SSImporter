@@ -255,7 +255,6 @@ namespace SSImporter.Resource {
 
                 // TODO Add padding per character.
 
-                //ushort[] coordinates = new ushort[coordinatesCount];
                 Rect[] characterRects = new Rect[charactersCount];
                 Rect characterRect = new Rect(PADDING + msbr.ReadUInt16(), PADDING, 0, font.Height);
                 ushort pixelWidth = 0;
@@ -280,25 +279,28 @@ namespace SSImporter.Resource {
                 CharacterInfo[] characterInfo = new CharacterInfo[charactersCount];
                 for (int c = 0; c < charactersCount; ++c) {
                     Rect rect = characterRects[c];
+                    rect.x += 1f;
+                    rect.width -= 1f;
                     characterInfo[c] = new CharacterInfo() {
                         index = font.FirstAscii + c,
                         size = font.Height,
                         style = FontStyle.Normal,
 
-                        advance = (int)rect.width,
+                        advance = (int)rect.width + 1,
                         bearing = 0,
                         glyphHeight = (int)rect.height,
                         glyphWidth = (int)rect.width,
 
-                        uvTopLeft = new Vector2(    rect.x / (float)texture.width,                  (rect.y + rect.height) / (float)texture.height),
+                        uvTopLeft = new Vector2(     rect.x / (float)texture.width,                 (rect.y + rect.height) / (float)texture.height),
                         uvTopRight = new Vector2(   (rect.x + rect.width) / (float)texture.width,   (rect.y + rect.height) / (float)texture.height),
-                        uvBottomLeft = new Vector2( rect.x / (float)texture.width,                  rect.y / (float)texture.height),
-                        uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,   rect.y / (float)texture.height),
-
+                        uvBottomLeft = new Vector2(  rect.x / (float)texture.width,                  rect.y / (float)texture.height),
+                        uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,    rect.y / (float)texture.height),
+                        /*
                         minX = 0,
-                        minY = -(int)rect.height,
-                        maxX = (int)rect.width,
-                        maxY = 0
+                        minY = 0,
+                        maxX = (int)rect.width + 1,
+                        maxY = (int)rect.height + 1
+                        */
                     };
                 }
 

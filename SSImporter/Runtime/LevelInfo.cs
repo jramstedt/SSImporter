@@ -21,7 +21,6 @@ namespace SystemShock {
         public ushort[] TextureMap;
         public SurveillanceCamera[] SurveillanceCameras;
         public Tile[,] Tiles;
-        public List<TextureAnimation> TextureAnimations;
         public IClassData[] ClassDataTemplates;
         public Dictionary<ushort, SystemShockObject> Objects = new Dictionary<ushort, SystemShockObject>();
         public Dictionary<ushort, LoopConfiguration> LoopConfigurations = new Dictionary<ushort, LoopConfiguration>();
@@ -121,16 +120,6 @@ namespace SystemShock {
             public Camera Camera;
             public SystemShockObject DeathwatchObject;
         }
-    }
-
-    [Serializable]
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct TextureAnimation {
-        public ushort FrameTime;
-        public ushort CurrentFrameTime;
-        public byte CurrentFrameIndex;
-        public byte FrameCount;
-        public byte IsPingPong;
     }
 
     [Serializable]

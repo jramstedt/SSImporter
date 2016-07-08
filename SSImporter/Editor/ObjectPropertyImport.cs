@@ -145,9 +145,11 @@ namespace SSImporter.Resource {
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
-                StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
-                CyberString objectNames = stringLibrary.GetStrings(KnownChunkId.ObjectNames);
-                CyberString objectShortNames = stringLibrary.GetStrings(KnownChunkId.ShortObjectNames);
+                ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
+
+                StringLibrary stringLibrary = resourceLibrary.StringLibrary;
+                CyberString objectNames = stringLibrary.GetResource(KnownChunkId.ObjectNames);
+                CyberString objectShortNames = stringLibrary.GetResource(KnownChunkId.ShortObjectNames);
 
                 ObjectPropertyLibrary objectPropertyLibrary = ScriptableObject.CreateInstance<ObjectPropertyLibrary>();
                 AssetDatabase.CreateAsset(objectPropertyLibrary, @"Assets/SystemShock/objprop.dat.asset");
@@ -186,7 +188,7 @@ namespace SSImporter.Resource {
                                 objectData.ShortName = shortName;
                                 objectData.hideFlags = HideFlags.HideInHierarchy;
 
-                                objectPropertyLibrary.AddObject(idBase | typeIndex, objectData);
+                                objectPropertyLibrary.AddResource(idBase | typeIndex, objectData);
 
                                 ++nameIndex;
                             }
@@ -243,7 +245,7 @@ namespace SSImporter.Resource {
                     EditorUtility.SetDirty(objectPropertyLibrary);
                 }
 
-                ObjectFactory.GetController().AddLibrary(objectPropertyLibrary);
+                ResourceLibrary.GetController().ObjectPropertyLibrary = objectPropertyLibrary;
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

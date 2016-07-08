@@ -55,14 +55,14 @@ namespace SSImporter.Resource {
 
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
 
-                    soundLibrary.AddSound(chunkId, AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath));
+                    soundLibrary.AddResource(chunkId, AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath));
 
                     progress += progressStep;
                 }
 
                 EditorUtility.SetDirty(soundLibrary);
 
-                ObjectFactory.GetController().AddLibrary(soundLibrary);
+                ResourceLibrary.GetController().SoundLibrary = soundLibrary;
             } finally {
                 EditorUtility.ClearProgressBar();
                 EditorApplication.SaveAssets();

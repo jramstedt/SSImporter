@@ -76,7 +76,7 @@ namespace SystemShock.Resource {
         private TextGenerationSettings GetTextGenerationSettings() {
             TextGenerationSettings settings = new TextGenerationSettings();
 
-            settings.textAnchor = TextAnchor.LowerLeft;
+            settings.textAnchor = TextAnchor.MiddleCenter;
             settings.color = Color.white;
             settings.font = Font;
             settings.pivot = new Vector2(0.5f, 0.5f);
@@ -87,6 +87,7 @@ namespace SystemShock.Resource {
             settings.generateOutOfBounds = true;
             settings.horizontalOverflow = HorizontalWrapMode.Overflow;
             settings.verticalOverflow = VerticalWrapMode.Overflow;
+            settings.alignByGeometry = true;
 
             if (Font.dynamic) {
                 settings.fontSize = 11;

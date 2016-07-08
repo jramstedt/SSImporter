@@ -12,7 +12,7 @@ namespace SystemShock.Interfaces {
         }
 
         private void OnMouseDown() {
-            if (Target != null)
+            if (Target != null && PermissionProvider.CanAct())
                 Target.Act();
         }
 

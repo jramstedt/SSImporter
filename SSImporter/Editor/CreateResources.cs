@@ -36,6 +36,8 @@ namespace SSImporter.Resource {
 
                 MessageBus messageBus = gameControllerPrefab.GetComponent<MessageBus>() ?? gameControllerPrefab.AddComponent<MessageBus>();
 
+                ResourceLibrary resourceLibrary = gameControllerPrefab.GetComponent<ResourceLibrary>() ?? gameControllerPrefab.AddComponent<ResourceLibrary>();
+
                 ObjectFactory objectFactory = gameControllerPrefab.GetComponent<ObjectFactory>() ?? gameControllerPrefab.AddComponent<ObjectFactory>();
 
                 GameVariables gameVariables = gameControllerPrefab.GetComponent<GameVariables>() ?? gameControllerPrefab.AddComponent<GameVariables>();

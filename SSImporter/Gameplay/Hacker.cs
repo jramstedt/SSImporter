@@ -30,7 +30,11 @@ namespace SystemShock.Gameplay {
                 Radiation = 0;
             });
 
-            Cursor.lockState = CursorLockMode.Locked;
+            //Cursor.lockState = CursorLockMode.Locked;
+        }
+
+        public void OnApplicationFocus(bool focus) {
+            //Cursor.lockState = focus ? CursorLockMode.Locked : CursorLockMode.None;
         }
 
         public void DamagePlayer(ushort amount) {

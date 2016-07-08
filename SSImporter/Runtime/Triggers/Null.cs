@@ -29,12 +29,16 @@ namespace SystemShock.Triggers {
             }
 
             bool invert = (trigger.ConditionVariable & INVERT) == INVERT;
-            ushort ConditionVariable = (ushort)(trigger.ConditionVariable & VARIABLEMASK);
+            bool lessThan = (trigger.ConditionVariable & GameVariables.LESSTHAN) == GameVariables.LESSTHAN;
 
             ushort conditionValue;
-            gameVariables.TryGetValue(ConditionVariable, out conditionValue);
+            gameVariables.TryGetValue(trigger.ConditionVariable, out conditionValue);
 
-            bool canActivate = invert ^ (conditionValue == trigger.ConditionValue);
+            bool canActivate = false;
+            if (lessThan)
+                canActivate = invert ^ (conditionValue < trigger.ConditionValue);
+            else
+                canActivate = invert ^ (conditionValue == trigger.ConditionValue);
 
             return hasBeenActivated = canActivate;
         }

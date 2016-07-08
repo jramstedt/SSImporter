@@ -25,9 +25,7 @@ namespace SSImporter.Resource {
         }
 
         private static ModelLibrary modelLibrary;
-        private static SpriteLibrary objartLibrary;
-        private static SpriteLibrary objart2Library;
-        private static SpriteLibrary objart3Library;
+        private static SpriteLibrary spriteLibrary;
         private static ObjectPropertyLibrary objectPropertyLibrary;
         private static Material nullMaterial;
 
@@ -45,12 +43,12 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Prefabs");
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Animations");
 
-                modelLibrary = ModelLibrary.GetLibrary(@"obj3d.res");
-                objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
-                objart2Library = SpriteLibrary.GetLibrary(@"objart2.res");
-                objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
-                objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
-                nullMaterial = TextureLibrary.GetLibrary(@"citmat.res").GetMaterial(0);
+                ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
+
+                modelLibrary = resourceLibrary.ModelLibrary;
+                spriteLibrary = resourceLibrary.SpriteLibrary;
+                objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
+                nullMaterial = resourceLibrary.TextureLibrary.GetResource(KnownChunkId.ModelTexturesStart);
 
                 spriteMaterial = new Material(Shader.Find(@"Sprites/Diffuse"));
                 spriteMaterial.name = @"SpriteMaterial";
@@ -59,7 +57,7 @@ namespace SSImporter.Resource {
                 PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
                 AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
 
-                ObjectFactory.GetController().AddLibrary(prefabLibrary);
+                ResourceLibrary.GetController().PrefabLibrary = prefabLibrary;
 
                 CalculateAnimationIndices();
 
@@ -229,7 +227,7 @@ namespace SSImporter.Resource {
                             EditorUtility.SetDirty(gameObject);
                             GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
 
-                            prefabLibrary.AddPrefab(combinedId, prefabGameObject);
+                            prefabLibrary.AddResource(combinedId, prefabGameObject);
 
                             GameObject.DestroyImmediate(gameObject);
                         }
@@ -324,10 +322,10 @@ namespace SSImporter.Resource {
                     int startIndex = objectPropertyLibrary.GetIndex(ObjectClass.DoorAndGrating, 0, 0);
                     int spriteIndex = objectPropertyLibrary.GetIndex(objectClass, subclassIndex, typeIndex);
 
-                    SpriteAnimation spriteAnimation = objart3Library.GetSpriteAnimation((ushort)(270 + (spriteIndex - startIndex)));
+                    SpriteAnimation spriteAnimation = spriteLibrary.GetResource((KnownChunkId)(KnownChunkId.DoorsStart + (ushort)(spriteIndex - startIndex)));
 
                     SpriteDefinition sprite = spriteAnimation[0];
-                    Material material = objart3Library.GetMaterial();
+                    Material material = spriteLibrary.Material;
 
                     meshRenderer.sharedMaterial = material;
 
@@ -363,14 +361,14 @@ namespace SSImporter.Resource {
             List<EnemyAnimations> enemyAnimations = new List<EnemyAnimations>();
 
             EnemyAnimations.Frames
-                idle = new EnemyAnimations.Frames { Library = objart2Library, Index = 185, Directional = true },
-                walk = new EnemyAnimations.Frames { Library = objart3Library, Index = 0, Directional = true },
-                evade = new EnemyAnimations.Frames { Library = objart2Library, Index = 37, Directional = false },
-                damage = new EnemyAnimations.Frames { Library = objart2Library, Index = 148, Directional = false },
-                criticalDamage = new EnemyAnimations.Frames { Library = objart2Library, Index = 111, Directional = false },
-                death = new EnemyAnimations.Frames { Library = objart2Library, Index = 74, Directional = false },
-                primaryAttack = new EnemyAnimations.Frames { Library = objart2Library, Index = 0, Directional = false },
-                secondaryAttack = new EnemyAnimations.Frames { Library = objart3Library, Index = 233, Directional = false };
+                idle = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyIdleStart, Directional = true },
+                walk = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyWalkStart, Directional = true },
+                evade = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyEvadeStart, Directional = false },
+                damage = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyLightDamageStart, Directional = false },
+                criticalDamage = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemySevereDamageStart, Directional = false },
+                death = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyDeathStart, Directional = false },
+                primaryAttack = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyAttackStart, Directional = false },
+                secondaryAttack = new EnemyAnimations.Frames { ChunkIdStart = KnownChunkId.EnemyAttackSecondaryStart, Directional = false };
 
             ObjectClass classIndex = ObjectClass.Enemy;
             ObjectDeclaration[] objectDataSubclass = ObjectPropertyImport.ObjectDeclarations[(uint)classIndex];
@@ -397,16 +395,16 @@ namespace SSImporter.Resource {
 
                     if (baseProperties.DrawType == DrawType.Enemy) {
                         bool isStub = subclassIndex == 1 && typeIndex == 4; // HACK
-                        idle.Index += (ushort)(isStub ? 1 : 8);
-                        walk.Index += (ushort)(isStub ? 1 : 8);
+                        idle.ChunkIdStart += (ushort)(isStub ? 1 : 8);
+                        walk.ChunkIdStart += (ushort)(isStub ? 1 : 8);
                     }
 
-                    ++evade.Index;
-                    ++damage.Index;
-                    ++criticalDamage.Index;
-                    ++death.Index;
-                    ++primaryAttack.Index;
-                    ++secondaryAttack.Index;
+                    ++evade.ChunkIdStart;
+                    ++damage.ChunkIdStart;
+                    ++criticalDamage.ChunkIdStart;
+                    ++death.ChunkIdStart;
+                    ++primaryAttack.ChunkIdStart;
+                    ++secondaryAttack.ChunkIdStart;
                 }
             }
 
@@ -414,7 +412,7 @@ namespace SSImporter.Resource {
         }
 
         private static void AddModel(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
-            GameObject modelGO = PrefabUtility.InstantiatePrefab(modelLibrary.GetModel(baseProperties.ModelIndex)) as GameObject;
+            GameObject modelGO = PrefabUtility.InstantiatePrefab(modelLibrary.GetResource(KnownChunkId.ModelsStart + baseProperties.ModelIndex)) as GameObject;
             modelGO.transform.SetParent(gameObject.transform, false);
         }
 
@@ -422,8 +420,8 @@ namespace SSImporter.Resource {
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
             spriteIndex += 1; // World sprite.
 
-            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex];
-            Material material = objartLibrary.GetMaterial();
+            SpriteDefinition sprite = spriteLibrary.GetResource(KnownChunkId.ObjectSprites)[spriteIndex];
+            Material material = spriteLibrary.Material;
 
             GameObject visualization = new GameObject(sprite.Name);
             visualization.transform.SetParent(gameObject.transform, false);
@@ -459,11 +457,18 @@ namespace SSImporter.Resource {
             visualization.transform.SetParent(gameObject.transform, false);
 
             SpriteRenderer spriteRenderer = visualization.AddComponent<SpriteRenderer>();
-            spriteRenderer.useLightProbes = true;
+            spriteRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.UseProxyVolume;
             spriteRenderer.receiveShadows = true;
             spriteRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
             spriteRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
             spriteRenderer.sharedMaterial = spriteMaterial;
+
+            LightProbeProxyVolume lightProxyVolune = visualization.AddComponent<LightProbeProxyVolume>();
+            lightProxyVolune.probePositionMode = LightProbeProxyVolume.ProbePositionMode.CellCenter;
+            lightProxyVolune.resolutionMode = LightProbeProxyVolume.ResolutionMode.Custom;
+            lightProxyVolune.gridResolutionX = 2;
+            lightProxyVolune.gridResolutionY = 2;
+            lightProxyVolune.gridResolutionZ = 1;
 
             int enemyIndex =    objectPropertyLibrary.GetIndex(combinedId) -
                                 objectPropertyLibrary.GetIndex(ObjectClass.Enemy, 0, 0);
@@ -482,9 +487,9 @@ namespace SSImporter.Resource {
 
         private static void AddDecal(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
             uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
-            Material material = objartLibrary.GetMaterial();
+            Material material = spriteLibrary.Material;
 
-            SpriteDefinition sprite = objartLibrary.GetSpriteAnimation(0)[spriteIndex + 1];
+            SpriteDefinition sprite = spriteLibrary.GetResource(KnownChunkId.ObjectSprites)[spriteIndex + 1];
 
             Vector3 worldSize = baseProperties.GetRenderSize(Vector2.Scale(sprite.Rect.size, material.mainTexture.GetSize()));
 
@@ -639,8 +644,8 @@ namespace SSImporter.Resource {
             return animatorController;
         }
 
-        private static AnimationClip CreateAnimationClip(string name, SpriteAnimation spriteAnimation, SpriteLibrary spriteLibrary, UnityEngine.Object prefabAsset, bool loop = false, float framesPerSecond = 10f) {
-            Material material = spriteLibrary.GetMaterial();
+        private static AnimationClip CreateAnimationClip(string name, SpriteAnimation spriteAnimation, UnityEngine.Object prefabAsset, bool loop = false, float framesPerSecond = 10f) {
+            Material material = spriteLibrary.Material;
 
             ObjectReferenceKeyframe[] keyFrames = new ObjectReferenceKeyframe[spriteAnimation.Count()];
             for (uint k = 0; k < keyFrames.Length; ++k) {
@@ -683,8 +688,8 @@ namespace SSImporter.Resource {
         }
 
         private static AnimationClip CreateAnimationClip(string name, EnemyAnimations.Frames animationFrames, UnityEngine.Object prefabAsset, bool loop = false, float framesPerSecond = 5f) {
-            SpriteAnimation spriteAnimation = animationFrames.Library.GetSpriteAnimation((ushort)(animationFrames.Index));
-            AnimationClip clip = CreateAnimationClip(name, spriteAnimation, animationFrames.Library, prefabAsset, loop, framesPerSecond);
+            SpriteAnimation spriteAnimation = spriteLibrary.GetResource(animationFrames.ChunkIdStart);
+            AnimationClip clip = CreateAnimationClip(name, spriteAnimation, prefabAsset, loop, framesPerSecond);
             
             return clip;
         }
@@ -697,15 +702,15 @@ namespace SSImporter.Resource {
             blendTree.blendParameterY = SpeedParameter;
 
             for (uint i = 0; i < 8; ++i) {
-                uint direction = (i + 6) & 7; // We want 0 to be looking at player.
+                ushort direction = (ushort)((i + 6) & 7); // We want 0 to be looking at player.
 
                 EnemyAnimations.Frames idleFrames = animations.Idle;
-                SpriteAnimation idleSpriteAnimation = idleFrames.Library.GetSpriteAnimation((ushort)(idleFrames.Index + direction));
-                AnimationClip idleClip = CreateAnimationClip(@"Idle " + i, idleSpriteAnimation, idleFrames.Library, prefabAsset, true, 3f);
+                SpriteAnimation idleSpriteAnimation = spriteLibrary.GetResource(idleFrames.ChunkIdStart + direction);
+                AnimationClip idleClip = CreateAnimationClip(@"Idle " + i, idleSpriteAnimation, prefabAsset, true, 3f);
 
                 EnemyAnimations.Frames walkFrames = animations.Walk;
-                SpriteAnimation walkSpriteAnimation = walkFrames.Library.GetSpriteAnimation((ushort)(walkFrames.Index + direction));
-                AnimationClip walkClip = CreateAnimationClip(@"Walk " + i, walkSpriteAnimation, walkFrames.Library, prefabAsset, true, 3f);
+                SpriteAnimation walkSpriteAnimation = spriteLibrary.GetResource(walkFrames.ChunkIdStart + direction);
+                AnimationClip walkClip = CreateAnimationClip(@"Walk " + i, walkSpriteAnimation, prefabAsset, true, 3f);
 
                 blendTree.AddChild(idleClip, new Vector2(i / 8f, 0f));
                 blendTree.AddChild(walkClip, new Vector2(i / 8f, 1f));
@@ -721,8 +726,7 @@ namespace SSImporter.Resource {
 
         private struct EnemyAnimations {
             public struct Frames {
-                public SpriteLibrary Library;
-                public ushort Index;
+                public KnownChunkId ChunkIdStart;
                 public bool Directional;
             }
 

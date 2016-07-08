@@ -8,7 +8,11 @@ namespace SystemShock.Resource {
         Textures = 0x004B,
         Textures16x16 = 0x004C,
         Textures32x32 = 0x004D,
+        Icon = 0x004E,
+        Graffiti = 0x004F,
+        Repulsor = 0x0050,
         AnimationsStart = 0x0141,
+        ModelTexturesStart = 0x01DB,
         Textures64x64Start = 0x02C3,
         Textures128x128Start = 0x03E8,
         Palette = 0x02BC,
@@ -24,16 +28,20 @@ namespace SystemShock.Resource {
 
         EnemyWalkStart = 0x0758,
         EnemyAttackSecondaryStart = 0x0841,
+        DynamicModelTexturesStart = 0x0884,
 
+        TrapMessages = 0x0867,
         DecalWords = 0x0868,
         TextureNames = 0x086A,
         CantUseMessages = 0x086B,
         ShortObjectNames = 0x086D,
-        StateMessages = 0x0871,
+        InterfaceMessages = 0x0871,
         LogoNames = 0x0876, // Engineering, Robotics ...
         ScreenTexts = 0x0877,
 
         ModelsStart = 0x08FC,
+
+        DoorsStart = 0x0960,
 
         NameOfArchive = 0x0FA0,
         GameVariables = 0x0FA1,

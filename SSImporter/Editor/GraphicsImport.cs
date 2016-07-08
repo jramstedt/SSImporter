@@ -21,6 +21,8 @@ namespace SSImporter.Resource {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
+        public const bool compressTextures = true;
+
         private static void CreateAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
@@ -49,34 +51,11 @@ namespace SSImporter.Resource {
                 PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
                 #endregion
 
-                #region Create game screen sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(gamescrPath);
-                    CreateSpriteLibrary(spritesResource, @"gamescr.res.png", gamePalette);
-                }
-                #endregion
-
-                #region Create hand art sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(handartPath);
-                    CreateSpriteLibrary(spritesResource, @"handart.res.png", gamePalette);
-                }
-                #endregion
-
-                #region Create multi functional display sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(mfdartPath);
-                    CreateSpriteLibrary(spritesResource, @"mfdart.res.png", gamePalette);
-                }
-                #endregion
-
-                #region Create side art sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(sideartPath);
-
-                    CreateSpriteLibrary(spritesResource, @"sideart.res.png", gamePalette);
-                }
-                #endregion
+                CreateSpriteLibrary(@"gamescr.res.png", gamePalette,
+                    new ResourceFile(gamescrPath),
+                    new ResourceFile(handartPath),
+                    new ResourceFile(mfdartPath),
+                    new ResourceFile(sideartPath));
             } finally {
                 //AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();
@@ -85,28 +64,23 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        private static void CreateSpriteLibrary(ResourceFile spritesResource, string libraryAssetPath, PaletteChunk gamePalette) {
-            ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
-
+        private static void CreateSpriteLibrary(string libraryAssetPath, PaletteChunk gamePalette, params ResourceFile[] spritesResources) {
             List<Texture2D> allSpritesDiffuse = new List<Texture2D>();
-            List<TextureSet> allSprites = new List<TextureSet>();
-            List<int[]> spriteRectIndices = new List<int[]>();
+            List<string> spriteNames = new List<string>();
 
-            foreach (KnownChunkId chunkId in spriteChunkIds) {
-                if (spritesResource.GetChunkInfo(chunkId).info.ContentType != ContentType.Bitmap)
-                    continue;
+            foreach(ResourceFile spritesResource in spritesResources) {
+                ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
+                foreach (KnownChunkId chunkId in spriteChunkIds) {
+                    if (spritesResource.GetChunkInfo(chunkId).info.ContentType != ContentType.Bitmap)
+                        continue;
 
-                TextureSet[] sprites = spritesResource.ReadBitmaps(chunkId, gamePalette);
+                    TextureSet[] sprites = spritesResource.ReadBitmaps(chunkId, gamePalette);
 
-                int[] indices = new int[sprites.Length];
-                for (int i = 0; i < sprites.Length; ++i)
-                    indices[i] = allSpritesDiffuse.Count + i; // Calculates index to rect array from PackTextures
-
-                spriteRectIndices.Add(indices);
-
-                foreach (TextureSet textureSet in sprites) {
-                    allSpritesDiffuse.Add(textureSet.Diffuse);
-                    allSprites.Add(textureSet);
+                    for (int i = 0; i < sprites.Length; ++i) {
+                        TextureSet textureSet = sprites[i];
+                        allSpritesDiffuse.Add(textureSet.Diffuse);
+                        spriteNames.Add(chunkId + " " + i);
+                    }
                 }
             }
 
@@ -129,11 +103,14 @@ namespace SSImporter.Resource {
             textureImporter.npotScale = TextureImporterNPOTScale.None;
             textureImporter.isReadable = false;
             textureImporter.wrapMode = TextureWrapMode.Clamp;
+            textureImporter.generateMipsInLinearSpace = true;
+            textureImporter.SetAllowsAlphaSplitting(true);
 
             SpriteMetaData[] spriteMetaDatas = new SpriteMetaData[allRects.Length];
 
-            int spriteIndex = 0;
-            foreach (Rect uvRect in allRects) {
+            for(int i = 0; i < allRects.Length; ++i) {
+                Rect uvRect = allRects[i];
+
                 Rect pixelRect = uvRect;
                 pixelRect.x = uvRect.x * atlasDiffuse.width;
                 pixelRect.y = uvRect.y * atlasDiffuse.height;
@@ -141,18 +118,19 @@ namespace SSImporter.Resource {
                 pixelRect.height = uvRect.height * atlasDiffuse.height;
 
                 SpriteMetaData spriteMetaData = new SpriteMetaData();
-                spriteMetaData.name = (spriteIndex).ToString();
+                spriteMetaData.name = spriteNames[i];
                 spriteMetaData.rect = pixelRect;
                 spriteMetaData.pivot = new Vector2(0.5f, 0.0f);
                 spriteMetaData.alignment = 7;
 
-                spriteMetaDatas[spriteIndex++] = spriteMetaData;
+                spriteMetaDatas[i] = spriteMetaData;
             }
 
             textureImporter.spritesheet = spriteMetaDatas;
             textureImporter.textureType = TextureImporterType.Sprite;
             textureImporter.spriteImportMode = SpriteImportMode.Multiple;
             textureImporter.spritePixelsPerUnit = 128f;
+            textureImporter.SetPlatformTextureSettings(@"Default", 4096, compressTextures ? TextureImporterFormat.AutomaticCrunched : TextureImporterFormat.AutomaticTruecolor, (int)TextureCompressionQuality.Best, true);
 
             textureImporter.SaveAndReimport();
         }

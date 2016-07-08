@@ -6,20 +6,30 @@ using SystemShock.Object;
 using SystemShock.Resource;
 using SystemShock.TriggerActions;
 using SystemShock.Interfaces;
+using SystemShock.UserInterface;
 
 namespace SystemShock.InstanceObjects {
-    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider {
+    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider, IActionPermission {
+        private bool hasBeenActivated;
+        private GameVariables gameVariables;
+        private MessageBus messageBus;
+
+        private void Awake() {
+            gameVariables = GameVariables.GetController();
+            messageBus = MessageBus.GetController();
+        }
+
         protected override void InitializeInstance() {
-            //SystemShockObjectProperties properties = GetComponent<SystemShockObjectProperties>();
+            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
 
             if (SubClass == 0) {
-                ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
-                SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
+                ObjectPropertyLibrary objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
+                SpriteLibrary spriteLibrary = resourceLibrary.SpriteLibrary;
 
                 uint spriteIndex = objectPropertyLibrary.GetSpriteOffset((uint)Class << 16 | (uint)SubClass << 8 | Type);
 
                 SpriteDefinition[] Frames = new SpriteDefinition[3];
-                Array.Copy(objartLibrary.GetSpriteAnimation(0).Sprites, spriteIndex, Frames, 0, Frames.Length);
+                Array.Copy(spriteLibrary.GetResource(KnownChunkId.ObjectSprites).Sprites, spriteIndex, Frames, 0, Frames.Length);
 
                 MeshProjector meshProjector = gameObject.GetComponentInChildren<MeshProjector>();
                 meshProjector.UVRect = new Rect(0f, 0f, 1f, 1f);
@@ -31,9 +41,9 @@ namespace SystemShock.InstanceObjects {
                 UseAsTrigger();
             } else if (SubClass == 2) {
                 if (Type == 0) {
-                    // Cyberspace terminal
+                    gameObject.AddComponent<CyberspaceTerminal>();
                 } else if (Type == 1) {
-                    // Energy recharge station
+                    gameObject.AddComponent<EnergyChargeStation>();
                 }
             } else if(SubClass == 3) {
                 if (Type == 0 || Type == 1 || Type == 2 || Type == 3) {
@@ -98,10 +108,39 @@ namespace SystemShock.InstanceObjects {
             } else {
                 Debug.LogWarning(actionType, gameObject);
             }
-
-            gameObject.AddComponent<Button>();
         }
 
         public byte[] ActionData { get { return ClassData.Data; } }
+
+        public bool CanAct() {
+            if (hasBeenActivated)
+                return false;
+
+            if (ClassData.ConditionVariable == 0)
+                return true;
+
+            bool invert = (ClassData.ConditionVariable & GameVariables.INVERT) == GameVariables.INVERT;
+            bool lessThan = (ClassData.ConditionVariable & GameVariables.LESSTHAN) == GameVariables.LESSTHAN;
+
+            ushort conditionValue;
+            gameVariables.TryGetValue(ClassData.ConditionVariable, out conditionValue);
+
+            bool canActivate = false;
+            if (lessThan)
+                canActivate = invert ^ (conditionValue < ClassData.ConditionValue);
+            else
+                canActivate = invert ^ (conditionValue == ClassData.ConditionValue);
+
+            if(!canActivate) {
+                if (ClassData.ConditionFailedMessage == 255) {
+                    byte delta = (byte)(invert ? ClassData.ConditionValue - conditionValue : conditionValue - ClassData.ConditionValue);
+                    messageBus.Send(new ShodanSecurityMessage(delta));
+                } else {
+                    messageBus.Send(new TrapMessage(ClassData.ConditionFailedMessage));
+                }
+            }
+
+            return hasBeenActivated = canActivate;
+        }
     }
 }

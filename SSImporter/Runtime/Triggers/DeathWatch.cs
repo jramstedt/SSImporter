@@ -16,8 +16,6 @@ namespace SystemShock.Triggers {
         private void Awake() {
             trigger = GetComponent<InstanceObjects.Trigger>().ClassData;
             triggerable = GetComponent<TriggerAction>();
-
-            LevelInfo levelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
 
         private void Start() {

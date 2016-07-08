@@ -3,6 +3,7 @@ using UnityEditor;
 using SystemShock.Resource;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 
 namespace SSImporter {
     public sealed class ArtViewer : EditorWindow {
@@ -62,8 +63,8 @@ namespace SSImporter {
         private void RenderSpriteLibrary(SpriteLibrary spriteLibrary) {
             GUILayout.Label(spriteLibrary.name, headerLabelStyle);
 
-            SpriteAnimation[] animations = spriteLibrary.GetSpriteAnimations();
-            Texture texture = spriteLibrary.GetMaterial().mainTexture;
+            SpriteAnimation[] animations = spriteLibrary.GetResources().ToArray();
+            Texture texture = spriteLibrary.GetAtlas();
 
             int rowCount = (int)Mathf.Floor(position.width / SpriteMaxWidth);
 

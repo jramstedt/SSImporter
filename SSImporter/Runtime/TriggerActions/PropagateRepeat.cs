@@ -33,6 +33,9 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            if (ObjectFactory == null)
+                return;
+
             TriggerAction Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
             if (Target != null)
                 Gizmos.DrawLine(transform.position, Target.transform.position);

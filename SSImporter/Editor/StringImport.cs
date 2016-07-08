@@ -35,12 +35,10 @@ namespace SSImporter.Resource {
             try {
                 AssetDatabase.StartAssetEditing();
 
-                Dictionary<uint, string[]> stringDictionary = new Dictionary<uint, string[]>();
-                foreach (KnownChunkId chunkId in stringResource.GetChunkList())
-                    stringDictionary.Add((uint)chunkId, stringResource.ReadStrings(chunkId));
-
                 StringLibrary stringLibrary = ScriptableObject.CreateInstance<StringLibrary>();
-                stringLibrary.SetStrings(stringDictionary);
+
+                foreach (KnownChunkId chunkId in stringResource.GetChunkList())
+                    stringLibrary.AddResource(chunkId, (CyberString)stringResource.ReadStrings(chunkId));
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
@@ -48,7 +46,7 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateAsset(stringLibrary, @"Assets/SystemShock/cybstrng.res.asset");
                 EditorUtility.SetDirty(stringLibrary);
 
-                ObjectFactory.GetController().AddLibrary(stringLibrary);
+                ResourceLibrary.GetController().StringLibrary = stringLibrary;
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

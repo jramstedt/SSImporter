@@ -85,6 +85,9 @@ namespace SystemShock {
         }
 
         private void OnMouseDown() {
+            if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
+                if (!Triggerable.Act()) return;
+
             if (State == ToggleState.Closed)
                 State = ToggleState.Open;
             else if (State == ToggleState.Open)
@@ -92,8 +95,7 @@ namespace SystemShock {
             else if (State == ToggleState.Active)
                 State = ToggleState.Open;
 
-            if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
-                Triggerable.Act();
+            
         }
     }
 }

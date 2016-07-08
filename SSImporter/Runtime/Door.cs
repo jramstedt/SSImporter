@@ -3,12 +3,14 @@
 using System;
 using System.Collections;
 
-using SystemShock.Object;
+using SystemShock.InstanceObjects;
+using DoorAndGrating = SystemShock.InstanceObjects.DoorAndGrating;
 using SystemShock.Resource;
+using SystemShock.UserInterface;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class Door : StateMachine<Door.DoorState> {
+    public class Door : StateMachine<Door.DoorState>, IActionPermission {
         public enum DoorState {
             Closed,
             Closing,
@@ -16,6 +18,10 @@ namespace SystemShock {
             Opening
         }
 
+        private GameVariables gameVariables;
+        private MessageBus messageBus;
+
+        private DoorAndGrating doorAndGrating;
         private Renderer Renderer;
         private Collider Collider;
 
@@ -25,7 +31,6 @@ namespace SystemShock {
         private double timeAccumulator;
 
         public Door PairedDoor;
-        public ObjectInstance.DoorAndGrating ClassData;
 
         public float FPS = 10f;
         public SpriteDefinition[] Frames;
@@ -36,6 +41,9 @@ namespace SystemShock {
         // Access 255 = shodan security
 
         protected virtual void Awake() {
+            gameVariables = GameVariables.GetController();
+            messageBus = MessageBus.GetController();
+
             Renderer = GetComponent<Renderer>();
             Collider = GetComponent<Collider>();
             propertyBlock = new MaterialPropertyBlock();
@@ -46,6 +54,8 @@ namespace SystemShock {
         }
 
         private void Start() {
+            doorAndGrating = GetComponent<DoorAndGrating>();
+
             ObjectFactory objectFactory = ObjectFactory.GetController();
 
             //StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
@@ -54,8 +64,8 @@ namespace SystemShock {
             //if (ClassData.Lock != 0)
             //    Debug.Log("DOOR MESSAGE " + decalWords[(uint)ClassData.LockMessage + 0x07]);
 
-            if(ClassData.ObjectToTrigger != 0 && PairedDoor == null)
-                PairedDoor = objectFactory.Get<Door>(ClassData.ObjectToTrigger);
+            if(doorAndGrating.ClassData.ObjectToTrigger != 0 && PairedDoor == null)
+                PairedDoor = objectFactory.Get<Door>(doorAndGrating.ClassData.ObjectToTrigger);
 
             UpdateFrame();
         }
@@ -86,7 +96,7 @@ namespace SystemShock {
         }
 
         private void UpdateFrame() {
-            SpriteDefinition currentSprite = Frames[currentFrame];
+            SpriteDefinition currentSprite = Frames[CurrentFrame];
             Rect rect = currentSprite.Rect;
 
             if (propertyBlock == null)
@@ -98,9 +108,9 @@ namespace SystemShock {
 
             DynamicGI.UpdateMaterials(Renderer);
 
-            if (currentFrame >= (Frames.Length - 1))
+            if (CurrentFrame >= (Frames.Length - 1))
                 State = DoorState.Open;
-            else if (currentFrame <= 0)
+            else if (CurrentFrame <= 0)
                 State = DoorState.Closed;
         }
 
@@ -128,6 +138,9 @@ namespace SystemShock {
 
             if (PairedDoor != null && PairedDoor.State != State)
                 PairedDoor.Activate();
+
+            // Clear lock status
+            doorAndGrating.ClassData.Lock = 0;
         }
 
         protected override void ShowState(DoorState previousState) {
@@ -148,17 +161,30 @@ namespace SystemShock {
 
         protected override void HideState(DoorState nextState) { }
 
-        [SerializeField, HideInInspector]
-        private int currentFrame = -1;
-        public int CurrentFrame {
-            get { return currentFrame; }
+        public byte CurrentFrame {
+            get { return doorAndGrating.State; }
             set {
-                int clampedValue = Mathf.Clamp(value, 0, Frames.Length - 1);
-                if (currentFrame != clampedValue) {
-                    currentFrame = clampedValue;
+                byte clampedValue = (byte)Mathf.Clamp(value, 0, Frames.Length - 1);
+                if (doorAndGrating.State != clampedValue) {
+                    doorAndGrating.State = clampedValue;
                     UpdateFrame();
                 }
             }
+        }
+
+        public bool CanAct() {
+            if (doorAndGrating.ClassData.Lock == 0) // TODO check access cards
+                return true;
+
+            if (doorAndGrating.ClassData.AccessRequired == 255) {
+                messageBus.Send(new ShodanSecurityMessage(byte.MaxValue));
+            } else if(doorAndGrating.ClassData.AccessRequired != 0) {
+                // TODO Access card required
+            } else {
+                messageBus.Send(new InterfaceMessage((byte)(doorAndGrating.ClassData.LockMessage + 7u)));
+            }
+
+            return false;
         }
 
 #if UNITY_EDITOR

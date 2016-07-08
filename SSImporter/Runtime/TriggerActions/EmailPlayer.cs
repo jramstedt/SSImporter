@@ -5,10 +5,9 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     public class EmailPlayer : TriggerAction<ObjectInstance.Trigger.EmailPlayer> {
-        private MessageBus messageBus;
 
         protected override void DoAct() {
-            ObjectFactory.MessageBus.Send(new EmailReceived(ActionData.Message));
+            MessageBus.Send(new EmailReceived(ActionData.Message));
         }
     }
 

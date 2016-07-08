@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace SystemShock.Resource {
     public static class Extensions {
@@ -90,6 +91,13 @@ namespace SystemShock.Resource {
 
         public static void PrintBinary(long bin) {
             Debug.Log(Convert.ToString(bin, 2).PadLeft(64, '0'));
+        }
+
+        public static string ByteArrayToString(byte[] ba) {
+            StringBuilder hex = new StringBuilder(ba.Length * 2);
+            foreach (byte b in ba)
+                hex.AppendFormat("{0:x2}:", b);
+            return hex.ToString();
         }
     }
 }

@@ -36,6 +36,7 @@ namespace SystemShock.InstanceObjects {
                 meshRenderer.SetPropertyBlock(materialPropertyBlock);
             }
 
+
         }
 
         protected override void InitializeInstance() {
@@ -47,30 +48,27 @@ namespace SystemShock.InstanceObjects {
             MeshProjector meshProjector = GetComponent<MeshProjector>();
             MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
 
-            TextureLibrary modelTextureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
-            Material nullMaterial = modelTextureLibrary.GetMaterial(0);
+            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
+            TextureLibrary textureLibrary = resourceLibrary.TextureLibrary;
+            Material nullModelMaterial = textureLibrary.GetResource(KnownChunkId.ModelTexturesStart);
 
             ObjectFactory objectFactory = ObjectFactory.GetController();
 
             if (SubClass == 2) {
-                if (Type == 6 || Type == 7 || Type == 8 || Type == 9 || Type == 10) {
+                if (Type == 6 || Type == 7 || Type == 8 || Type == 9) {
                     // Nothing
                 } else if (Type == 3) { // Text
-                    PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary(@"gamepal.res");
-                    StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
-                    FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
-
                     ObjectInstance.Decoration.Text text = ClassData.Data.Read<ObjectInstance.Decoration.Text>();
 
-                    Palette gamePalette = paletteLibrary.GetPalette(KnownChunkId.Palette);
+                    Palette gamePalette = resourceLibrary.PaletteLibrary.GetResource(KnownChunkId.Palette);
 
                     ushort[] fontMap = new ushort[] { 606, 609, 602, 605, 606 };
 
                     float[] sizeMap = new float[] { 1f, 0.125f, 0.25f, 0.5f, 1f, 2f };
 
-                    Font font = fontLibrary.GetFont((KnownChunkId)fontMap[text.Font & 0x000F]);
+                    Font font = resourceLibrary.FontLibrary.GetResource((KnownChunkId)fontMap[text.Font & 0x000F]);
 
-                    CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.DecalWords);
+                    CyberString decalWords = resourceLibrary.StringLibrary.GetResource(KnownChunkId.DecalWords);
 
                     Color color = gamePalette[text.Color != 0 ? (uint)text.Color : 53];
 
@@ -87,33 +85,23 @@ namespace SystemShock.InstanceObjects {
                     float scale = 1f / 64f * sizeMap[(text.Font & 0x00F0) >> 4];
                     meshText.transform.localScale = new Vector3(scale, scale, scale);
                 } else { // Sprite
-                    SpriteLibrary objartLibrary = SpriteLibrary.GetLibrary(@"objart.res");
-                    SpriteLibrary objart3Library = SpriteLibrary.GetLibrary(@"objart3.res");
-                    ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary(@"objprop.dat");
-
-                    SpriteLibrary selectedLibrary = null;
-
-                    ushort spriteIndex = 0;
+                    KnownChunkId spriteChunk = KnownChunkId.ObjectSprites;
                     uint animationIndex = State;
 
                     if (Type == 1) { // Icon
-                        selectedLibrary = objart3Library;
-                        spriteIndex = 311;
+                        spriteChunk = KnownChunkId.Icon;
                     } else if (Type == 2) { // Graffiti
-                        selectedLibrary = objart3Library;
-                        spriteIndex = 312;
+                        spriteChunk = KnownChunkId.Graffiti;
                     } else if (Type == 10) { // Repulsor
-                        selectedLibrary = objart3Library;
-                        spriteIndex = 313;
+                        spriteChunk = KnownChunkId.Repulsor;
                     } else { // Sign
-                        selectedLibrary = objartLibrary;
-
-                        animationIndex += objectPropertyLibrary.GetSpriteOffset(Class, SubClass, Type);
+                        animationIndex += resourceLibrary.ObjectPropertyLibrary.GetSpriteOffset(Class, SubClass, Type);
                         animationIndex += 1; // World sprite
                     }
 
-                    SpriteDefinition sprite = selectedLibrary.GetSpriteAnimation(spriteIndex)[animationIndex];
-                    Material material = selectedLibrary.GetMaterial();
+                    SpriteLibrary spriteLibrary = resourceLibrary.SpriteLibrary;
+                    SpriteDefinition sprite = spriteLibrary.GetResource(spriteChunk)[animationIndex];
+                    Material material = spriteLibrary.Material;
 
                     meshProjector.Size = properties.Base.GetRenderSize(Vector2.Scale(sprite.Rect.size, material.mainTexture.GetSize()));
                     meshProjector.UVRect = sprite.Rect;
@@ -122,8 +110,6 @@ namespace SystemShock.InstanceObjects {
             } else if (SubClass == 7) { // Bridges, catwalks etc.
                 if (properties.Base.DrawType == DrawType.Special) {
                     ushort[] textureMap = objectFactory.LevelInfo.TextureMap;
-
-                    TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
 
                     ObjectInstance.Decoration.Bridge bridge = ClassData.Data.Read<ObjectInstance.Decoration.Bridge>();
 
@@ -164,15 +150,15 @@ namespace SystemShock.InstanceObjects {
 
                         Material topBottomMaterial = bridge.TopBottomTextures > 0 ?
                                 (bridge.TopBottomTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture) == (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture ?
-                                textureLibrary.GetMaterial(textureMap[topBottomTexture]) :
-                                modelTextureLibrary.GetMaterial((ushort)(51 + topBottomTexture)) :
-                                textureLibrary.GetMaterial(textureMap[0]);
+                                textureLibrary.GetLevelTexture(textureMap[topBottomTexture]) :
+                                textureLibrary.GetResource((ushort)(KnownChunkId.DynamicModelTexturesStart + topBottomTexture)) :
+                                textureLibrary.GetLevelTexture(textureMap[0]);
 
                         Material sideMaterial = bridge.SideTextures > 0 ?
                                 (bridge.SideTextures & (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture) == (byte)ObjectInstance.Decoration.Bridge.TextureMask.MapTexture ?
-                                textureLibrary.GetMaterial(textureMap[sideTexture]) :
-                                modelTextureLibrary.GetMaterial((ushort)(51 + sideTexture)) :
-                                textureLibrary.GetMaterial(textureMap[0]);
+                                textureLibrary.GetLevelTexture(textureMap[sideTexture]) :
+                                textureLibrary.GetResource((ushort)(KnownChunkId.DynamicModelTexturesStart + sideTexture)) :
+                                textureLibrary.GetLevelTexture(textureMap[0]);
 
                         meshRenderer.sharedMaterials = new Material[] {
                             topBottomMaterial,
@@ -192,14 +178,12 @@ namespace SystemShock.InstanceObjects {
             }
 
             Material[] sharedMaterials = meshRenderer.sharedMaterials;
-            if (Array.IndexOf<Material>(sharedMaterials, nullMaterial) != -1) {
+            if (Array.IndexOf<Material>(sharedMaterials, nullModelMaterial) != -1) {
                 ObjectInstance.Decoration.MaterialOverride materialOverride = ClassData.Data.Read<ObjectInstance.Decoration.MaterialOverride>();
-
-                TextureLibrary animationLibrary = TextureLibrary.GetLibrary(@"texture.res.anim");
 
                 List<int> nullMaterialIndices = new List<int>();
                 for (int i = 0; i < sharedMaterials.Length; ++i) {
-                    if (sharedMaterials[i] == nullMaterial)
+                    if (sharedMaterials[i] == nullModelMaterial)
                         nullMaterialIndices.Add(i);
                 }
 
@@ -211,7 +195,7 @@ namespace SystemShock.InstanceObjects {
 
                 if (materialOverride.StartFrameIndex < 0x007F && (materialOverride.Frames > 0 || isScreen)) { // Animated texture
                     isAnimated = true;
-                    overridingMaterial = animationLibrary.GetMaterial(materialOverride.StartFrameIndex);
+                    overridingMaterial = textureLibrary.GetAnimationTexture(materialOverride.StartFrameIndex);
                 } else if (materialOverride.StartFrameIndex == 0x00F6) { // Noise + shodan
                     isAnimated = true;
 
@@ -223,7 +207,7 @@ namespace SystemShock.InstanceObjects {
                     NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
                     noiseScreen.SetupMaterial(ref tmpRef, nullMaterialIndices.ToArray());
 
-                    overridingMaterial = animationLibrary.GetMaterial(63);
+                    overridingMaterial = textureLibrary.GetAnimationTexture(63);
                     gameObject.AddComponent<ShodanScreen>();
                 } else if (materialOverride.StartFrameIndex == 0x00F7) { // Noise
                     NoiseScreen noiseScreen = gameObject.AddComponent<NoiseScreen>();
@@ -232,7 +216,7 @@ namespace SystemShock.InstanceObjects {
                     SurveillanceScreen surveillance = gameObject.AddComponent<SurveillanceScreen>();
                     surveillance.SetupMaterial(ref overridingMaterial, nullMaterialIndices.ToArray());
                 } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text screen
-                    StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
+                    StringLibrary stringLibrary = resourceLibrary.StringLibrary;
 
                     int stringIndex = materialOverride.StartFrameIndex & 0x7F;
                     bool scrollVertically = (materialOverride.StartFrameIndex & 0x80) == 0x80;
@@ -246,7 +230,7 @@ namespace SystemShock.InstanceObjects {
 
                     TextScreen textScreen = gameObject.AddComponent<TextScreen>();
                     textScreen.Frames = materialOverride.Frames;
-                    textScreen.Texts = new string[] { stringLibrary.GetStrings(KnownChunkId.ScreenTexts)[(uint)stringIndex] };
+                    textScreen.Texts = new string[] { stringLibrary.GetResource(KnownChunkId.ScreenTexts)[(uint)stringIndex] };
                     textScreen.Texture = new RenderTexture(128, 128, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                     textScreen.Texture.DiscardContents(false, true);
                     textScreen.Alignment = isRandomScreen ? TextAnchor.MiddleCenter : scrollVertically ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft;
@@ -258,7 +242,7 @@ namespace SystemShock.InstanceObjects {
                         int linesNeeded = scrollVertically ? materialOverride.Frames + TextScreen.LinesNeeded : materialOverride.Frames;
                         Array.Resize(ref textScreen.Texts, linesNeeded);
                         for (int i = 0; i < linesNeeded; ++i)
-                            textScreen.Texts[i] = stringLibrary.GetStrings(KnownChunkId.ScreenTexts)[(uint)(stringIndex + i)];
+                            textScreen.Texts[i] = stringLibrary.GetResource(KnownChunkId.ScreenTexts)[(uint)(stringIndex + i)];
                     }
 
                     // TODO get global screen material.
@@ -271,11 +255,10 @@ namespace SystemShock.InstanceObjects {
                     overridingMaterial.EnableKeyword(@"_EMISSION");
                 } else { // Model texture
                     if (SubClass == 2 && Type == 7) {
-                        TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
                         ushort[] textureMap = objectFactory.LevelInfo.TextureMap;
-                        overridingMaterial = textureLibrary.GetMaterial(textureMap[materialOverride.StartFrameIndex & 0x7F]);
+                        overridingMaterial = textureLibrary.GetLevelTexture(textureMap[materialOverride.StartFrameIndex & 0x7F]);
                     } else {
-                        overridingMaterial = modelTextureLibrary.GetMaterial((ushort)(51 + (materialOverride.StartFrameIndex & 0x7F)));
+                        overridingMaterial = textureLibrary.GetResource(KnownChunkId.DynamicModelTexturesStart + (ushort)(materialOverride.StartFrameIndex & 0x7F));
                     }
                 }
 
@@ -288,7 +271,7 @@ namespace SystemShock.InstanceObjects {
                     sharedMaterials[nullMaterialIndex] = overridingMaterial;
 
                 if (isAnimated) {
-                    Material[] frames = animationLibrary.GetMaterialAnimation(materialOverride.StartFrameIndex, materialOverride.Frames);
+                    Material[] frames = textureLibrary.GetAnimationTextures(materialOverride.StartFrameIndex, materialOverride.Frames);
                     AnimateMaterial animate = gameObject.GetComponent<AnimateMaterial>() ?? gameObject.AddComponent<AnimateMaterial>();
 
                     LoopConfiguration loopConfiguration;

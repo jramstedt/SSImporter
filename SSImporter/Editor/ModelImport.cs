@@ -30,10 +30,12 @@ namespace SSImporter.Resource {
             if (!File.Exists(obj3dPath))
                 return;
 
-            PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary(@"gamepal.res");
-            Palette gamePalette = paletteLibrary.GetPalette(KnownChunkId.Palette);
+            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
 
-            TextureLibrary textureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
+            PaletteLibrary paletteLibrary = resourceLibrary.PaletteLibrary;
+            Palette gamePalette = paletteLibrary.GetResource(KnownChunkId.Palette);
+
+            TextureLibrary textureLibrary = resourceLibrary.TextureLibrary;
 
             try {
                 AssetDatabase.StartAssetEditing();
@@ -46,12 +48,10 @@ namespace SSImporter.Resource {
                 ModelLibrary modelLibrary = ScriptableObject.CreateInstance<ModelLibrary>();
                 AssetDatabase.CreateAsset(modelLibrary, @"Assets/SystemShock/obj3d.res.asset");
 
-                ObjectFactory.GetController().AddLibrary(modelLibrary);
+                ResourceLibrary.GetController().ModelLibrary = modelLibrary;
 
                 foreach (KnownChunkId chunkId in obj3dResource.GetChunkList()) {
-                    ushort modelId = chunkId - KnownChunkId.ModelsStart;
-
-                    string assetPath = string.Format(@"Assets/SystemShock/obj3d.res/{0}.prefab", modelId);
+                    string assetPath = string.Format(@"Assets/SystemShock/obj3d.res/{0}.prefab", (ushort)chunkId);
 
                     MeshInfo meshInfo = ReadMesh(chunkId, obj3dResource);
 
@@ -64,14 +64,12 @@ namespace SSImporter.Resource {
                         ushort textureId = (ushort)meshInfo.textureIds[i];
                         byte color = (byte)(meshInfo.textureIds[i] >> 16);
 
-                        materials[i] = textureLibrary.GetMaterial(textureId);
-
                         if (isColored) {
                             Material colorMaterial = materials[i] = new Material(Shader.Find(@"Standard"));
                             colorMaterial.color = gamePalette[color];
                             AssetDatabase.AddObjectToAsset(colorMaterial, assetPath);
                         } else {
-                            materials[i] = textureLibrary.GetMaterial(textureId);
+                            materials[i] = textureLibrary.GetResource(KnownChunkId.ModelTexturesStart + textureId);
                         }
                     }
 
@@ -86,7 +84,7 @@ namespace SSImporter.Resource {
                     EditorUtility.SetDirty(gameObject);
                     GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
 
-                    modelLibrary.AddModel(modelId, prefabGameObject);
+                    modelLibrary.AddResource(chunkId, prefabGameObject);
 
                     GameObject.DestroyImmediate(gameObject);
                 }

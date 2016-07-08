@@ -16,12 +16,12 @@ namespace SystemShock.InstanceObjects {
             MeshFilter meshFilter = GetComponent<MeshFilter>();
 
             if (SubClass == 0) { // Crates
-                TextureLibrary modelTextureLibrary = TextureLibrary.GetLibrary(@"citmat.res");
+                KnownChunkId materialBase = KnownChunkId.DynamicModelTexturesStart;
 
-                ushort materialBase = 51;
+                TextureLibrary textureLibrary = ResourceLibrary.GetController().TextureLibrary;
 
-                Material topBottomMaterial = modelTextureLibrary.GetMaterial(ClassData.TopBottomTexture > 0 ? (ushort)(materialBase + ClassData.TopBottomTexture) : (ushort)63);
-                Material sideMaterial = modelTextureLibrary.GetMaterial(ClassData.SideTexture > 0 ? (ushort)(materialBase + ClassData.SideTexture) : (ushort)62);
+                Material topBottomMaterial = textureLibrary.GetResource(materialBase + (ushort)(ClassData.TopBottomTexture > 0 ? ClassData.TopBottomTexture : (byte)12));
+                Material sideMaterial = textureLibrary.GetResource(materialBase + (ushort)(ClassData.SideTexture > 0 ? ClassData.SideTexture : (byte)11));
 
                 Vector3 size = new Vector3( ClassData.Width > 0 ? ClassData.Width / 32f : properties.Base.Size.x,
                                             ClassData.Height > 0 ? ClassData.Height / 32f : properties.Base.Size.y,

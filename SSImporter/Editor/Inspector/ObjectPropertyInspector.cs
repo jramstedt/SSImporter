@@ -13,9 +13,9 @@ public class ObjectPropertyInspector : InspectorBase<ObjectPropertyLibrary> {
     public override void OnInspectorGUI() {
         serializedObject.Update();
 
-        DrawPropertiesExcluding(serializedObject, @"ObjectDatas");
+        DrawPropertiesExcluding(serializedObject, @"Resources");
 
-        SerializedProperty objectDatas = serializedObject.FindProperty(@"ObjectDatas");
+        SerializedProperty objectDatas = serializedObject.FindProperty(@"Resources");
         EditorGUILayout.LabelField("Objects: " + objectDatas.arraySize);
 
         if (editor == null)

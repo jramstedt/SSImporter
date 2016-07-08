@@ -7,14 +7,14 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class ChangeFrameLoop : TriggerAction<ObjectInstance.Trigger.ChangeFrameLoop> {
-        private TextureLibrary animationLibrary;
+        private TextureLibrary textureLibrary;
 
         // TODO Should this support all animation and screen types like in Decoration material override?
 
         protected override void Awake() {
             base.Awake();
 
-            animationLibrary = TextureLibrary.GetLibrary(@"texture.res.anim");
+            textureLibrary = ResourceLibrary.GetController().TextureLibrary;
         }
 
         protected override void DoAct() {
@@ -32,7 +32,7 @@ namespace SystemShock.TriggerActions {
             AnimateMaterial.AnimationSet animation = animate.GetAnimationSet();
 
             animation.WrapMode = ActionData.AnimationType == 0 ? AnimateMaterial.WrapMode.Once : AnimateMaterial.WrapMode.ReverseOnce;
-            animation.Frames = animationLibrary.GetMaterialAnimation(ActionData.StartFrameIndex, (ushort)animation.Frames.Length);
+            animation.Frames = textureLibrary.GetAnimationTextures(ActionData.StartFrameIndex, (ushort)animation.Frames.Length);
 
             animate.SetAnimation(animation);
             animate.Reset();

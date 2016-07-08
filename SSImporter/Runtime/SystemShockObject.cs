@@ -13,7 +13,7 @@ namespace SystemShock.Object {
         public ObjectClass Class { get { return ObjectInstance.Class; } }
         public byte SubClass { get { return ObjectInstance.SubClass; } }
         public byte Type { get { return ObjectInstance.Type; } }
-        public byte State { get { return ObjectInstance.State; } }
+        public byte State { get { return ObjectInstance.State; } set { ObjectInstance.State = value; } }
         public bool InUse { get { return ObjectInstance.InUse != 0; } }
 
         public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
@@ -408,7 +408,7 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChargeStation {
                 public uint Charge;
-                public uint SecurityLimit;
+                public uint RechargeTime;
 
                 public uint Unknown1;
                 public uint Unknown2;
@@ -428,7 +428,7 @@ namespace SystemShock.Object {
             public byte ForceColor;
             public byte AccessRequired;
             public byte SoundEffect;
-            public ushort ObjectToTrigger;
+            [ObjectReference] public ushort ObjectToTrigger;
 
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
             public IClassData Clone() { return (IClassData)MemberwiseClone(); }

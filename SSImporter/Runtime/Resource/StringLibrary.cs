@@ -1,37 +1,23 @@
 ﻿using UnityEngine;
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class StringLibrary : AbstractResourceLibrary<StringLibrary> {
+    public class StringLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, CyberString> {
+        public CyberString[] Strings { get { return Resources.ToArray(); } }
+        public ushort[] ChunkIds { get { return IndexMap.ToArray(); } }
 
-        [SerializeField]
-        private CyberString[] strings;
-
-        public CyberString[] Strings { get { return strings; } }
-
-        [SerializeField, HideInInspector]
-        private uint[] chunkIds;
-
-        public uint[] ChunkIds { get { return chunkIds; } }
-
-        public StringLibrary() {
-
+        public CyberString GetResource(KnownChunkId chunkId) {
+            return GetResource((ushort)chunkId);
         }
 
-        public void SetStrings(Dictionary<uint, string[]> stringDictionary) {
-            chunkIds = new uint[stringDictionary.Keys.Count];
-            stringDictionary.Keys.CopyTo(chunkIds, 0);
-
-            strings = new CyberString[stringDictionary.Values.Count];
-            for (int i = 0; i < strings.Length; ++i)
-                strings[i] = (CyberString)stringDictionary[chunkIds[i]];
+#if UNITY_EDITOR
+        public virtual void AddResource(KnownChunkId identifier, CyberString resource) {
+            AddResource((ushort)identifier, resource);
         }
-
-        public CyberString GetStrings(KnownChunkId chunkId) {
-            return strings[Array.IndexOf(chunkIds, (uint)chunkId)];
-        }
+#endif
     }
 
     [Serializable]

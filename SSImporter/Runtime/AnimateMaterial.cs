@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using SystemShock.Resource;
+using System.Runtime.InteropServices;
 
 namespace SystemShock {
     public class AnimateMaterial : MonoBehaviour {
@@ -69,20 +70,22 @@ namespace SystemShock {
                 loopComplete = true;
                 currentFrame = 0;
             } else if (WrapMode == AnimateMaterial.WrapMode.Repeat) {
-                loopComplete = nextFrame == Frames.Length;
                 currentFrame = nextFrame % Frames.Length;
+                loopComplete = previousFrame > currentFrame;
             } else if (WrapMode == AnimateMaterial.WrapMode.Once) {
-                loopComplete = nextFrame == Frames.Length;
-                currentFrame = Mathf.Min(nextFrame, Frames.Length - 1);
+                int lastFrame = Frames.Length - 1;
+                currentFrame = Mathf.Min(nextFrame, lastFrame);
+                loopComplete = currentFrame == lastFrame;
             } else if (WrapMode == AnimateMaterial.WrapMode.ReverseRepeat) {
-                loopComplete = nextFrame == Frames.Length;
                 currentFrame = (Frames.Length - 1) - (nextFrame % Frames.Length);
+                loopComplete = previousFrame < currentFrame;
             } else if (WrapMode == AnimateMaterial.WrapMode.ReverseOnce) { // Once only reverse
-                loopComplete = nextFrame == Frames.Length;
-                currentFrame = (Frames.Length - 1) - Mathf.Min((int)nextFrame, Frames.Length - 1);
+                int lastFrame = Frames.Length - 1;
+                currentFrame = lastFrame - Mathf.Min((int)nextFrame, lastFrame);
+                loopComplete = currentFrame == 0;
             } else { // if (WrapMode == AnimateMaterial.WrapMode.PingPong)
-                loopComplete = nextFrame == (Frames.Length << 1);
                 int bounceFrame = nextFrame % (Frames.Length << 1);
+                loopComplete = nextFrame > 0 && bounceFrame == 0;
 
                 if (bounceFrame >= Frames.Length)
                     currentFrame = (Frames.Length - 1) - (bounceFrame % Frames.Length);
@@ -161,6 +164,17 @@ namespace SystemShock {
             public float FPS;
             public double TimeAccumulator;
             public int CurrentFrame;
+        }
+
+
+        [Serializable]
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        public struct TextureAnimation {
+            public ushort FrameTime;
+            public ushort CurrentFrameTime;
+            public byte CurrentFrameIndex;
+            public byte FrameCount;
+            public byte IsPingPong;
         }
     }
 }

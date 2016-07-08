@@ -4,16 +4,14 @@ using System.Linq;
 using System.Collections.Generic;
 
 using SystemShock.Object;
+using UnityEngine.SceneManagement;
 
 namespace SystemShock.Resource {
     [ExecuteInEditMode]
-    public sealed class ObjectFactory : AbstractGameController<ObjectFactory>, ISerializationCallbackReceiver {
-        [SerializeField]
-        private List<ScriptableObject> Libraries;
+    public sealed class ObjectFactory : AbstractGameController<ObjectFactory> {
+        private MessageBus messageBus;
 
-        private Dictionary<string, ScriptableObject> LibraryMap;
-
-        public MessageBus MessageBus { get; private set; }
+        private ResourceLibrary resourceLibrary;
 
         private LevelInfo levelInfo;
         public LevelInfo LevelInfo {
@@ -21,44 +19,29 @@ namespace SystemShock.Resource {
         }
 
         private void Awake() {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+
+            UpdateLevelInfo();
+        }
+
+        public void OnDestroy() {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
             UpdateLevelInfo();
         }
 
         public void Start() {
-            MessageBus = MessageBus.GetController();
+            messageBus = MessageBus.GetController();
+            resourceLibrary = ResourceLibrary.GetController();
+
             UpdateLevelInfo();
         }
 
-        private void OnLevelWasLoaded(int level) {
-            UpdateLevelInfo();
-        }
-
-        public LevelInfo UpdateLevelInfo() {
+        private LevelInfo UpdateLevelInfo() {
             return levelInfo = GameObject.FindObjectOfType<LevelInfo>();
         }
-
-        public void AddLibrary<T>(AbstractResourceLibrary<T> library) where T : AbstractResourceLibrary<T> {
-            Libraries.Add(library);
-            LibraryMap.Add(library.name, library);
-
-#if UNITY_EDITOR
-            UnityEditor.PrefabUtility.ReplacePrefab(gameObject, UnityEditor.PrefabUtility.GetPrefabParent(gameObject), UnityEditor.ReplacePrefabOptions.ConnectToPrefab);
-#endif
-        }
-
-        public T GetLibrary<T>(string ResourceFile) where T : AbstractResourceLibrary<T> {
-            return LibraryMap[ResourceFile] as T;
-        }
-
-        public void OnAfterDeserialize() {
-            LibraryMap = new Dictionary<string, ScriptableObject>();
-            foreach (ScriptableObject scriptableObject in Libraries) {
-                if (scriptableObject != null)
-                    LibraryMap[scriptableObject.name] = scriptableObject;
-            }
-        }
-
-        public void OnBeforeSerialize() { }
 
         public ushort NextFreeId() {
             ushort id = 1;
@@ -79,7 +62,7 @@ namespace SystemShock.Resource {
 
         public SystemShockObject[] GetAll(ObjectClass Class, byte Subclass, byte Type) {
             return (from ssObject in LevelInfo.Objects.Values
-                    where ssObject.ObjectInstance.Class == Class && 
+                    where ssObject.ObjectInstance.Class == Class &&
                           ssObject.ObjectInstance.SubClass == Subclass &&
                           ssObject.ObjectInstance.Type == Type
                     select ssObject).ToArray();
@@ -91,7 +74,7 @@ namespace SystemShock.Resource {
                 return null;
 
             T component = ssObject.GetComponent<T>();
-            if(component == null)
+            if (component == null)
                 Debug.LogWarningFormat(this, "Unable to find {0} {1}", typeof(T).FullName, objectId);
 
             return component;
@@ -113,9 +96,7 @@ namespace SystemShock.Resource {
                 return null;
             }
 
-            PrefabLibrary prefabLibrary = GetLibrary<PrefabLibrary>(@"objprefabs");
-
-            GameObject prefab = prefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
+            GameObject prefab = resourceLibrary.PrefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
 
             if (prefab == null) {
                 Debug.LogWarningFormat(@"Prefab not found {0}:{1}:{2}", objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
@@ -138,7 +119,7 @@ namespace SystemShock.Resource {
 
             LevelInfo.Objects.Add(instanceData.ObjectId, ssObject);
 
-            MessageBus.Send(new ObjectCreated(ssObject));
+            messageBus.Send(new ObjectCreated(ssObject));
 
             return ssObject;
         }
@@ -148,8 +129,8 @@ namespace SystemShock.Resource {
             if (LevelInfo.Objects.TryGetValue(objectId, out ssObject)) {
                 LevelInfo.Objects.Remove(objectId);
 
-                MessageBus.Send(new ObjectDestroying(ssObject));
-                
+                messageBus.Send(new ObjectDestroying(ssObject));
+
                 Destroy(ssObject.gameObject);
             }
         }
@@ -161,7 +142,7 @@ namespace SystemShock.Resource {
             Destroy(objectId);
             SystemShockObject ssObject = Instantiate(objectInstance, instanceData);
 
-            MessageBus.Send(new ObjectReplaced(ssObject));
+            messageBus.Send(new ObjectReplaced(ssObject));
 
             return ssObject;
         }

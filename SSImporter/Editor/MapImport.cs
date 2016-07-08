@@ -42,8 +42,10 @@ namespace SSImporter.Resource {
         private static LevelInfo levelInfo;
         private static SystemShock.LevelInfo runtimeLevelInfo;
         private static ushort[] textureMap;
+        private static List<AnimateMaterial.TextureAnimation> TextureAnimations;
 
         private static TextureLibrary textureLibrary;
+        private static TexturePropertiesLibrary texturePropertiesLibrary;
 
         private static void LoadLevel(KnownChunkId mapId, ResourceFile mapLibrary) {
             int levelGeometryLayer = LayerMask.NameToLayer(@"Level Geometry");
@@ -100,6 +102,8 @@ namespace SSImporter.Resource {
                 mapLibrary.ReadArrayOf<ObjectInstance.Container>(mapId + 0x0026),
                 mapLibrary.ReadArrayOf<ObjectInstance.Enemy>(mapId + 0x0027)
             };
+
+            TextureAnimations = new List<AnimateMaterial.TextureAnimation>(mapLibrary.ReadArrayOf<AnimateMaterial.TextureAnimation>(mapId + 0x002A));
 
             #region Find moving tiles
             int[,][] movingFloorHeightRange = new int[levelInfo.Width, levelInfo.Height][]; // Min and max height
@@ -166,7 +170,6 @@ namespace SSImporter.Resource {
                 runtimeLevelInfo.Radiation = levelVariables.Radiation * 0.5f;
                 runtimeLevelInfo.BioContamination = levelVariables.BioIsGravity == 0 ? levelVariables.BioContamination * 0.5f : 0f;
                 runtimeLevelInfo.Gravity = levelVariables.BioIsGravity != 0 ? levelVariables.BioContamination * 0.5f : 0f;
-                runtimeLevelInfo.TextureAnimations = new List<TextureAnimation>(mapLibrary.ReadArrayOf<TextureAnimation>(mapId + 0x002A));
                 runtimeLevelInfo.ClassDataTemplates = new IClassData[classDataTemplates.Length];
                 
                 for (int classTemplateIndex = 0; classTemplateIndex < classDataTemplates.Length; ++classTemplateIndex) {
@@ -191,7 +194,8 @@ namespace SSImporter.Resource {
                 progress += progressStep;
                 #endregion
 
-                textureLibrary = TextureLibrary.GetLibrary(@"texture.res");
+                textureLibrary = ResourceLibrary.GetController().TextureLibrary;
+                texturePropertiesLibrary = ResourceLibrary.GetController().TexturePropertiesLibrary;
 
                 float stepPercentage = progressStep / (levelInfo.Width * levelInfo.Height);
 
@@ -228,11 +232,12 @@ namespace SSImporter.Resource {
 
                             runtimeLevelInfo.Tiles[x, y] = liTile;
 
-                            /*
                             byte shadeUpper = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeUpper) >> 24) & 0x0F);
                             byte shadeLower = (byte)(((int)(tile.Flags & Tile.FlagMask.ShadeLower) >> 16) & 0x0F);
                         
+                            /*
                             MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
+                            MeshRenderer meshRenderer = tileGO.GetComponent<MeshRenderer>();
                             meshRenderer.GetPropertyBlock(materialPropertyBlock);
                             materialPropertyBlock.SetColor(@"_EmissionColor", Color.white * Mathf.LinearToGammaSpace((float)(0x0F - (shadeUpper + shadeLower) / 2) / 15f));
                             meshRenderer.SetPropertyBlock(materialPropertyBlock);
@@ -322,11 +327,8 @@ namespace SSImporter.Resource {
                                 xOffset = 0.25f;
                             }
 
-                            if (!tileMesh.FloorMoving)
-                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) + yOffset, y + zOffset));
-
-                            if (!tileMesh.CeilingMoving)
-                                lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) - yOffset, y + zOffset));
+                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.FloorHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) + yOffset, y + zOffset));
+                            lightProbes.Add(new Vector3(x + xOffset, tileMesh.CeilingHeightMiddle / (float)(1 << (int)levelInfo.HeightShift) - yOffset, y + zOffset));
                         }
                     }
                 }
@@ -343,7 +345,7 @@ namespace SSImporter.Resource {
                 #region Text screen
                 EditorUtility.DisplayProgressBar(@"Map Import", "Creating text screen renderer", progress);
                 {
-                    FontLibrary fontLibrary = FontLibrary.GetLibrary(@"gamescr.res");
+                    FontLibrary fontLibrary = ResourceLibrary.GetController().FontLibrary;
 
                     GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
                     textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");
@@ -389,7 +391,7 @@ namespace SSImporter.Resource {
                     text.verticalOverflow = VerticalWrapMode.Overflow;
                     text.supportRichText = false;
                     text.color = Color.red; //TODO Get color from palette
-                    text.font = fontLibrary.GetFont((KnownChunkId)605);
+                    text.font = fontLibrary.GetResource((KnownChunkId)605);
                     text.text = "GENERAL\nSYSTEM\nSTATUS";
                 }
                 progress += progressStep;
@@ -508,13 +510,20 @@ namespace SSImporter.Resource {
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterials = combinedTileMesh.Materials;
 
+            if (moving && LightProbeProxyVolume.isFeatureSupported) {
+                LightProbeProxyVolume lightProbeProxyVolume = gameObject.AddComponent<LightProbeProxyVolume>();
+                meshRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.UseProxyVolume;
+            } else {
+                meshRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            }
+
             MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
             meshCollider.sharedMesh = combinedTileMesh.Mesh;
 
             #region Check and build texture animations
             Dictionary<TextureProperties, List<int>> materialAnimations = new Dictionary<TextureProperties, List<int>>();
             for (int i = 0; i < combinedTileMesh.Materials.Length; ++i) {
-                TextureProperties textureProperties = textureLibrary.GetTextureProperties(combinedTileMesh.Materials[i]);
+                TextureProperties textureProperties = texturePropertiesLibrary.GetResource(textureLibrary.GetLevelTextureIdentifier(combinedTileMesh.Materials[i]));
                 if(textureProperties.AnimationGroup > 0) {
                     List<int> indices;
                     if (!materialAnimations.TryGetValue(textureProperties, out indices))
@@ -528,9 +537,10 @@ namespace SSImporter.Resource {
                 AnimateMaterial animate = gameObject.AddComponent<AnimateMaterial>();
                 foreach (KeyValuePair<TextureProperties, List<int>> materialAnimation in materialAnimations) {
                     TextureProperties textureProperties = materialAnimation.Key;
-                    TextureAnimation textureAnimation = runtimeLevelInfo.TextureAnimations[textureProperties.AnimationGroup];
+                    AnimateMaterial.TextureAnimation textureAnimation = TextureAnimations[textureProperties.AnimationGroup];
 
-                    Material[] frames = textureLibrary.GetMaterialAnimation(textureProperties.AnimationGroup);
+                    ushort[] textureIds = texturePropertiesLibrary.GetAnimation(textureProperties.AnimationGroup);
+                    Material[] frames = textureLibrary.GetLevelTextures(textureIds);
                     animate.AddAnimation(materialAnimation.Value.ToArray(), frames, textureAnimation);
                 }
             }
@@ -563,12 +573,12 @@ namespace SSImporter.Resource {
 
             if (tileMesh.HasFloor) {
                 tileParts.Add(new CombineInstance() { mesh = tileMesh.CreateFloor(tile.FloorOrientation) });
-                tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.FloorTexture]));
+                tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.FloorTexture]));
             }
 
             if (tileMesh.HasCeiling) {
                 tileParts.Add(new CombineInstance() { mesh = tileMesh.CreateCeiling(tile.CeilingOrientation) });
-                tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.CeilingTexture]));
+                tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.CeilingTexture]));
             }
 
             bool flipX = false, flipY = false;
@@ -591,14 +601,14 @@ namespace SSImporter.Resource {
 
                 if (invertWalls) {
                     if (northTileMesh.tile.UseAdjacentTexture)
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                     else
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[northTileMesh.tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[northTileMesh.tile.WallTexture]));
                 } else {
                     if (tile.UseAdjacentTexture)
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[northTileMesh.tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[northTileMesh.tile.WallTexture]));
                     else
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                 }
 
             }
@@ -616,14 +626,14 @@ namespace SSImporter.Resource {
 
                     if (invertWalls) {
                         if (eastTileMesh.tile.UseAdjacentTexture)
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                         else
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[eastTileMesh.tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[eastTileMesh.tile.WallTexture]));
                     } else {
                         if (tile.UseAdjacentTexture)
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[eastTileMesh.tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[eastTileMesh.tile.WallTexture]));
                         else
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                     }
                 }
             }
@@ -646,14 +656,14 @@ namespace SSImporter.Resource {
 
                 if (invertWalls) {
                     if (southTileMesh.tile.UseAdjacentTexture)
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                     else
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[southTileMesh.tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[southTileMesh.tile.WallTexture]));
                 } else {
                     if (tile.UseAdjacentTexture)
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[southTileMesh.tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[southTileMesh.tile.WallTexture]));
                     else
-                        tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                        tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                 }
             }
 
@@ -670,14 +680,14 @@ namespace SSImporter.Resource {
 
                     if (invertWalls) {
                         if (westTileMesh.tile.UseAdjacentTexture)
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                         else
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[westTileMesh.tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[westTileMesh.tile.WallTexture]));
                     } else {
                         if (tile.UseAdjacentTexture)
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[westTileMesh.tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[westTileMesh.tile.WallTexture]));
                         else
-                            tileMaterials.Add(textureLibrary.GetMaterial(textureMap[tile.WallTexture]));
+                            tileMaterials.Add(textureLibrary.GetLevelTexture(textureMap[tile.WallTexture]));
                     }
                 }
             }

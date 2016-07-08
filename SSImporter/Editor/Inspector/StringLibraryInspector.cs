@@ -13,14 +13,14 @@ public class StringLibraryInspector : InspectorBase<StringLibrary> {
         EditorGUIUtility.labelWidth = 50;
 
         CyberString[] Strings = Target.Strings;
-        uint[] ChunkIds = Target.ChunkIds;
+        ushort[] ChunkIds = Target.ChunkIds;
 
         if (foldOuts == null)
             foldOuts = new bool[ChunkIds.Length];
 
         for (int chunkIndex = 0; chunkIndex < ChunkIds.Length; ++chunkIndex) {
             string[] chunkStrings = Strings[chunkIndex].Strings;
-            uint chunkId = ChunkIds[chunkIndex];
+            ushort chunkId = ChunkIds[chunkIndex];
 
             if (foldOuts[chunkIndex] = EditorGUILayout.Foldout(foldOuts[chunkIndex], chunkId.ToString())) {
                 ++EditorGUI.indentLevel;

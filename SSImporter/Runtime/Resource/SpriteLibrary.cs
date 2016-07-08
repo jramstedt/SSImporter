@@ -5,39 +5,23 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class SpriteLibrary : AbstractResourceLibrary<SpriteLibrary> {
-        [SerializeField]
-        private SpriteAnimation[] animations;
-
-        [SerializeField, HideInInspector]
-        private Material material;
-
-        public SpriteLibrary() {
-        }
-
-        public void SetSprites(Material spriteMaterial, SpriteDefinition[][] sprites) {
-            animations = new SpriteAnimation[sprites.Length];
-            for (int i = 0; i < sprites.Length; ++i)
-                animations[i] = (SpriteAnimation)sprites[i];
-
-            material = spriteMaterial;
-        }
+    public class SpriteLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, SpriteAnimation> {
+        [HideInInspector]
+        public Material Material;
 
         public Texture2D GetAtlas() {
-            return material.mainTexture as Texture2D;
+            return Material.mainTexture as Texture2D;
         }
 
-        public Material GetMaterial() {
-            return material;
+        public SpriteAnimation GetResource(KnownChunkId chunkId) {
+            return GetResource((ushort)chunkId);
         }
 
-        public SpriteAnimation GetSpriteAnimation(ushort spriteId) {
-            return animations[spriteId];
+#if UNITY_EDITOR
+        public virtual void AddResource(KnownChunkId identifier, SpriteAnimation resource) {
+            AddResource((ushort)identifier, resource);
         }
-
-        public SpriteAnimation[] GetSpriteAnimations() {
-            return animations;
-        }
+#endif
     }
 
     [Serializable]

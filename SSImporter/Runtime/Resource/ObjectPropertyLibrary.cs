@@ -7,32 +7,16 @@ using System.Runtime.InteropServices;
 using SystemShock.Object;
 
 namespace SystemShock.Resource {
-    public class ObjectPropertyLibrary : AbstractResourceLibrary<ObjectPropertyLibrary>, ISerializationCallbackReceiver {
-        [SerializeField]
-        public List<ObjectData> ObjectDatas;
-
-        [SerializeField, HideInInspector]
-        private List<uint> indexMap;
-
+    public class ObjectPropertyLibrary : AbstractResourceLibrary<uint, ObjectData>, ISerializationCallbackReceiver {
         [SerializeField, HideInInspector]
         private List<uint> spriteOffsets;
 
-        public ObjectPropertyLibrary() {
-            ObjectDatas = new List<ObjectData>();
-            indexMap = new List<uint>();
+        public ObjectPropertyLibrary() : base() {
             spriteOffsets = new List<uint>();
         }
 
-        public void AddObject(uint combinedId, ObjectData objectData) {
-            if (indexMap.Contains(combinedId))
-                throw new ArgumentException(string.Format(@"Object data {0} already set.", combinedId));
-
-            indexMap.Add(combinedId);
-            ObjectDatas.Add(objectData);
-        }
-
         public T GetObject<T>(uint combinedId) where T : ObjectData {
-            return (T)ObjectDatas[indexMap.IndexOf(combinedId)];
+            return (T)Resources[IndexMap.IndexOf(combinedId)];
         }
 
         public T GetObject<T>(ObjectClass Class, byte Subclass, byte Type) where T : ObjectData {
@@ -40,7 +24,7 @@ namespace SystemShock.Resource {
         }
 
         public int GetIndex(uint combinedId) {
-            return indexMap.IndexOf(combinedId);
+            return IndexMap.IndexOf(combinedId);
         }
 
         public int GetIndex(ObjectClass Class, byte Subclass, byte Type) {
@@ -63,9 +47,9 @@ namespace SystemShock.Resource {
             uint spriteOffset = 1;
             spriteOffsets.Add(spriteOffset);
 
-            for (int i = 1, lastOffset = 0; i < ObjectDatas.Count; ++i, ++lastOffset) {
+            for (int i = 1, lastOffset = 0; i < Resources.Count; ++i, ++lastOffset) {
                 spriteOffset += 3; // Three sprites: Inventory, World, Editor.
-                spriteOffset += (uint)(ObjectDatas[lastOffset].Base.ArtInfo & (ushort)BaseProperties.ArtMask.AdditionalSprites) >> 4;
+                spriteOffset += (uint)(Resources[lastOffset].Base.ArtInfo & (ushort)BaseProperties.ArtMask.AdditionalSprites) >> 4;
                 spriteOffsets.Add(spriteOffset);
             }
         }

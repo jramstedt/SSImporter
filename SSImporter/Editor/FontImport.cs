@@ -1,13 +1,8 @@
 ﻿using UnityEngine;
 using UnityEditor;
 
-using System;
 using System.IO;
-using System.Text;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
-using SystemShock.Object;
 using SystemShock.Resource;
 
 namespace SSImporter.Resource {
@@ -45,7 +40,7 @@ namespace SSImporter.Resource {
 
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"gamescr.res");
 
-                Dictionary<uint, Font> fonts = new Dictionary<uint, Font>();
+                FontLibrary fontLibrary = ScriptableObject.CreateInstance<FontLibrary>();
 
                 ResourceFile gamescrResource = new ResourceFile(gamescrPath);
                 foreach (KnownChunkId chunkId in gamescrResource.GetChunkList()) {
@@ -68,7 +63,7 @@ namespace SSImporter.Resource {
                         EditorUtility.SetDirty(fontSet.Texture);
                         EditorUtility.SetDirty(material);
 
-                        fonts.Add((uint)chunkId, fontSet.Font);
+                        fontLibrary.AddResource(chunkId, fontSet.Font);
 
                         SerializedObject fontAsset = new SerializedObject(AssetDatabase.LoadAssetAtPath<Font>(assetPath));
                         SerializedProperty lineSpacing = fontAsset.FindProperty(@"m_LineSpacing");
@@ -78,13 +73,10 @@ namespace SSImporter.Resource {
                     //Debug.Log(chunkId + " " + chunkInfo.info);
                 }
 
-                FontLibrary fontLibrary = ScriptableObject.CreateInstance<FontLibrary>();
-                fontLibrary.SetFonts(fonts);
-
                 AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
                 EditorUtility.SetDirty(fontLibrary);
 
-                ObjectFactory.GetController().AddLibrary(fontLibrary);               
+                ResourceLibrary.GetController().FontLibrary = fontLibrary;
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

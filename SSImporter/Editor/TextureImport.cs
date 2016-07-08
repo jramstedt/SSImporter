@@ -21,6 +21,8 @@ namespace SSImporter.Resource {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
+        public const bool compressTextures = false;
+
         private static void CreateTextureAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
@@ -55,27 +57,33 @@ namespace SSImporter.Resource {
             */
 
             #region Read texture properties
-            List<TextureProperties> textureProperties = new List<TextureProperties>();
+            TexturePropertiesLibrary texturePropertiesLibrary = ScriptableObject.CreateInstance<TexturePropertiesLibrary>();
+            AssetDatabase.CreateAsset(texturePropertiesLibrary, @"Assets/SystemShock/textprop.dat.asset");
 
             using (FileStream fs = new FileStream(texturePropertiesLibraryPath, FileMode.Open)) {
                 BinaryReader br = new BinaryReader(fs, Encoding.ASCII);
+
+                ushort index = 0;
 
                 /*uint unknownHeader =*/
                 br.ReadUInt32();
 
                 int dataSize = Marshal.SizeOf(typeof(TextureProperties));
 
-                while (fs.Position <= (fs.Length - dataSize)) {
-                    textureProperties.Add(br.Read<TextureProperties>());
-                }
+                while (fs.Position <= (fs.Length - dataSize))
+                    texturePropertiesLibrary.AddResource(index++, br.Read<TextureProperties>());
             }
+
+            EditorUtility.SetDirty(texturePropertiesLibrary);
+
+            ResourceLibrary.GetController().TexturePropertiesLibrary = texturePropertiesLibrary;
             #endregion
 
             try {
                 AssetDatabase.StartAssetEditing();
 
-                StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
-                CyberString textureNames = stringLibrary.GetStrings(KnownChunkId.TextureNames);
+                StringLibrary stringLibrary = ResourceLibrary.GetController().StringLibrary;
+                CyberString textureNames = stringLibrary.GetResource(KnownChunkId.TextureNames);
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
@@ -88,7 +96,7 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateAsset(paletteLibrary, @"Assets/SystemShock/gamepal.res.asset");
 
                 foreach (KnownChunkId chunkId in paletteResource.GetChunkList())
-                    paletteLibrary.AddPalette(chunkId, paletteResource.ReadPalette(chunkId).Colors);
+                    paletteLibrary.AddResource(chunkId, (Palette)paletteResource.ReadPalette(chunkId).Color32s);
 
                 EditorUtility.SetDirty(paletteLibrary);
 
@@ -99,38 +107,27 @@ namespace SSImporter.Resource {
                     for (int y = 0; y < paletteTexture.height; ++y) {
                         palettesEnumerator.MoveNext();
                         PaletteChunk palette = paletteResource.ReadPalette(palettesEnumerator.Current);
-                        paletteTexture.SetPixels(0, y, paletteTexture.width, 1, palette.Colors);
+                        paletteTexture.SetPixels32(0, y, paletteTexture.width, 1, palette.Color32s);
                     }
 
                     File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", paletteTexture.EncodeToPNG());
                 }
 
-                ObjectFactory.GetController().AddLibrary(paletteLibrary);
+                ResourceLibrary.GetController().PaletteLibrary = paletteLibrary;
+
                 #endregion
 
                 #region Create object sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(objartPath);
-
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart.res.asset", gamePalette, true);
-                }
+                CreateSpriteLibrary(@"Assets/SystemShock/objart.res.asset", gamePalette,
+                    new ResourceFile(objartPath),
+                    new ResourceFile(objart2Path),
+                    new ResourceFile(objart3Path));
                 #endregion
+                
+                // TODO Combine map texture assets and animation texture assets more closely
 
-                #region Create object sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(objart2Path);
-
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart2.res.asset", gamePalette, true);
-                }
-                #endregion
-
-                #region Create object sprites
-                {
-                    ResourceFile spritesResource = new ResourceFile(objart3Path);
-
-                    CreateSpriteLibrary(spritesResource, @"Assets/SystemShock/objart3.res.asset", gamePalette, true);
-                }
-                #endregion
+                TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
+                AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.asset");
 
                 #region Create map texture assets
                 {
@@ -144,24 +141,20 @@ namespace SSImporter.Resource {
                     for (ushort i = 0; i < textureCount; ++i)
                         textures.Add(CreateTexture(i, textureResource, gamePalette));
 
-                    TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                    AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.asset");
-
                     for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
                         TextureSet texture = textures[textureId];
 
                         string assetPath = string.Format(@"Assets/SystemShock/texture.res/{0}.asset", textureId + " (" + textureNames[textureId] + ")");
 
                         texture.Diffuse.Apply();
-                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        EditorUtility.CompressTexture(texture.Diffuse, compressTextures ? TextureFormat.DXT1 : TextureFormat.RGB24, TextureCompressionQuality.Best);
                         AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
 
                         if (texture.Emission != null) {
                             texture.Emission.Apply();
-                            EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                            EditorUtility.CompressTexture(texture.Emission, compressTextures ? TextureFormat.DXT1 : TextureFormat.RGB24, TextureCompressionQuality.Best);
                             AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
                         }
-                            
 
                         Material material = new Material(Shader.Find(@"Standard"));
                         material.name = textureNames[textureId];
@@ -180,16 +173,12 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        textureLibrary.AddTexture(textureId, material, textureProperties[textureId]);
+                        textureLibrary.AddResource(textureLibrary.LevelTextureIdToChunk(textureId), material);
                     }
 
                     EditorUtility.SetDirty(textureLibrary);
-
-                    ObjectFactory.GetController().AddLibrary(textureLibrary);
                 }
                 #endregion
-
-                TextureProperties emptyTextureProperties = new TextureProperties();
 
                 #region Create animation texture assets
                 {
@@ -201,20 +190,17 @@ namespace SSImporter.Resource {
                     for (ushort i = 0; textureResource.HasChunk(KnownChunkId.AnimationsStart + i); ++i)
                         textures.Add(textureResource.ReadBitmap(KnownChunkId.AnimationsStart + i, gamePalette, i.ToString()));
 
-                    TextureLibrary textureLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                    AssetDatabase.CreateAsset(textureLibrary, @"Assets/SystemShock/texture.res.anim.asset");
-
                     for (ushort textureId = 0; textureId < textures.Count; ++textureId) {
                         TextureSet texture = textures[textureId];
 
                         string assetPath = string.Format(@"Assets/SystemShock/texture.res.anim/{0}.asset", textureId);
 
                         texture.Diffuse.Apply();
-                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        EditorUtility.CompressTexture(texture.Diffuse, compressTextures ? TextureFormat.DXT1Crunched : TextureFormat.RGB24, TextureCompressionQuality.Best);
                         AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
 
                         Material material = new Material(Shader.Find(@"Standard"));
-                        material.name = textureNames[textureId];
+                        material.name = textureId.ToString();
                         material.color = Color.black;
                         material.SetFloat(@"_Glossiness", 0.75f); // Add little gloss to screens
 
@@ -226,12 +212,10 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        textureLibrary.AddTexture(textureId, material, emptyTextureProperties);
+                        textureLibrary.AddResource(textureLibrary.AnimationTextureIdToChunk(textureId), material);
                     }
 
                     EditorUtility.SetDirty(textureLibrary);
-
-                    ObjectFactory.GetController().AddLibrary(textureLibrary);
                 }
                 #endregion
 
@@ -241,22 +225,18 @@ namespace SSImporter.Resource {
 
                     ResourceFile materialResource = new ResourceFile(citmatPath);
 
-                    TextureLibrary materialLibrary = ScriptableObject.CreateInstance<TextureLibrary>();
-                    AssetDatabase.CreateAsset(materialLibrary, @"Assets/SystemShock/citmat.res.asset");
-
-                    ushort materialId = 0;
                     foreach (KnownChunkId chunkId in materialResource.GetChunkList()) {
-                        TextureSet texture = materialResource.ReadBitmap(chunkId, gamePalette, materialId.ToString());
+                        TextureSet texture = materialResource.ReadBitmap(chunkId, gamePalette, chunkId.ToString());
 
-                        string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", materialId);
+                        string assetPath = string.Format(@"Assets/SystemShock/citmat.res/{0}.asset", chunkId);
 
                         texture.Diffuse.Apply();
-                        EditorUtility.CompressTexture(texture.Diffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                        EditorUtility.CompressTexture(texture.Diffuse, compressTextures ? TextureFormat.DXT1Crunched : TextureFormat.RGB24, TextureCompressionQuality.Best);
                         AssetDatabase.CreateAsset(texture.Diffuse, assetPath);
 
                         if (texture.Emission != null) {
                             texture.Emission.Apply();
-                            EditorUtility.CompressTexture(texture.Emission, TextureFormat.DXT1, TextureCompressionQuality.Best);
+                            EditorUtility.CompressTexture(texture.Emission, compressTextures ? TextureFormat.DXT1Crunched : TextureFormat.RGB24, TextureCompressionQuality.Best);
                             AssetDatabase.AddObjectToAsset(texture.Emission, assetPath);
                         }
 
@@ -271,16 +251,14 @@ namespace SSImporter.Resource {
 
                         AssetDatabase.AddObjectToAsset(material, assetPath);
 
-                        materialLibrary.AddTexture(materialId, material, emptyTextureProperties);
-
-                        ++materialId;
+                        textureLibrary.AddResource(chunkId, material);
                     }
 
-                    EditorUtility.SetDirty(materialLibrary);
-
-                    ObjectFactory.GetController().AddLibrary(materialLibrary);
+                    EditorUtility.SetDirty(textureLibrary);
                 }
                 #endregion
+
+                ResourceLibrary.GetController().TextureLibrary = textureLibrary;
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();
@@ -289,29 +267,31 @@ namespace SSImporter.Resource {
             AssetDatabase.Refresh();
         }
 
-        private static void CreateSpriteLibrary(ResourceFile spritesResource, string libraryAssetPath, PaletteChunk gamePalette, bool compressed) {
-            ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
-
+        private static void CreateSpriteLibrary(string libraryAssetPath, PaletteChunk gamePalette, params ResourceFile[] spritesResources) {
             List<Texture2D> allSpritesDiffuse = new List<Texture2D>();
             List<TextureSet> allSprites = new List<TextureSet>();
-            List<int[]> spriteRectIndices = new List<int[]>();
+
+            Dictionary<KnownChunkId, int[]> spriteRectIndices = new Dictionary<KnownChunkId, int[]>();
 
             bool hasEmission = false;
 
-            foreach (KnownChunkId chunkId in spriteChunkIds) {
-                TextureSet[] sprites = spritesResource.ReadBitmaps(chunkId, gamePalette);
+            foreach (ResourceFile spritesResource in spritesResources) {
+                ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
+                foreach (KnownChunkId chunkId in spriteChunkIds) {
+                    TextureSet[] sprites = spritesResource.ReadBitmaps(chunkId, gamePalette);
 
-                int[] indices = new int[sprites.Length];
-                for (int i = 0; i < sprites.Length; ++i)
-                    indices[i] = allSpritesDiffuse.Count + i; // Calculates index to rect array from PackTextures
+                    int[] indices = new int[sprites.Length];
+                    for (int i = 0; i < sprites.Length; ++i)
+                        indices[i] = allSpritesDiffuse.Count + i; // Calculates index to rect array from PackTextures
 
-                spriteRectIndices.Add(indices);
+                    spriteRectIndices.Add(chunkId, indices);
 
-                foreach (TextureSet textureSet in sprites) {
-                    allSpritesDiffuse.Add(textureSet.Diffuse);
-                    allSprites.Add(textureSet);
+                    foreach (TextureSet textureSet in sprites) {
+                        allSpritesDiffuse.Add(textureSet.Diffuse);
+                        allSprites.Add(textureSet);
 
-                    hasEmission |= textureSet.Emissive;
+                        hasEmission |= textureSet.Emissive;
+                    }
                 }
             }
 
@@ -320,7 +300,7 @@ namespace SSImporter.Resource {
             atlasDiffuse.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Diffuse";
             atlasDiffuse.alphaIsTransparency = true;
             atlasDiffuse.Apply(true, false);
-            EditorUtility.CompressTexture(atlasDiffuse, compressed ? TextureFormat.DXT5 : TextureFormat.RGBA32, TextureCompressionQuality.Best);
+            EditorUtility.CompressTexture(atlasDiffuse, compressTextures ? TextureFormat.DXT5Crunched : TextureFormat.RGBA32, TextureCompressionQuality.Best);
 
             Texture2D atlasEmission = new Texture2D(atlasDiffuse.width, atlasDiffuse.height, TextureFormat.RGB24, true, true);
             if (hasEmission) {
@@ -329,59 +309,18 @@ namespace SSImporter.Resource {
                     TextureSet sprite = allSprites[spriteIndex];
                     if (sprite.Emissive) {
                         Rect pixelRect = allRects[spriteIndex];
-                        atlasEmission.SetPixels(
+                        atlasEmission.SetPixels32(
                             (int)(pixelRect.x * atlasDiffuse.width),
                             (int)(pixelRect.y * atlasDiffuse.height),
                             (int)(pixelRect.width * atlasDiffuse.width),
                             (int)(pixelRect.height * atlasDiffuse.height),
-                            sprite.Emission.GetPixels());
+                            sprite.Emission.GetPixels32());
                     }
                 }
                 atlasEmission.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Emission";
                 atlasEmission.Apply(true, false);
-                EditorUtility.CompressTexture(atlasEmission, compressed ? TextureFormat.DXT1 : TextureFormat.RGB24, TextureCompressionQuality.Best);
+                EditorUtility.CompressTexture(atlasEmission, compressTextures ? TextureFormat.DXT1Crunched : TextureFormat.RGB24, TextureCompressionQuality.Best);
             }
-
-            /*
-            File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", atlas.EncodeToPNG());
-
-            AssetDatabase.Refresh();
-
-            TextureImporter textureImporter = TextureImporter.GetAtPath(@"Assets/SystemShock/gamepal.res.png") as TextureImporter;
-            textureImporter.alphaIsTransparency = true;
-            textureImporter.compressionQuality = 100;
-            textureImporter.linearTexture = true;
-            textureImporter.npotScale = TextureImporterNPOTScale.None;
-            textureImporter.isReadable = false;
-            textureImporter.wrapMode = TextureWrapMode.Clamp;
-
-            SpriteMetaData[] spriteMetaDatas = new SpriteMetaData[allRects.Length];
-
-            int spriteIndex = 0;
-            foreach (Rect uvRect in allRects) {
-
-                Rect pixelRect = uvRect;
-                pixelRect.x = uvRect.x * atlas.width;
-                pixelRect.y = uvRect.y * atlas.height;
-                pixelRect.width = uvRect.width * atlas.width;
-                pixelRect.height = uvRect.height * atlas.height;
-
-                SpriteMetaData spriteMetaData = new SpriteMetaData();
-                spriteMetaData.name = (spriteIndex).ToString();
-                spriteMetaData.rect = pixelRect;
-                spriteMetaData.pivot = new Vector2(0.5f, 0.0f);
-                spriteMetaData.alignment = 7;
-
-                spriteMetaDatas[spriteIndex++] = spriteMetaData;
-            }
-
-            textureImporter.spritesheet = spriteMetaDatas;
-            textureImporter.textureType = TextureImporterType.Sprite;
-            textureImporter.spriteImportMode = SpriteImportMode.Multiple;
-            textureImporter.spritePixelsPerUnit = 128f;
-
-            textureImporter.SaveAndReimport();
-            */
 
             Material material = new Material(Shader.Find(@"Standard"));
             material.mainTexture = atlasDiffuse;
@@ -401,56 +340,26 @@ namespace SSImporter.Resource {
                 material.EnableKeyword(@"_EMISSION");
             }
 
-            SpriteDefinition[][] unitySprites = new SpriteDefinition[spriteRectIndices.Count][];
-            for (int i = 0, nameIndex = 0; i < unitySprites.Length; ++i) {
-                int[] rectIndices = spriteRectIndices[i];
-                SpriteDefinition[] unitySprite = new SpriteDefinition[rectIndices.Length];
+            SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
+            spriteLibrary.Material = material;
 
-                for (int j = 0; j < rectIndices.Length; ++j, ++nameIndex) {
-                    TextureSet spriteTextureSet = allSprites[nameIndex];
-                    unitySprite[j] = new SpriteDefinition() {
-                        Rect = allRects[rectIndices[j]],
+            foreach (KeyValuePair<KnownChunkId, int[]> rectIndices in spriteRectIndices) {
+                SpriteDefinition[] spriteDefinitions = new SpriteDefinition[rectIndices.Value.Length];
+
+                for (int j = 0; j < spriteDefinitions.Length; ++j) {
+                    TextureSet spriteTextureSet = allSprites[j];
+                    spriteDefinitions[j] = new SpriteDefinition() {
+                        Rect = allRects[rectIndices.Value[j]],
                         Pivot = Vector2.Scale(spriteTextureSet.Pivot, new Vector2(1f / spriteTextureSet.Diffuse.width, 1f / spriteTextureSet.Diffuse.height)),
-                        Name = i + " " + spriteTextureSet.Name
+                        Name = rectIndices.Key + " " + spriteTextureSet.Name
                     };
                 }
 
-                unitySprites[i] = unitySprite;
+                spriteLibrary.AddResource(rectIndices.Key, (SpriteAnimation)spriteDefinitions);
             }
-
-            /*
-            Sprite[][] unitySprites = new Sprite[spriteRectIndices.Count][];
-            for (int i = 0, nameIndex = 0; i < unitySprites.Length; ++i) {
-                int[] rectIndices = spriteRectIndices[i];
-                Sprite[] unitySprite = new Sprite[rectIndices.Length];
-
-                for (int j = 0; j < rectIndices.Length; ++j, ++nameIndex) {
-                    Rect pixelRect = allRects[rectIndices[j]];
-                    pixelRect.x *= atlasDiffuse.width;
-                    pixelRect.y *= atlasDiffuse.height;
-                    pixelRect.width *= atlasDiffuse.width;
-                    pixelRect.height *= atlasDiffuse.height;
-
-                    Vector2 pivot = allSpritePivot[nameIndex];
-                    pivot.x /= pixelRect.width;
-                    pivot.y /= pixelRect.height;
-
-                    Sprite sprite = Sprite.Create(atlasDiffuse, pixelRect, pivot, 100f, 0, SpriteMeshType.Tight);
-                    sprite.name = i + " " + spriteNames[nameIndex];
-
-                    Debug.Log(pivot + " " + sprite.pivot + " " + sprite.);
-
-                    unitySprite[j] = sprite;
-                }
-
-                unitySprites[i] = unitySprite;
-            }
-            */
 
             foreach (TextureSet sprite in allSprites)
                 sprite.Dispose();
-
-            SpriteLibrary spriteLibrary = ScriptableObject.CreateInstance<SpriteLibrary>();
 
             AssetDatabase.CreateAsset(spriteLibrary, libraryAssetPath);
             AssetDatabase.AddObjectToAsset(atlasDiffuse, libraryAssetPath);
@@ -458,14 +367,12 @@ namespace SSImporter.Resource {
                 AssetDatabase.AddObjectToAsset(atlasEmission, libraryAssetPath);
             AssetDatabase.AddObjectToAsset(material, libraryAssetPath);
 
-            spriteLibrary.SetSprites(material, unitySprites);
-
             EditorUtility.SetDirty(material);
             EditorUtility.SetDirty(atlasDiffuse);
             EditorUtility.SetDirty(atlasEmission);
             EditorUtility.SetDirty(spriteLibrary);
 
-            ObjectFactory.GetController().AddLibrary(spriteLibrary);
+            ResourceLibrary.GetController().SpriteLibrary = spriteLibrary;
         }
 
         private static TextureSet CreateTexture(ushort textureId, ResourceFile textureResource, PaletteChunk palette) {
@@ -478,8 +385,8 @@ namespace SSImporter.Resource {
             if (textureResource.HasChunk(KnownChunkId.Textures128x128Start + textureId)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures128x128Start + textureId, palette, textureId.ToString());
 
-                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 0);
-                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 0); }
+                completeDiffuse.SetPixels32(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels32(), 0);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels32(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels32(), 0); }
 
                 texture.Dispose();
             }
@@ -492,8 +399,8 @@ namespace SSImporter.Resource {
             if (textureResource.HasChunk(KnownChunkId.Textures64x64Start + textureId)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures64x64Start + textureId, palette, textureId.ToString());
 
-                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 1);
-                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 1); }
+                completeDiffuse.SetPixels32(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels32(), 1);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels32(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels32(), 1); }
 
                 texture.Dispose();
             }
@@ -503,8 +410,8 @@ namespace SSImporter.Resource {
             if (textureResource.HasChunk(KnownChunkId.Textures32x32)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures32x32, palette, textureId.ToString(), textureId);
 
-                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 2);
-                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 2); }
+                completeDiffuse.SetPixels32(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels32(), 2);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels32(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels32(), 2); }
 
                 texture.Dispose();
             }
@@ -514,22 +421,20 @@ namespace SSImporter.Resource {
             if (textureResource.HasChunk(KnownChunkId.Textures16x16)) {
                 TextureSet texture = textureResource.ReadBitmap(KnownChunkId.Textures16x16, palette, textureId.ToString(), textureId);
 
-                completeDiffuse.SetPixels(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels(), 3);
-                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels(), 3); }
+                completeDiffuse.SetPixels32(0, 0, texture.Diffuse.width, texture.Diffuse.height, texture.Diffuse.GetPixels32(), 3);
+                if (texture.Emissive) { emissionHasPixels |= true; completeEmission.SetPixels32(0, 0, texture.Emission.width, texture.Emission.height, texture.Emission.GetPixels32(), 3); }
 
                 texture.Dispose();
             }
             #endregion
 
             completeDiffuse.Apply(false);
-            //EditorUtility.CompressTexture(completeDiffuse, TextureFormat.DXT1, TextureCompressionQuality.Best);
             
             if (!emissionHasPixels) {
                 Texture2D.DestroyImmediate(completeEmission);
                 completeEmission = null;
             } else {
                 completeEmission.Apply(false);
-                //EditorUtility.CompressTexture(completeEmission, TextureFormat.DXT1, TextureCompressionQuality.Best);
             }
 
             return new TextureSet() {

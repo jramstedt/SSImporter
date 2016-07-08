@@ -9,16 +9,22 @@ namespace SystemShock.Resource {
     public class GameVariables : AbstractGameController<GameVariables>, IDictionary<ushort, ushort> {
         private Dictionary<ushort, ushort> variableDictionary = new Dictionary<ushort, ushort>();
 
+        private const ushort INTERNAL_VARIABLEMASK = 0x1FFF;
+
         public const ushort VARIABLEMASK = 0x01FF;
 
         public const ushort ACCUM = 0x1000;
         // 0x2000 Unknown
-        public const ushort SHODAN = 0x4000;
+        public const ushort LESSTHAN = 0x4000;
         public const ushort INVERT = 0x8000;
 
+        private void Start() {
+            Add(20497, 255); // Medical shodan security
+        }
+
         public ushort this[ushort key] {
-            get { return variableDictionary[key]; }
-            set { variableDictionary[key] = value; }
+            get { return variableDictionary[(ushort)(key & INTERNAL_VARIABLEMASK)]; }
+            set { variableDictionary[(ushort)(key & INTERNAL_VARIABLEMASK)] = value; }
         }
 
         public int Count {
@@ -42,7 +48,7 @@ namespace SystemShock.Resource {
         }
 
         public void Add(ushort key, ushort value) {
-            variableDictionary.Add(key, value);
+            variableDictionary.Add((ushort)(key & INTERNAL_VARIABLEMASK), value);
         }
 
         public void Clear() {
@@ -54,7 +60,7 @@ namespace SystemShock.Resource {
         }
 
         public bool ContainsKey(ushort key) {
-            return variableDictionary.ContainsKey(key);
+            return variableDictionary.ContainsKey((ushort)(key & INTERNAL_VARIABLEMASK));
         }
 
         public void CopyTo(KeyValuePair<ushort, ushort>[] array, int arrayIndex) {
@@ -75,11 +81,11 @@ namespace SystemShock.Resource {
         }
 
         public bool Remove(ushort key) {
-            return variableDictionary.Remove(key);
+            return variableDictionary.Remove((ushort)(key & INTERNAL_VARIABLEMASK));
         }
 
         public bool TryGetValue(ushort key, out ushort value) {
-            return variableDictionary.TryGetValue(key, out value);
+            return variableDictionary.TryGetValue((ushort)(key & INTERNAL_VARIABLEMASK), out value);
         }
 
         IEnumerator IEnumerable.GetEnumerator() {
