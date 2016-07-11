@@ -24,6 +24,7 @@ namespace SSImporter.Resource {
             return PlayerPrefs.HasKey(@"SSHOCKRES");
         }
 
+        private static StringLibrary stringLibrary;
         private static ModelLibrary modelLibrary;
         private static SpriteLibrary spriteLibrary;
         private static ObjectPropertyLibrary objectPropertyLibrary;
@@ -45,6 +46,7 @@ namespace SSImporter.Resource {
 
                 ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
 
+                stringLibrary = resourceLibrary.StringLibrary;
                 modelLibrary = resourceLibrary.ModelLibrary;
                 spriteLibrary = resourceLibrary.SpriteLibrary;
                 objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
@@ -61,7 +63,7 @@ namespace SSImporter.Resource {
 
                 CalculateAnimationIndices();
 
-                uint nameIndex = 0;
+                CyberString objectNames = stringLibrary.GetResource(KnownChunkId.ObjectNames);
 
                 for (byte classIndex = 0; classIndex < ObjectPropertyImport.ObjectDeclarations.Length; ++classIndex) {
                     ObjectDeclaration[] objectDataSubclass = ObjectPropertyImport.ObjectDeclarations[classIndex];
@@ -75,13 +77,15 @@ namespace SSImporter.Resource {
                             ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
                             BaseProperties baseProperties = objectData.Base;
 
-                            string fileName = string.Format(@"{0} {1}.prefab", ++nameIndex, objectData.FullName);
+                            string fullName = objectNames[objectData.Index];
+
+                            string fileName = string.Format(@"{0} {1}.prefab", objectData.Index, fullName);
                             fileName = Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
 
                             string assetPath = string.Format(@"Assets/SystemShock/Prefabs/{0}", fileName);
                             UnityEngine.Object prefabAsset = PrefabUtility.CreateEmptyPrefab(assetPath);
 
-                            GameObject gameObject = new GameObject(objectData.FullName);
+                            GameObject gameObject = new GameObject(fullName);
                             gameObject.transform.localPosition = Vector3.zero;
                             gameObject.transform.localRotation = Quaternion.identity;
                             gameObject.transform.localScale = Vector3.one;
@@ -355,6 +359,8 @@ namespace SSImporter.Resource {
                     boxCollider.center = meshFilter.sharedMesh.bounds.center;
                     boxCollider.size = meshFilter.sharedMesh.bounds.size;
                 }
+            } else if(objectClass == ObjectClass.Trigger) {
+                gameObject.layer = LayerMask.NameToLayer(@"Ignore Raycast");
             }
         }
         private static void CalculateAnimationIndices() {

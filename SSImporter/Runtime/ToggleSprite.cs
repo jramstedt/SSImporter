@@ -2,10 +2,11 @@
 using System.Collections;
 using SystemShock.Resource;
 using System;
+using UnityEngine.EventSystems;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class ToggleSprite : StateMachine<ToggleSprite.ToggleState> {
+    public class ToggleSprite : StateMachine<ToggleSprite.ToggleState>, IPointerClickHandler {
         public enum ToggleState {
             Closed,
             Open,
@@ -84,7 +85,7 @@ namespace SystemShock {
             State = (ToggleState)frame;
         }
 
-        private void OnMouseDown() {
+        public void OnPointerClick(PointerEventData eventData) {
             if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
                 if (!Triggerable.Act()) return;
 
@@ -94,8 +95,6 @@ namespace SystemShock {
                 State = ToggleState.Active;
             else if (State == ToggleState.Active)
                 State = ToggleState.Open;
-
-            
         }
     }
 }

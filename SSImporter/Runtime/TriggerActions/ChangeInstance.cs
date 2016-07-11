@@ -250,23 +250,19 @@ namespace SystemShock.TriggerActions {
         }
 
         private class RadiatePlayer : BaseChanger<ObjectInstance.Trigger.ChangeInstance.RadiatePlayer, SystemShockObject> {
-            private Hacker Player;
-
-            public RadiatePlayer(ChangeInstance changeInstance) : base(changeInstance) {
-                Player = FindObjectOfType<Hacker>();
-            }
+            public RadiatePlayer(ChangeInstance changeInstance) : base(changeInstance) { }
 
             public override void Change() {
-                if (Player == null)
-                    return;
-
-                var Watched = GetTarget((ushort)ActionData.ObjectId);
+                var Watched = GetTarget((ushort)ActionData.WatchedObjectId);
                 if (Watched.ObjectInstance.State >= ActionData.MinimumState)
-                    Debug.Log("Radiation");
+                    changeInstance.MessageBus.Send(new RadiatePlayerMessage(GetTarget((ushort)ActionData.ObjectId), (ushort)15u)); // TODO Hard coded. Check.
             }
 #if UNITY_EDITOR
             public override void OnDrawGizmos() {
                 var Target = GetTarget((ushort)ActionData.ObjectId);
+                Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
+
+                Target = GetTarget((ushort)ActionData.WatchedObjectId);
                 Gizmos.DrawLine(changeInstance.transform.position, Target.transform.position);
             }
 #endif

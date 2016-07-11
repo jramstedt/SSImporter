@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 using SystemShock.Object;
-using SystemShock.Resource;
+using SystemShock.Gameplay;
 
 namespace SystemShock.Triggers {
     public class Null : MonoBehaviour, IActionPermission {

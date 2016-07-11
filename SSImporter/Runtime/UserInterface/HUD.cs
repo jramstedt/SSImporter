@@ -6,14 +6,17 @@ namespace SystemShock.UserInterface {
     public class HUD : MonoBehaviour {
         private MessageBus messageBus;
         private StringLibrary stringLibrary;
+        private ObjectPropertyLibrary objectPropertyLibrary;
 
         private void Awake() {
             messageBus = MessageBus.GetController();
             stringLibrary = ResourceLibrary.GetController().StringLibrary;
+            objectPropertyLibrary = ResourceLibrary.GetController().ObjectPropertyLibrary;
 
             messageBus.Receive<TrapMessage>(msg => Debug.LogFormat("Trap Message: {0}", stringLibrary.GetResource(KnownChunkId.TrapMessages)[msg.Payload]));
             messageBus.Receive<InterfaceMessage>(msg => Debug.LogFormat("Interface Message: {0}", stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[msg.Payload]));
             messageBus.Receive<ShodanSecurityMessage>(msg => Debug.LogFormat("Shodan Security: {0}", msg.Payload));
+            messageBus.Receive<ItemInspectionMessage>(msg => Debug.LogFormat("Item inspection: {0}", stringLibrary.GetResource(KnownChunkId.ObjectNames)[objectPropertyLibrary.GetResource(msg.Payload).Index]));
         }
     }
 
@@ -39,5 +42,13 @@ namespace SystemShock.UserInterface {
         /// </summary>
         /// <param name="payload">Security needed to open (delta)</param>
         public ShodanSecurityMessage(byte payload) : base(payload) { }
+    }
+
+    public class ItemInspectionMessage : GenericMessage<uint> {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="payload">Combined item id</param>
+        public ItemInspectionMessage(uint payload) : base(payload) { }
     }
 }

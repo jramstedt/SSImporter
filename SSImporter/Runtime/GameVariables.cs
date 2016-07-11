@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 using SystemShock.Object;
 
-namespace SystemShock.Resource {
+namespace SystemShock.Gameplay {
     public class GameVariables : AbstractGameController<GameVariables>, IDictionary<ushort, ushort> {
         private Dictionary<ushort, ushort> variableDictionary = new Dictionary<ushort, ushort>();
 

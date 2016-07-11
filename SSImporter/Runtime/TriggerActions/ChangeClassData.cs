@@ -18,6 +18,9 @@ namespace SystemShock.TriggerActions {
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {
+            if (ObjectFactory == null)
+                return;
+
             SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
 
             if (Target != null)

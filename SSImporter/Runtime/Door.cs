@@ -1,16 +1,15 @@
 ﻿using UnityEngine;
 
 using System;
-using System.Collections;
 
-using SystemShock.InstanceObjects;
 using DoorAndGrating = SystemShock.InstanceObjects.DoorAndGrating;
 using SystemShock.Resource;
 using SystemShock.UserInterface;
+using SystemShock.Gameplay;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class Door : StateMachine<Door.DoorState>, IActionPermission {
+    public class Door : StateMachine<Door.DoorState>, IActionPermission, IRaycastFilter {
         public enum DoorState {
             Closed,
             Closing,
@@ -185,6 +184,18 @@ namespace SystemShock {
             }
 
             return false;
+        }
+
+        public bool TestRaycast(RaycastHit hit) {
+            if (!Renderer.isVisible)
+                return false;
+
+            Vector3 localPoint = transform.InverseTransformPoint(hit.point);
+            Vector2 normalizedCoordinates = new Vector2(Mathf.InverseLerp(-0.5f, 0.5f, localPoint.x), Mathf.InverseLerp(-0.5f, 0.5f, localPoint.y));
+            Vector2 textureCoordinates = Rect.NormalizedToPoint(Frames[CurrentFrame].Rect, normalizedCoordinates);
+
+            Texture2D texture = (Renderer.sharedMaterial ?? Renderer.material).mainTexture as Texture2D;
+            return texture.GetPixelBilinear(textureCoordinates.x, textureCoordinates.y).a >= 0.5f;
         }
 
 #if UNITY_EDITOR

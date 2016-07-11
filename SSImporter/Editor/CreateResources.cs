@@ -2,10 +2,10 @@
 using UnityEditor;
 
 using System.IO;
-using System.Collections;
 
 using SystemShock;
 using SystemShock.Resource;
+using SystemShock.Gameplay;
 
 namespace SSImporter.Resource {
     public static class CreateResources {

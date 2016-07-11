@@ -6,7 +6,17 @@ using System;
 
 namespace SystemShock {
     public abstract class TriggerAction : MonoBehaviour {
+        protected IActionPermission PermissionProvider;
+        protected ObjectFactory ObjectFactory;
+        protected MessageBus MessageBus;
+
         public abstract bool Act();
+
+        protected virtual void Awake() {
+            PermissionProvider = GetComponentInParent<IActionPermission>();
+            ObjectFactory = ObjectFactory.GetController();
+            MessageBus = MessageBus.GetController();
+        }
 
         protected static IEnumerator WaitAndTrigger(TriggerAction target, ushort delay) {
             if (delay > 0)
@@ -17,17 +27,14 @@ namespace SystemShock {
     }
 
     public abstract class TriggerAction<ActionDataType> : TriggerAction {
-        protected IActionPermission PermissionProvider;
+        
         public ActionDataType ActionData;
-        protected ObjectFactory ObjectFactory;
-        protected MessageBus MessageBus;
 
-        protected virtual void Awake() {
-            PermissionProvider = GetComponentInParent<IActionPermission>();
+        protected override void Awake() {
+            base.Awake();
+
             IActionProvider actionProvider = GetComponentInParent<IActionProvider>();
             ActionData = actionProvider.ActionData.Read<ActionDataType>();
-            ObjectFactory = ObjectFactory.GetController();
-            MessageBus = MessageBus.GetController();
         }
 
         public override bool Act() {

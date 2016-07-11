@@ -4,9 +4,11 @@ using System.Collections;
 using System.Runtime.InteropServices;
 
 using SystemShock.Resource;
+using UnityEngine.EventSystems;
+using SystemShock.UserInterface;
 
 namespace SystemShock.Object {
-    public abstract class SystemShockObject : MonoBehaviour {
+    public abstract class SystemShockObject : MonoBehaviour, IPointerClickHandler {
         public ObjectInstance ObjectInstance;
 
         public abstract ushort ObjectId { get; }
@@ -15,6 +17,8 @@ namespace SystemShock.Object {
         public byte Type { get { return ObjectInstance.Type; } }
         public byte State { get { return ObjectInstance.State; } set { ObjectInstance.State = value; } }
         public bool InUse { get { return ObjectInstance.InUse != 0; } }
+
+        public uint CombinedId { get { return (uint)ObjectInstance.Class << 16 | (uint)ObjectInstance.SubClass << 8 | ObjectInstance.Type; } }
 
         public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
             ObjectInstance = objectInstance;
@@ -27,6 +31,10 @@ namespace SystemShock.Object {
 
         protected abstract void SetClassData(IClassData classData);
         public abstract IClassData GetClassData();
+
+        public virtual void OnPointerClick(PointerEventData eventData) {
+            MessageBus.GetController().Send(new ItemInspectionMessage(CombinedId));
+        }
 
         // TODO update X,Y,Z etc. if changed in unity.
     }
@@ -319,9 +327,9 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class AccessCard {
                 public ushort Unknown1;
-                public ushort AccessBitmask;
+                public uint AccessBitmask;
 
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
                 public byte[] Fill;
             }
 
@@ -410,8 +418,11 @@ namespace SystemShock.Object {
                 public uint Charge;
                 public uint RechargeTime;
 
-                public uint Unknown1;
-                public uint Unknown2;
+                [ObjectReference] public ushort ObjectToTrigger1;
+                public ushort Delay1;
+
+                [ObjectReference] public ushort ObjectToTrigger2;
+                public ushort Delay2;
             }
 
             public ushort ObjectId { get { return Link.ObjectIndex; } set { Link.ObjectIndex = value; } }
@@ -604,7 +615,7 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeInstance {
-                public enum ChangeAction : uint {
+                public enum ChangeAction {
                     ChangeRepulsor = 0x00000001,
                     ChangeScreen = 0x00000002,
                     ChangeCode = 0x00000003,

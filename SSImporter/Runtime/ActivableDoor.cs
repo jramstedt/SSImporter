@@ -1,22 +1,21 @@
-﻿using UnityEngine;
+﻿using System;
+using SystemShock.Object;
+using SystemShock.UserInterface;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace SystemShock {
     [RequireComponent(typeof(Door))]
-    public class ActivableDoor : TriggerAction {
-        protected IActionPermission PermissionProvider;
-
+    public class ActivableDoor : TriggerAction, IPointerClickHandler {
         private Door door;
 
-        private void Awake() {
+        protected override void Awake() {
+            base.Awake();
+
             PermissionProvider = GetComponentInParent<IActionPermission>();
             door = GetComponent<Door>();
         }
-
-        private void OnMouseDown() {
-            if (PermissionProvider.CanAct())
-                Act();
-        }
-
 
         public override bool Act() {
             if (door != null) {
@@ -25,6 +24,11 @@ namespace SystemShock {
             }
 
             return false;
+        }
+
+        public void OnPointerClick(PointerEventData eventData) {
+            if (eventData.clickCount >= 2 && PermissionProvider.CanAct())
+                Act();
         }
     }
 }

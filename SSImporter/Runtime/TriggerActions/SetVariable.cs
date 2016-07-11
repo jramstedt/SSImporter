@@ -1,8 +1,7 @@
 ﻿using UnityEngine;
 
 using SystemShock.Object;
-using SystemShock.Resource;
-using System;
+using SystemShock.Gameplay;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]

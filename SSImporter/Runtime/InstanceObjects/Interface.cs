@@ -7,6 +7,8 @@ using SystemShock.Resource;
 using SystemShock.TriggerActions;
 using SystemShock.Interfaces;
 using SystemShock.UserInterface;
+using SystemShock.Gameplay;
+using UnityEngine.EventSystems;
 
 namespace SystemShock.InstanceObjects {
     public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider, IActionPermission {
@@ -26,7 +28,7 @@ namespace SystemShock.InstanceObjects {
                 ObjectPropertyLibrary objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
                 SpriteLibrary spriteLibrary = resourceLibrary.SpriteLibrary;
 
-                uint spriteIndex = objectPropertyLibrary.GetSpriteOffset((uint)Class << 16 | (uint)SubClass << 8 | Type);
+                uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(CombinedId);
 
                 SpriteDefinition[] Frames = new SpriteDefinition[3];
                 Array.Copy(spriteLibrary.GetResource(KnownChunkId.ObjectSprites).Sprites, spriteIndex, Frames, 0, Frames.Length);

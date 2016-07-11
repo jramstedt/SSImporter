@@ -133,6 +133,16 @@ namespace SSImporter.Resource {
             textureImporter.SetPlatformTextureSettings(@"Default", 4096, compressTextures ? TextureImporterFormat.AutomaticCrunched : TextureImporterFormat.AutomaticTruecolor, (int)TextureCompressionQuality.Best, true);
 
             textureImporter.SaveAndReimport();
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+
+            {
+                UnityEngine.Object[] sprites = AssetDatabase.LoadAllAssetRepresentationsAtPath(assetPath);
+
+                foreach (UnityEngine.Object sprite in sprites) {
+                    Debug.Log(sprite);
+                }
+            }
         }
     }
 }

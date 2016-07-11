@@ -95,7 +95,7 @@ namespace SystemShock.InstanceObjects {
                     } else if (Type == 10) { // Repulsor
                         spriteChunk = KnownChunkId.Repulsor;
                     } else { // Sign
-                        animationIndex += resourceLibrary.ObjectPropertyLibrary.GetSpriteOffset(Class, SubClass, Type);
+                        animationIndex += resourceLibrary.ObjectPropertyLibrary.GetSpriteOffset(CombinedId);
                         animationIndex += 1; // World sprite
                     }
 

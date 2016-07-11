@@ -56,8 +56,7 @@ namespace SystemShock.Resource {
     }
 
     public class ObjectData : ScriptableObject {
-        public string FullName;
-        public string ShortName;
+        public ushort Index;
 
         public BaseProperties Base;
 

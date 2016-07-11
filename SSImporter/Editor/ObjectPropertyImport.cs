@@ -149,7 +149,6 @@ namespace SSImporter.Resource {
 
                 StringLibrary stringLibrary = resourceLibrary.StringLibrary;
                 CyberString objectNames = stringLibrary.GetResource(KnownChunkId.ObjectNames);
-                CyberString objectShortNames = stringLibrary.GetResource(KnownChunkId.ShortObjectNames);
 
                 ObjectPropertyLibrary objectPropertyLibrary = ScriptableObject.CreateInstance<ObjectPropertyLibrary>();
                 AssetDatabase.CreateAsset(objectPropertyLibrary, @"Assets/SystemShock/objprop.dat.asset");
@@ -175,17 +174,13 @@ namespace SSImporter.Resource {
                             string typeName = @"SystemShock.DataObjects." + objectDataType.GetGenericType().Name + objectDataType.GetSpecificType().Name + @", Assembly-CSharp";
 
                             for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                                string fullName = objectNames[nameIndex];
-                                string shortName = objectShortNames[nameIndex];
-
                                 Type unityType = Type.GetType(typeName);
                                 if (unityType == null)
                                     throw new Exception(@"Type " + typeName + @" not found.");
 
                                 ObjectData objectData = ScriptableObject.CreateInstance(unityType) as ObjectData;
-                                objectData.name = fullName.ToLowerInvariant();
-                                objectData.FullName = fullName;
-                                objectData.ShortName = shortName;
+                                objectData.name = objectNames[nameIndex].ToLowerInvariant();
+                                objectData.Index = (ushort)nameIndex;
                                 objectData.hideFlags = HideFlags.HideInHierarchy;
 
                                 objectPropertyLibrary.AddResource(idBase | typeIndex, objectData);
