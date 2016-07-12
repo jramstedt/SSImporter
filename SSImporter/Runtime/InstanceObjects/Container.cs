@@ -18,7 +18,7 @@ namespace SystemShock.InstanceObjects {
             if (SubClass == 0) { // Crates
                 KnownChunkId materialBase = KnownChunkId.DynamicModelTexturesStart;
 
-                TextureLibrary textureLibrary = ResourceLibrary.GetController().TextureLibrary;
+                TextureLibrary textureLibrary = TextureLibrary.GetLibrary();
 
                 Material topBottomMaterial = textureLibrary.GetResource(materialBase + (ushort)(ClassData.TopBottomTexture > 0 ? ClassData.TopBottomTexture : (byte)12));
                 Material sideMaterial = textureLibrary.GetResource(materialBase + (ushort)(ClassData.SideTexture > 0 ? ClassData.SideTexture : (byte)11));

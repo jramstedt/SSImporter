@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class StringLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, CyberString> {
+    public class StringLibrary : AbstractResourceLibrary<StringLibrary, ushort /*KnownChunkId*/, CyberString> {
         public CyberString[] Strings { get { return Resources.ToArray(); } }
         public ushort[] ChunkIds { get { return IndexMap.ToArray(); } }
 

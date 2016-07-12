@@ -14,7 +14,7 @@ namespace SystemShock.TriggerActions {
         protected override void Awake() {
             base.Awake();
 
-            textureLibrary = ResourceLibrary.GetController().TextureLibrary;
+            textureLibrary = TextureLibrary.GetLibrary();
         }
 
         protected override void DoAct() {

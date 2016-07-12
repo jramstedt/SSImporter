@@ -194,8 +194,8 @@ namespace SSImporter.Resource {
                 progress += progressStep;
                 #endregion
 
-                textureLibrary = ResourceLibrary.GetController().TextureLibrary;
-                texturePropertiesLibrary = ResourceLibrary.GetController().TexturePropertiesLibrary;
+                textureLibrary = TextureLibrary.GetLibrary();
+                texturePropertiesLibrary = TexturePropertiesLibrary.GetLibrary();
 
                 float stepPercentage = progressStep / (levelInfo.Width * levelInfo.Height);
 
@@ -345,7 +345,7 @@ namespace SSImporter.Resource {
                 #region Text screen
                 EditorUtility.DisplayProgressBar(@"Map Import", "Creating text screen renderer", progress);
                 {
-                    FontLibrary fontLibrary = ResourceLibrary.GetController().FontLibrary;
+                    FontLibrary fontLibrary = FontLibrary.GetLibrary();
 
                     GameObject textScreenRendererGO = new GameObject(@"Text Screen Renderer");
                     textScreenRendererGO.layer = LayerMask.NameToLayer(@"UI");

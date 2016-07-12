@@ -11,9 +11,8 @@ namespace SystemShock.Resource {
     public sealed class ObjectFactory : AbstractGameController<ObjectFactory> {
         private MessageBus messageBus;
 
-        private ResourceLibrary resourceLibrary;
+        [NonSerialized] private LevelInfo levelInfo;
 
-        private LevelInfo levelInfo;
         public LevelInfo LevelInfo {
             get { return levelInfo ?? UpdateLevelInfo(); }
         }
@@ -34,7 +33,6 @@ namespace SystemShock.Resource {
 
         public void Start() {
             messageBus = MessageBus.GetController();
-            resourceLibrary = ResourceLibrary.GetController();
 
             UpdateLevelInfo();
         }
@@ -96,7 +94,7 @@ namespace SystemShock.Resource {
                 return null;
             }
 
-            GameObject prefab = resourceLibrary.PrefabLibrary.GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
+            GameObject prefab = PrefabLibrary.GetLibrary().GetPrefab(objectInstance.Class, objectInstance.SubClass, objectInstance.Type);
 
             if (prefab == null) {
                 Debug.LogWarningFormat(@"Prefab not found {0}:{1}:{2}", objectInstance.Class, objectInstance.SubClass, objectInstance.Type);

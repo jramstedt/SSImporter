@@ -144,10 +144,8 @@ namespace SSImporter.Resource {
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
-
-                ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
-
-                StringLibrary stringLibrary = resourceLibrary.StringLibrary;
+                
+                StringLibrary stringLibrary = StringLibrary.GetLibrary();
                 CyberString objectNames = stringLibrary.GetResource(KnownChunkId.ObjectNames);
 
                 ObjectPropertyLibrary objectPropertyLibrary = ScriptableObject.CreateInstance<ObjectPropertyLibrary>();
@@ -162,9 +160,11 @@ namespace SSImporter.Resource {
                         throw new ArgumentException(string.Format(@"File type is not supported ({0})", header));
 
                     uint nameIndex = 0;
+                    uint perClassIndex = 0;
 
                     for (uint classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
                         ObjectDeclaration[] objectDataSubclass = ObjectDeclarations[classIndex];
+                        perClassIndex = 0;
 
                         for (uint subclassIndex = 0; subclassIndex < objectDataSubclass.Length; ++subclassIndex) {
                             ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
@@ -180,17 +180,16 @@ namespace SSImporter.Resource {
 
                                 ObjectData objectData = ScriptableObject.CreateInstance(unityType) as ObjectData;
                                 objectData.name = objectNames[nameIndex].ToLowerInvariant();
-                                objectData.Index = (ushort)nameIndex;
+                                objectData.Index = (ushort)nameIndex++;
+                                objectData.ClassIndex = (ushort)perClassIndex++;
                                 objectData.hideFlags = HideFlags.HideInHierarchy;
 
                                 objectPropertyLibrary.AddResource(idBase | typeIndex, objectData);
-
-                                ++nameIndex;
                             }
 
                             #region Generic data
                             for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                ObjectData objectData = objectPropertyLibrary.GetResource(idBase | typeIndex);
                                 objectData.SetGeneric(binaryReader.Read(objectDataType.GetGenericType()));
                             }
                             #endregion
@@ -203,7 +202,7 @@ namespace SSImporter.Resource {
 
                             #region Specific data
                             for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                ObjectData objectData = objectPropertyLibrary.GetResource(idBase | typeIndex);
                                 objectData.SetSpecific(binaryReader.Read(objectDataType.GetSpecificType()));
                             }
                             #endregion
@@ -222,7 +221,7 @@ namespace SSImporter.Resource {
                             uint idBase = classIndex << 16 | subclassIndex << 8;
 
                             for (uint typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                                ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(idBase | typeIndex);
+                                ObjectData objectData = objectPropertyLibrary.GetResource(idBase | typeIndex);
                                 //objectData.SetBase(binaryReader.Read(objectDataType.GetBaseType()));
                                 objectData.Base = binaryReader.Read<BaseProperties>();
 
@@ -240,7 +239,7 @@ namespace SSImporter.Resource {
                     EditorUtility.SetDirty(objectPropertyLibrary);
                 }
 
-                ResourceLibrary.GetController().ObjectPropertyLibrary = objectPropertyLibrary;
+                ResourceLibrary.GetController().AddLibrary(objectPropertyLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

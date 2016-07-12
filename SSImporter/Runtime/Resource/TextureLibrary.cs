@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace SystemShock.Resource {
-    public class TextureLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, Material> {
+    public class TextureLibrary : AbstractResourceLibrary<TextureLibrary, ushort /*KnownChunkId*/, Material> {
         public KnownChunkId ModelTextureIdToChunk(ushort textureId) {
             return KnownChunkId.ModelTexturesStart + textureId;
         }

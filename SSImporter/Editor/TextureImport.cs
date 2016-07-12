@@ -76,13 +76,13 @@ namespace SSImporter.Resource {
 
             EditorUtility.SetDirty(texturePropertiesLibrary);
 
-            ResourceLibrary.GetController().TexturePropertiesLibrary = texturePropertiesLibrary;
+            ResourceLibrary.GetController().AddLibrary(texturePropertiesLibrary);
             #endregion
 
             try {
                 AssetDatabase.StartAssetEditing();
 
-                StringLibrary stringLibrary = ResourceLibrary.GetController().StringLibrary;
+                StringLibrary stringLibrary = StringLibrary.GetLibrary();
                 CyberString textureNames = stringLibrary.GetResource(KnownChunkId.TextureNames);
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
@@ -113,7 +113,7 @@ namespace SSImporter.Resource {
                     File.WriteAllBytes(Application.dataPath + "/SystemShock/gamepal.res.png", paletteTexture.EncodeToPNG());
                 }
 
-                ResourceLibrary.GetController().PaletteLibrary = paletteLibrary;
+                ResourceLibrary.GetController().AddLibrary(paletteLibrary);
 
                 #endregion
 
@@ -258,7 +258,7 @@ namespace SSImporter.Resource {
                 }
                 #endregion
 
-                ResourceLibrary.GetController().TextureLibrary = textureLibrary;
+                ResourceLibrary.GetController().AddLibrary(textureLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();
@@ -349,8 +349,8 @@ namespace SSImporter.Resource {
                 for (int j = 0; j < spriteDefinitions.Length; ++j) {
                     TextureSet spriteTextureSet = allSprites[j];
                     spriteDefinitions[j] = new SpriteDefinition() {
-                        Rect = allRects[rectIndices.Value[j]],
-                        Pivot = Vector2.Scale(spriteTextureSet.Pivot, new Vector2(1f / spriteTextureSet.Diffuse.width, 1f / spriteTextureSet.Diffuse.height)),
+                        UVRect = allRects[rectIndices.Value[j]],
+                        PivotNormalized = Vector2.Scale(spriteTextureSet.Pivot, new Vector2(1f / spriteTextureSet.Diffuse.width, 1f / spriteTextureSet.Diffuse.height)),
                         Name = rectIndices.Key + " " + spriteTextureSet.Name
                     };
                 }
@@ -372,7 +372,7 @@ namespace SSImporter.Resource {
             EditorUtility.SetDirty(atlasEmission);
             EditorUtility.SetDirty(spriteLibrary);
 
-            ResourceLibrary.GetController().SpriteLibrary = spriteLibrary;
+            ResourceLibrary.GetController().AddLibrary(spriteLibrary);
         }
 
         private static TextureSet CreateTexture(ushort textureId, ResourceFile textureResource, PaletteChunk palette) {

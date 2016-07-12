@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using SystemShock.Object;
 
 namespace SystemShock.Resource {
-    public class ObjectPropertyLibrary : AbstractResourceLibrary<uint, ObjectData>, ISerializationCallbackReceiver {
+    public class ObjectPropertyLibrary : AbstractResourceLibrary<ObjectPropertyLibrary, uint, ObjectData>, ISerializationCallbackReceiver {
         [SerializeField, HideInInspector]
         private List<uint> spriteOffsets;
 
@@ -15,12 +15,16 @@ namespace SystemShock.Resource {
             spriteOffsets = new List<uint>();
         }
 
-        public T GetObject<T>(uint combinedId) where T : ObjectData {
+        public virtual ObjectData GetResource(ObjectClass Class, byte Subclass, byte Type) {
+            return GetResource((uint)Class << 16 | (uint)Subclass << 8 | Type);
+        }
+
+        public T GetResource<T>(uint combinedId) where T : ObjectData {
             return (T)Resources[IndexMap.IndexOf(combinedId)];
         }
 
-        public T GetObject<T>(ObjectClass Class, byte Subclass, byte Type) where T : ObjectData {
-            return GetObject<T>((uint)Class << 16 | (uint)Subclass << 8 | Type);
+        public T GetResource<T>(ObjectClass Class, byte Subclass, byte Type) where T : ObjectData {
+            return GetResource<T>((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
         public int GetIndex(uint combinedId) {
@@ -56,7 +60,15 @@ namespace SystemShock.Resource {
     }
 
     public class ObjectData : ScriptableObject {
+        /// <summary>
+        /// Index in all objects
+        /// </summary>
         public ushort Index;
+
+        /// <summary>
+        /// Index in class context
+        /// </summary>
+        public ushort ClassIndex;
 
         public BaseProperties Base;
 

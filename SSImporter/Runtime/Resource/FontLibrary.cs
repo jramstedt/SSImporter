@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 namespace SystemShock.Resource {
-    public class FontLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, Font> {
+    public class FontLibrary : AbstractResourceLibrary<FontLibrary, ushort /*KnownChunkId*/, Font> {
         public Font GetResource(KnownChunkId chunkId) {
             return GetResource((ushort)chunkId);
         }

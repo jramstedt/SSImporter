@@ -43,7 +43,7 @@ namespace SystemShock {
                 return;
 
             SpriteDefinition currentSprite = Frames[(int)State];
-            Rect rect = currentSprite.Rect;
+            Rect rect = currentSprite.UVRect;
 
             if(propertyBlock == null)
                 propertyBlock = new MaterialPropertyBlock();

@@ -30,12 +30,10 @@ namespace SSImporter.Resource {
             if (!File.Exists(obj3dPath))
                 return;
 
-            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
-
-            PaletteLibrary paletteLibrary = resourceLibrary.PaletteLibrary;
+            PaletteLibrary paletteLibrary = PaletteLibrary.GetLibrary();
             Palette gamePalette = paletteLibrary.GetResource(KnownChunkId.Palette);
 
-            TextureLibrary textureLibrary = resourceLibrary.TextureLibrary;
+            TextureLibrary textureLibrary = TextureLibrary.GetLibrary();
 
             try {
                 AssetDatabase.StartAssetEditing();
@@ -48,7 +46,7 @@ namespace SSImporter.Resource {
                 ModelLibrary modelLibrary = ScriptableObject.CreateInstance<ModelLibrary>();
                 AssetDatabase.CreateAsset(modelLibrary, @"Assets/SystemShock/obj3d.res.asset");
 
-                ResourceLibrary.GetController().ModelLibrary = modelLibrary;
+                ResourceLibrary.GetController().AddLibrary(modelLibrary);
 
                 foreach (KnownChunkId chunkId in obj3dResource.GetChunkList()) {
                     string assetPath = string.Format(@"Assets/SystemShock/obj3d.res/{0}.prefab", (ushort)chunkId);

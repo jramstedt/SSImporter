@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class SpriteLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, SpriteAnimation> {
+    public class SpriteLibrary : AbstractResourceLibrary<SpriteLibrary, ushort /*KnownChunkId*/, SpriteAnimation> {
         [HideInInspector]
         public Material Material;
 
@@ -41,6 +41,10 @@ namespace SystemShock.Resource {
             return spriteAnimation.sprites[0];
         }
 
+        public static implicit operator SpriteDefinition[](SpriteAnimation spriteAnimation) {
+            return spriteAnimation.sprites;
+        }
+
         public SpriteDefinition this[uint index] {
             get { return sprites[index]; }
         }
@@ -57,7 +61,7 @@ namespace SystemShock.Resource {
     [Serializable]
     public struct SpriteDefinition {
         public string Name;
-        public Rect Rect;
-        public Vector2 Pivot;
+        public Rect UVRect;
+        public Vector2 PivotNormalized;
     }
 }

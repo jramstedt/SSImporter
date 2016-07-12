@@ -5,7 +5,6 @@ using System;
 using DoorAndGrating = SystemShock.InstanceObjects.DoorAndGrating;
 using SystemShock.Resource;
 using SystemShock.UserInterface;
-using SystemShock.Gameplay;
 
 namespace SystemShock {
     [ExecuteInEditMode]
@@ -17,7 +16,6 @@ namespace SystemShock {
             Opening
         }
 
-        private GameVariables gameVariables;
         private MessageBus messageBus;
 
         private DoorAndGrating doorAndGrating;
@@ -40,7 +38,6 @@ namespace SystemShock {
         // Access 255 = shodan security
 
         protected virtual void Awake() {
-            gameVariables = GameVariables.GetController();
             messageBus = MessageBus.GetController();
 
             Renderer = GetComponent<Renderer>();
@@ -55,22 +52,10 @@ namespace SystemShock {
         private void Start() {
             doorAndGrating = GetComponent<DoorAndGrating>();
 
-            ObjectFactory objectFactory = ObjectFactory.GetController();
-
-            //StringLibrary stringLibrary = StringLibrary.GetLibrary(@"cybstrng.res");
-            //CyberString decalWords = stringLibrary.GetStrings(KnownChunkId.StateMessages);
-
-            //if (ClassData.Lock != 0)
-            //    Debug.Log("DOOR MESSAGE " + decalWords[(uint)ClassData.LockMessage + 0x07]);
-
             if(doorAndGrating.ClassData.ObjectToTrigger != 0 && PairedDoor == null)
-                PairedDoor = objectFactory.Get<Door>(doorAndGrating.ClassData.ObjectToTrigger);
+                PairedDoor = ObjectFactory.GetController().Get<Door>(doorAndGrating.ClassData.ObjectToTrigger);
 
             UpdateFrame();
-        }
-
-        private void Reset() {
-            Start();
         }
 
         private void Update() {
@@ -96,7 +81,7 @@ namespace SystemShock {
 
         private void UpdateFrame() {
             SpriteDefinition currentSprite = Frames[CurrentFrame];
-            Rect rect = currentSprite.Rect;
+            Rect rect = currentSprite.UVRect;
 
             if (propertyBlock == null)
                 propertyBlock = new MaterialPropertyBlock();
@@ -192,7 +177,7 @@ namespace SystemShock {
 
             Vector3 localPoint = transform.InverseTransformPoint(hit.point);
             Vector2 normalizedCoordinates = new Vector2(Mathf.InverseLerp(-0.5f, 0.5f, localPoint.x), Mathf.InverseLerp(-0.5f, 0.5f, localPoint.y));
-            Vector2 textureCoordinates = Rect.NormalizedToPoint(Frames[CurrentFrame].Rect, normalizedCoordinates);
+            Vector2 textureCoordinates = Rect.NormalizedToPoint(Frames[CurrentFrame].UVRect, normalizedCoordinates);
 
             Texture2D texture = (Renderer.sharedMaterial ?? Renderer.material).mainTexture as Texture2D;
             return texture.GetPixelBilinear(textureCoordinates.x, textureCoordinates.y).a >= 0.5f;

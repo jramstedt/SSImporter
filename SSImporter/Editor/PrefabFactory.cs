@@ -44,13 +44,11 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Prefabs");
                 AssetDatabase.CreateFolder(@"Assets/SystemShock", @"Animations");
 
-                ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
-
-                stringLibrary = resourceLibrary.StringLibrary;
-                modelLibrary = resourceLibrary.ModelLibrary;
-                spriteLibrary = resourceLibrary.SpriteLibrary;
-                objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
-                nullMaterial = resourceLibrary.TextureLibrary.GetResource(KnownChunkId.ModelTexturesStart);
+                stringLibrary = StringLibrary.GetLibrary();
+                modelLibrary = ModelLibrary.GetLibrary();
+                spriteLibrary = SpriteLibrary.GetLibrary();
+                objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary();
+                nullMaterial = TextureLibrary.GetLibrary().GetResource(KnownChunkId.ModelTexturesStart);
 
                 spriteMaterial = new Material(Shader.Find(@"Sprites/Diffuse"));
                 spriteMaterial.name = @"SpriteMaterial";
@@ -59,7 +57,7 @@ namespace SSImporter.Resource {
                 PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
                 AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
 
-                ResourceLibrary.GetController().PrefabLibrary = prefabLibrary;
+                ResourceLibrary.GetController().AddLibrary(prefabLibrary);
 
                 CalculateAnimationIndices();
 
@@ -74,7 +72,7 @@ namespace SSImporter.Resource {
                         for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
                             uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
-                            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
+                            ObjectData objectData = objectPropertyLibrary.GetResource(combinedId);
                             BaseProperties baseProperties = objectData.Base;
 
                             string fullName = objectNames[objectData.Index];
@@ -323,10 +321,7 @@ namespace SSImporter.Resource {
                 MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
 
                 if (properties.Base.DrawType == DrawType.Decal) {
-                    int startIndex = objectPropertyLibrary.GetIndex(ObjectClass.DoorAndGrating, 0, 0);
-                    int spriteIndex = objectPropertyLibrary.GetIndex(objectClass, subclassIndex, typeIndex);
-
-                    SpriteAnimation spriteAnimation = spriteLibrary.GetResource((KnownChunkId)(KnownChunkId.DoorsStart + (ushort)(spriteIndex - startIndex)));
+                    SpriteAnimation spriteAnimation = spriteLibrary.GetResource((KnownChunkId)(KnownChunkId.DoorsStart + properties.ClassIndex));
 
                     SpriteDefinition sprite = spriteAnimation[0];
                     Material material = spriteLibrary.Material;
@@ -334,22 +329,12 @@ namespace SSImporter.Resource {
                     meshRenderer.sharedMaterial = material;
 
                     if (spriteAnimation.Sprites.Length > 1) {
-                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
-                            sprite.Pivot,
-                            Vector2.one);
+                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(sprite.PivotNormalized, Vector2.one);
                         meshFilter.sharedMesh.name = sprite.Name;
-
-                        Door door = gameObject.AddComponent<Door>();
-                        door.Frames = spriteAnimation.Sprites;
-                        door.CurrentFrame = 0;
-
-                        if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable)
-                            gameObject.AddComponent<ActivableDoor>();
                     } else {
-                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
-                            sprite.Pivot,
-                            new Vector2(sprite.Rect.width * material.mainTexture.width / 64f, sprite.Rect.height * material.mainTexture.height / 64f),
-                            sprite.Rect);
+                        Vector3 worldSize = properties.Base.GetRenderSize(Vector2.Scale(sprite.UVRect.size, material.mainTexture.GetSize()));
+
+                        meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(sprite.PivotNormalized, worldSize, sprite.UVRect);
                         meshFilter.sharedMesh.name = sprite.Name;
                     }
                 }
@@ -385,7 +370,7 @@ namespace SSImporter.Resource {
                 for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
                     uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
-                    ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
+                    ObjectData objectData = objectPropertyLibrary.GetResource(combinedId);
                     BaseProperties baseProperties = objectData.Base;
 
                     enemyAnimations.Add(new EnemyAnimations {
@@ -434,9 +419,9 @@ namespace SSImporter.Resource {
 
             MeshFilter meshFilter = visualization.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(
-                sprite.Pivot,
-                new Vector2(sprite.Rect.width * material.mainTexture.width / 100f, sprite.Rect.height * material.mainTexture.height / 100f),
-                sprite.Rect);
+                sprite.PivotNormalized,
+                new Vector2(sprite.UVRect.width * material.mainTexture.width / 100f, sprite.UVRect.height * material.mainTexture.height / 100f),
+                sprite.UVRect);
             MeshRenderer meshRenderer = visualization.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = material;
 
@@ -497,20 +482,20 @@ namespace SSImporter.Resource {
 
             SpriteDefinition sprite = spriteLibrary.GetResource(KnownChunkId.ObjectSprites)[spriteIndex + 1];
 
-            Vector3 worldSize = baseProperties.GetRenderSize(Vector2.Scale(sprite.Rect.size, material.mainTexture.GetSize()));
+            Vector3 worldSize = baseProperties.GetRenderSize(Vector2.Scale(sprite.UVRect.size, material.mainTexture.GetSize()));
 
             if (((Flags)baseProperties.Flags & Flags.Collider) == Flags.Collider ||
                 ((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed ||
                 ((Flags)baseProperties.Flags & Flags.Activable) == Flags.Activable) {
                 MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
-                meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(sprite.Pivot, worldSize, sprite.Rect);
+                meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(sprite.PivotNormalized, worldSize, sprite.UVRect);
                 meshFilter.sharedMesh.name = sprite.Name;
                 MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
                 meshRenderer.sharedMaterial = material;
             } else {
                 MeshProjector meshProjector = gameObject.AddComponent<MeshProjector>();
                 meshProjector.Size = worldSize;
-                meshProjector.UVRect = sprite.Rect;
+                meshProjector.UVRect = sprite.UVRect;
                 MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
                 meshRenderer.sharedMaterial = material;
             }
@@ -657,12 +642,12 @@ namespace SSImporter.Resource {
             for (uint k = 0; k < keyFrames.Length; ++k) {
                 SpriteDefinition spriteDefinition = spriteAnimation[k];
 
-                Rect spriteRect = new Rect( spriteDefinition.Rect.x * material.mainTexture.width,
-                                            spriteDefinition.Rect.y * material.mainTexture.height,
-                                            spriteDefinition.Rect.width * material.mainTexture.width,
-                                            spriteDefinition.Rect.height * material.mainTexture.height);
+                Rect spriteRect = new Rect( spriteDefinition.UVRect.x * material.mainTexture.width,
+                                            spriteDefinition.UVRect.y * material.mainTexture.height,
+                                            spriteDefinition.UVRect.width * material.mainTexture.width,
+                                            spriteDefinition.UVRect.height * material.mainTexture.height);
 
-                Sprite sprite = Sprite.Create(material.mainTexture as Texture2D, spriteRect, spriteDefinition.Pivot, 100f);
+                Sprite sprite = Sprite.Create(material.mainTexture as Texture2D, spriteRect, spriteDefinition.PivotNormalized, 100f);
 
                 AssetDatabase.AddObjectToAsset(sprite, prefabAsset);
 

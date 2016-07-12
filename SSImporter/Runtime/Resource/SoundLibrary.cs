@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 namespace SystemShock.Resource {
-    public class SoundLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, AudioClip> {
+    public class SoundLibrary : AbstractResourceLibrary<SoundLibrary, ushort /*KnownChunkId*/, AudioClip> {
         public AudioClip GetResource(KnownChunkId chunkId) {
             return GetResource((ushort)chunkId);
         }

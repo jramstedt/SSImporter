@@ -76,7 +76,7 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateAsset(fontLibrary, @"Assets/SystemShock/gamescr.res.asset");
                 EditorUtility.SetDirty(fontLibrary);
 
-                ResourceLibrary.GetController().FontLibrary = fontLibrary;
+                ResourceLibrary.GetController().AddLibrary(fontLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

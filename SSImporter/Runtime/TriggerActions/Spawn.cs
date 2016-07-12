@@ -6,12 +6,8 @@ using SystemShock.Resource;
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
     public class Spawn : TriggerAction<ObjectInstance.Trigger.Spawn> {
-        private ObjectPropertyLibrary objectPropertyLibrary;
-
         protected override void Awake() {
             base.Awake();
-
-            objectPropertyLibrary = ResourceLibrary.GetController().ObjectPropertyLibrary;
         }
 
         protected override void DoAct() {
@@ -29,7 +25,7 @@ namespace SystemShock.TriggerActions {
             uint Subclass = (combinedId >> 8) & 0xFF;
             uint Type = combinedId & 0xFF;
 
-            ObjectData objectData = objectPropertyLibrary.GetObject<ObjectData>(combinedId);
+            ObjectData objectData = ObjectPropertyLibrary.GetLibrary().GetResource(combinedId);
             BaseProperties baseProperties = objectData.Base;
 
             LevelInfo levelInfo = ObjectFactory.LevelInfo;

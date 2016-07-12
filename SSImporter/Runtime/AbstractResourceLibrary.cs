@@ -4,7 +4,29 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace SystemShock.Resource {
-    public abstract class AbstractResourceLibrary<K, T> : ScriptableObject
+    public abstract class AbstractResourceLibrary : ScriptableObject {
+        public static T GetLibrary<T>() where T : AbstractResourceLibrary<T> {
+            return AbstractResourceLibrary<T>.GetLibrary();
+        }
+    }
+
+    public abstract class AbstractResourceLibrary<T> : AbstractResourceLibrary where T : AbstractResourceLibrary<T> {
+        private static T instance;
+
+        protected virtual void OnEnable() { instance = (T)this; }
+
+        protected virtual void OnDisable() { instance = null; }
+
+        public static T GetLibrary() {
+            if (instance == null)
+                ResourceLibrary.GetController(); //ResourceLibrary controller should contain all libraries. Libraries are initialized there.
+
+            return instance;
+        }
+    }
+
+    public abstract class AbstractResourceLibrary<L, K, T> : AbstractResourceLibrary<L>
+        where L : AbstractResourceLibrary<L, K, T>
         where K : struct
         where T : class {
 
@@ -18,6 +40,8 @@ namespace SystemShock.Resource {
             IndexMap = new List<K>();
             Resources = new List<T>();
         }
+
+        
 
 #if UNITY_EDITOR
         public virtual void AddResource(K identifier, T resource) {
@@ -45,5 +69,7 @@ namespace SystemShock.Resource {
         public virtual ReadOnlyCollection<T> GetResources() {
             return Resources.AsReadOnly();
         }
+
+        
     }
 }

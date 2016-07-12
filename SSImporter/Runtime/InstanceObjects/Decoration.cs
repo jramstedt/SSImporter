@@ -48,8 +48,7 @@ namespace SystemShock.InstanceObjects {
             MeshProjector meshProjector = GetComponent<MeshProjector>();
             MeshRenderer meshRenderer = GetComponentInChildren<MeshRenderer>();
 
-            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
-            TextureLibrary textureLibrary = resourceLibrary.TextureLibrary;
+            TextureLibrary textureLibrary = TextureLibrary.GetLibrary();
             Material nullModelMaterial = textureLibrary.GetResource(KnownChunkId.ModelTexturesStart);
 
             ObjectFactory objectFactory = ObjectFactory.GetController();
@@ -60,15 +59,15 @@ namespace SystemShock.InstanceObjects {
                 } else if (Type == 3) { // Text
                     ObjectInstance.Decoration.Text text = ClassData.Data.Read<ObjectInstance.Decoration.Text>();
 
-                    Palette gamePalette = resourceLibrary.PaletteLibrary.GetResource(KnownChunkId.Palette);
+                    Palette gamePalette = PaletteLibrary.GetLibrary().GetResource(KnownChunkId.Palette);
 
                     ushort[] fontMap = new ushort[] { 606, 609, 602, 605, 606 };
 
                     float[] sizeMap = new float[] { 1f, 0.125f, 0.25f, 0.5f, 1f, 2f };
 
-                    Font font = resourceLibrary.FontLibrary.GetResource((KnownChunkId)fontMap[text.Font & 0x000F]);
+                    Font font = FontLibrary.GetLibrary().GetResource((KnownChunkId)fontMap[text.Font & 0x000F]);
 
-                    CyberString decalWords = resourceLibrary.StringLibrary.GetResource(KnownChunkId.DecalWords);
+                    CyberString decalWords = StringLibrary.GetLibrary().GetResource(KnownChunkId.DecalWords);
 
                     Color color = gamePalette[text.Color != 0 ? (uint)text.Color : 53];
 
@@ -95,16 +94,16 @@ namespace SystemShock.InstanceObjects {
                     } else if (Type == 10) { // Repulsor
                         spriteChunk = KnownChunkId.Repulsor;
                     } else { // Sign
-                        animationIndex += resourceLibrary.ObjectPropertyLibrary.GetSpriteOffset(CombinedId);
+                        animationIndex += ObjectPropertyLibrary.GetLibrary().GetSpriteOffset(CombinedId);
                         animationIndex += 1; // World sprite
                     }
 
-                    SpriteLibrary spriteLibrary = resourceLibrary.SpriteLibrary;
+                    SpriteLibrary spriteLibrary = SpriteLibrary.GetLibrary();
                     SpriteDefinition sprite = spriteLibrary.GetResource(spriteChunk)[animationIndex];
                     Material material = spriteLibrary.Material;
 
-                    meshProjector.Size = properties.Base.GetRenderSize(Vector2.Scale(sprite.Rect.size, material.mainTexture.GetSize()));
-                    meshProjector.UVRect = sprite.Rect;
+                    meshProjector.Size = properties.Base.GetRenderSize(Vector2.Scale(sprite.UVRect.size, material.mainTexture.GetSize()));
+                    meshProjector.UVRect = sprite.UVRect;
                     meshRenderer.sharedMaterial = material;
                 }
             } else if (SubClass == 7) { // Bridges, catwalks etc.
@@ -216,7 +215,7 @@ namespace SystemShock.InstanceObjects {
                     SurveillanceScreen surveillance = gameObject.AddComponent<SurveillanceScreen>();
                     surveillance.SetupMaterial(ref overridingMaterial, nullMaterialIndices.ToArray());
                 } else if (materialOverride.StartFrameIndex > 0x00FF) { // Text screen
-                    StringLibrary stringLibrary = resourceLibrary.StringLibrary;
+                    StringLibrary stringLibrary = StringLibrary.GetLibrary();
 
                     int stringIndex = materialOverride.StartFrameIndex & 0x7F;
                     bool scrollVertically = (materialOverride.StartFrameIndex & 0x80) == 0x80;

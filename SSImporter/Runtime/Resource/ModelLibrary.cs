@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 namespace SystemShock.Resource {
-    public class ModelLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, GameObject> {
+    public class ModelLibrary : AbstractResourceLibrary<ModelLibrary, ushort /*KnownChunkId*/, GameObject> {
         public GameObject GetResource(KnownChunkId chunkId) {
             return GetResource((ushort)chunkId);
         }

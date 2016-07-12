@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 namespace SystemShock.Resource {
-    public class PaletteLibrary : AbstractResourceLibrary<ushort /*KnownChunkId*/, Palette> {
+    public class PaletteLibrary : AbstractResourceLibrary<PaletteLibrary, ushort /*KnownChunkId*/, Palette> {
         public Palette GetResource(KnownChunkId chunkId) {
             return GetResource((ushort)chunkId);
         }

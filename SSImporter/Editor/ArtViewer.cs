@@ -75,8 +75,8 @@ namespace SSImporter {
                 GUILayout.Label(string.Format("{0} ({1} sprites)", index++, animation.Sprites.Length.ToString()), centeredLabelStyle);
 
                 foreach (SpriteDefinition spriteDefinition in animation.Sprites) {
-                    float pixelWidth = spriteDefinition.Rect.width * texture.width;
-                    float pixelHeight = spriteDefinition.Rect.height * texture.height;
+                    float pixelWidth = spriteDefinition.UVRect.width * texture.width;
+                    float pixelHeight = spriteDefinition.UVRect.height * texture.height;
 
                     SpriteDefinition localSpriteDefinition = spriteDefinition;
 
@@ -87,7 +87,7 @@ namespace SSImporter {
 
                         if(boxRect.yMax >= scrollPos.y && boxRect.yMin <= (scrollPos.y + position.height)) {
                             Rect textureRect = new Rect(boxRect.x + (SpriteMaxWidth - pixelWidth) / 2, boxRect.y + (SpriteMaxWidth - pixelHeight) / 2, pixelWidth, pixelHeight);
-                            GUI.DrawTextureWithTexCoords(textureRect, texture, localSpriteDefinition.Rect);
+                            GUI.DrawTextureWithTexCoords(textureRect, texture, localSpriteDefinition.UVRect);
                         }
 
                         EditorGUILayout.SelectableLabel(localSpriteDefinition.Name, centeredLabelStyle, GUILayout.MinWidth(SpriteMaxWidth));

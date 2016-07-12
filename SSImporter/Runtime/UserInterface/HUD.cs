@@ -10,8 +10,8 @@ namespace SystemShock.UserInterface {
 
         private void Awake() {
             messageBus = MessageBus.GetController();
-            stringLibrary = ResourceLibrary.GetController().StringLibrary;
-            objectPropertyLibrary = ResourceLibrary.GetController().ObjectPropertyLibrary;
+            stringLibrary = StringLibrary.GetLibrary();
+            objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary();
 
             messageBus.Receive<TrapMessage>(msg => Debug.LogFormat("Trap Message: {0}", stringLibrary.GetResource(KnownChunkId.TrapMessages)[msg.Payload]));
             messageBus.Receive<InterfaceMessage>(msg => Debug.LogFormat("Interface Message: {0}", stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[msg.Payload]));

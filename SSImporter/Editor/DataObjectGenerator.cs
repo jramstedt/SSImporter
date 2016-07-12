@@ -177,6 +177,30 @@ namespace SSImporter.Resource {
                 Attributes = MemberAttributes.Public
             });
 
+            #region Index property
+            CodeMemberProperty indexProperty = new CodeMemberProperty() {
+                Name = @"Index",
+                Type = new CodeTypeReference(typeof(ushort)),
+                Attributes = MemberAttributes.Public | MemberAttributes.Override,
+                HasGet = true,
+                HasSet = false
+            };
+            indexProperty.GetStatements.Add(new CodeMethodReturnStatement(new CodeFieldReferenceExpression(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"Properties"), @"Index")));
+            monoBehaviourClass.Members.Add(indexProperty);
+            #endregion
+
+            #region ClassIndex property
+            CodeMemberProperty classIndexProperty = new CodeMemberProperty() {
+                Name = @"ClassIndex",
+                Type = new CodeTypeReference(typeof(ushort)),
+                Attributes = MemberAttributes.Public | MemberAttributes.Override,
+                HasGet = true,
+                HasSet = false
+            };
+            classIndexProperty.GetStatements.Add(new CodeMethodReturnStatement(new CodeFieldReferenceExpression(new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), @"Properties"), @"ClassIndex")));
+            monoBehaviourClass.Members.Add(classIndexProperty);
+            #endregion
+
             #region SetProperties
             CodeMemberMethod setProperties = new CodeMemberMethod() {
                 Name = @"SetProperties",

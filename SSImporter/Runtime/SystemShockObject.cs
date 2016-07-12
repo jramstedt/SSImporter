@@ -54,6 +54,10 @@ namespace SystemShock.Object {
     }
 
     public abstract class SystemShockObjectProperties : MonoBehaviour {
+        public abstract ushort Index { get; }
+
+        public abstract ushort ClassIndex { get; }
+
         public abstract BaseProperties Base { get; }
 
         public abstract void SetProperties(ObjectData properties);

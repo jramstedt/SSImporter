@@ -22,11 +22,9 @@ namespace SystemShock.InstanceObjects {
         }
 
         protected override void InitializeInstance() {
-            ResourceLibrary resourceLibrary = ResourceLibrary.GetController();
-
             if (SubClass == 0) {
-                ObjectPropertyLibrary objectPropertyLibrary = resourceLibrary.ObjectPropertyLibrary;
-                SpriteLibrary spriteLibrary = resourceLibrary.SpriteLibrary;
+                ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary();
+                SpriteLibrary spriteLibrary = SpriteLibrary.GetLibrary();
 
                 uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(CombinedId);
 
@@ -115,8 +113,10 @@ namespace SystemShock.InstanceObjects {
         public byte[] ActionData { get { return ClassData.Data; } }
 
         public bool CanAct() {
+            /*
             if (hasBeenActivated)
                 return false;
+            */
 
             if (ClassData.ConditionVariable == 0)
                 return true;
@@ -133,7 +133,7 @@ namespace SystemShock.InstanceObjects {
             else
                 canActivate = invert ^ (conditionValue == ClassData.ConditionValue);
 
-            if(!canActivate) {
+            if (!canActivate) {
                 if (ClassData.ConditionFailedMessage == 255) {
                     byte delta = (byte)(invert ? ClassData.ConditionValue - conditionValue : conditionValue - ClassData.ConditionValue);
                     messageBus.Send(new ShodanSecurityMessage(delta));
@@ -142,7 +142,7 @@ namespace SystemShock.InstanceObjects {
                 }
             }
 
-            return hasBeenActivated = canActivate;
+            return /*hasBeenActivated = */canActivate;
         }
     }
 }

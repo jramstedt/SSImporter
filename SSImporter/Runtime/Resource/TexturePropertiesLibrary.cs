@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace SystemShock.Resource {
-    public class TexturePropertiesLibrary : AbstractResourceLibrary<ushort, TextureProperties> {
+    public class TexturePropertiesLibrary : AbstractResourceLibrary<TexturePropertiesLibrary, ushort, TextureProperties> {
         public ushort[] GetAnimation(byte animationGroup) {
             SortedDictionary<byte, ushort> animationFrames = new SortedDictionary<byte, ushort>();
             for (int i = 0; i < Resources.Count; ++i) {

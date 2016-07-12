@@ -46,7 +46,7 @@ namespace SSImporter.Resource {
                 AssetDatabase.CreateAsset(stringLibrary, @"Assets/SystemShock/cybstrng.res.asset");
                 EditorUtility.SetDirty(stringLibrary);
 
-                ResourceLibrary.GetController().StringLibrary = stringLibrary;
+                ResourceLibrary.GetController().AddLibrary(stringLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
                 EditorApplication.SaveAssets();

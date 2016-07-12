@@ -62,7 +62,7 @@ namespace SSImporter.Resource {
 
                 EditorUtility.SetDirty(soundLibrary);
 
-                ResourceLibrary.GetController().SoundLibrary = soundLibrary;
+                ResourceLibrary.GetController().AddLibrary(soundLibrary);
             } finally {
                 EditorUtility.ClearProgressBar();
                 EditorApplication.SaveAssets();
