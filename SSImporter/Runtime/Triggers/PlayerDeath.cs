@@ -5,7 +5,7 @@ using SystemShock.Gameplay;
 
 namespace SystemShock.Triggers {
     public class PlayerDeath : Null {
-        private TriggerAction triggerable;
+        private ITriggerable triggerable;
         private MessageBus messageBus;
 
         private MessageBusToken playerDeathMessageToken;
@@ -13,14 +13,14 @@ namespace SystemShock.Triggers {
         protected override void Awake() {
             base.Awake();
 
-            triggerable = GetComponent<TriggerAction>();
+            triggerable = GetComponent<ITriggerable>();
         }
 
         private void Start() {
             messageBus = MessageBus.GetController();
             playerDeathMessageToken = messageBus.Receive<PlayerDeathMessage>((msg) => {
                 if (triggerable != null)
-                    triggerable.Act();
+                    triggerable.Trigger();
             });
         }
 

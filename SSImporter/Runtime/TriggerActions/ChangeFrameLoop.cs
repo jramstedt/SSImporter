@@ -6,7 +6,7 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeFrameLoop : TriggerAction<ObjectInstance.Trigger.ChangeFrameLoop> {
+    public class ChangeFrameLoop : Triggerable<ObjectInstance.Trigger.ChangeFrameLoop> {
         private TextureLibrary textureLibrary;
 
         // TODO Should this support all animation and screen types like in Decoration material override?
@@ -17,7 +17,7 @@ namespace SystemShock.TriggerActions {
             textureLibrary = TextureLibrary.GetLibrary();
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             SystemShockObject Target1 = ObjectFactory.Get(ActionData.ObjectId1);
             if (Target1 != null)
                 ChangeAnimation(Target1);
@@ -25,6 +25,8 @@ namespace SystemShock.TriggerActions {
             SystemShockObject Target2 = ObjectFactory.Get(ActionData.ObjectId2);
             if (Target2 != null)
                 ChangeAnimation(Target2);
+
+            return true;
         }
 
         private void ChangeAnimation(SystemShockObject target) {

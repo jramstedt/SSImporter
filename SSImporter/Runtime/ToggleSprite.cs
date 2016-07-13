@@ -6,7 +6,7 @@ using UnityEngine.EventSystems;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class ToggleSprite : StateMachine<ToggleSprite.ToggleState>, IPointerClickHandler {
+    public class ToggleSprite : StateMachine<ToggleSprite.ToggleState> {
         public enum ToggleState {
             Closed,
             Open,
@@ -18,8 +18,6 @@ namespace SystemShock {
         private int propertyId;
         private MaterialPropertyBlock propertyBlock;
 
-        private TriggerAction Triggerable;
-
         public SpriteDefinition[] Frames;
 
         public event Action OnClosed;
@@ -28,7 +26,6 @@ namespace SystemShock {
 
         protected virtual void Awake() {
             Renderer = GetComponent<Renderer>();
-            Triggerable = GetComponent<TriggerAction>();
 
             propertyId = Shader.PropertyToID(@"_MainTex_ST");
             propertyBlock = new MaterialPropertyBlock();
@@ -55,14 +52,14 @@ namespace SystemShock {
             DynamicGI.UpdateMaterials(Renderer);
         }
 
-        /*
-        public override void Trigger() {
+        public void Toggle() {
             if (State == ToggleState.Closed)
                 State = ToggleState.Open;
             else if (State == ToggleState.Open)
                 State = ToggleState.Active;
+            else if (State == ToggleState.Active)
+                State = ToggleState.Open;
         }
-        */
 
         protected override void ShowState(ToggleState previousState) {
             UpdateFrame();
@@ -83,18 +80,6 @@ namespace SystemShock {
 
         public void SetFrame(int frame) {
             State = (ToggleState)frame;
-        }
-
-        public void OnPointerClick(PointerEventData eventData) {
-            if (State == ToggleState.Open || State == ToggleState.Active || Triggerable != null)
-                if (!Triggerable.Act()) return;
-
-            if (State == ToggleState.Closed)
-                State = ToggleState.Open;
-            else if (State == ToggleState.Open)
-                State = ToggleState.Active;
-            else if (State == ToggleState.Active)
-                State = ToggleState.Open;
         }
     }
 }

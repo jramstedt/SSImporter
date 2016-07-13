@@ -5,17 +5,17 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Spawn : TriggerAction<ObjectInstance.Trigger.Spawn> {
+    public class Spawn : Triggerable<ObjectInstance.Trigger.Spawn> {
         protected override void Awake() {
             base.Awake();
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             SystemShockObject FirstCorner = ObjectFactory.Get(ActionData.Corner1ObjectId);
             SystemShockObject SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
 
             if (FirstCorner == null || SecondCorner == null)
-                return;
+                return false;
 
             Bounds bounds = new Bounds(FirstCorner.transform.position, Vector3.zero);
             bounds.Encapsulate(SecondCorner.transform.position);
@@ -61,6 +61,8 @@ namespace SystemShock.TriggerActions {
 
                 ObjectFactory.Instantiate(objectInstance, classData);
             }
+
+            return true;
         }
 
 #if UNITY_EDITOR

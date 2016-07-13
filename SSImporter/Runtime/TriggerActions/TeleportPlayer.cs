@@ -5,7 +5,7 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class TeleportPlayer : TriggerAction<ObjectInstance.Trigger.TeleportPlayer> {
+    public class TeleportPlayer : Triggerable<ObjectInstance.Trigger.TeleportPlayer> {
         public Vector3 targetPosition;
         public Quaternion targetRotation;
 
@@ -22,7 +22,7 @@ namespace SystemShock.TriggerActions {
             targetRotation = Quaternion.Euler(-ActionData.Pitch / 65536f * 360f, ActionData.Yaw / 65536f * 360f, -ActionData.Roll / 65536f * 360f);           
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             GameObject player = GameObject.FindGameObjectWithTag(@"Player");
 
             Rigidbody rigidbody = player.GetComponent<Rigidbody>();
@@ -33,6 +33,8 @@ namespace SystemShock.TriggerActions {
                 player.transform.position = targetPosition;
                 player.transform.rotation = targetRotation;
             }
+
+            return true;
         }
 
 #if UNITY_EDITOR

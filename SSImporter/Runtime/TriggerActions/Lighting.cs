@@ -3,7 +3,7 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class Lighting : TriggerAction<ObjectInstance.Trigger.Lighting> {
-        protected override void DoAct() { }
+    public class Lighting : Triggerable<ObjectInstance.Trigger.Lighting> {
+        protected override bool DoTrigger() { return true; }
     }
 }

@@ -5,12 +5,12 @@ using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
     public class LevelEnter : Null {
-        private TriggerAction triggerable;
+        private ITriggerable triggerable;
 
         protected override void Awake() {
             base.Awake();
 
-            triggerable = GetComponent<TriggerAction>();
+            triggerable = GetComponent<ITriggerable>();
         }
 
         private void Start() {
@@ -20,7 +20,7 @@ namespace SystemShock.Triggers {
         private IEnumerator DelayedTrigger() {
             yield return null;
 
-            triggerable.Act();
+            triggerable.Trigger();
         }
     }
 }

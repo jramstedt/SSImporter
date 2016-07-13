@@ -5,12 +5,28 @@ using SystemShock.Object;
 using System;
 
 namespace SystemShock {
-    public abstract class TriggerAction : MonoBehaviour {
+
+    public interface ITriggerable {
+        bool Trigger();
+
+#if UNITY_EDITOR
+        Transform transform { get; }
+#endif
+    }
+
+    public abstract class Triggerable : MonoBehaviour, ITriggerable {
         protected IActionPermission PermissionProvider;
         protected ObjectFactory ObjectFactory;
         protected MessageBus MessageBus;
 
-        public abstract bool Act();
+        public virtual bool Trigger() {
+            if (PermissionProvider.CanAct())
+                return DoTrigger();
+
+            return false;
+        }
+
+        protected abstract bool DoTrigger();
 
         protected virtual void Awake() {
             PermissionProvider = GetComponentInParent<IActionPermission>();
@@ -18,16 +34,22 @@ namespace SystemShock {
             MessageBus = MessageBus.GetController();
         }
 
-        protected static IEnumerator WaitAndTrigger(TriggerAction target, ushort delay) {
+        protected void WaitAndTrigger(ushort objectId, ushort delay) {
+            ITriggerable Target = ObjectFactory.Get<ITriggerable>(objectId);
+            if (Target != null)
+                StartCoroutine(WaitAndTrigger(Target, delay));
+        }
+
+        public static IEnumerator WaitAndTrigger(ITriggerable target, ushort delay) {
             if (delay > 0)
                 yield return new WaitForSeconds(delay / 10f);
 
-            target.Act();
+            target.Trigger();
         }
     }
 
-    public abstract class TriggerAction<ActionDataType> : TriggerAction {
-        
+    public abstract class Triggerable<ActionDataType> : Triggerable {
+
         public ActionDataType ActionData;
 
         protected override void Awake() {
@@ -37,22 +59,6 @@ namespace SystemShock {
             ActionData = actionProvider.ActionData.Read<ActionDataType>();
         }
 
-        public override bool Act() {
-            if (PermissionProvider.CanAct()) {
-                DoAct();
-                return true;
-            }
-
-            return false;
-        }
-
-        protected abstract void DoAct();
-
-        protected void WaitAndTrigger(ushort objectId, ushort delay) {
-            TriggerAction Target = ObjectFactory.Get<TriggerAction>(objectId);
-            if (Target != null)
-                StartCoroutine(WaitAndTrigger(Target, delay));
-        }
     }
 
     public interface IActionProvider {

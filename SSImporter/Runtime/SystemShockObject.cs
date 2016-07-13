@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using SystemShock.Resource;
 using UnityEngine.EventSystems;
 using SystemShock.UserInterface;
+using SystemShock.Gameplay;
 
 namespace SystemShock.Object {
     public abstract class SystemShockObject : MonoBehaviour, IPointerClickHandler {
@@ -33,7 +34,13 @@ namespace SystemShock.Object {
         public abstract IClassData GetClassData();
 
         public virtual void OnPointerClick(PointerEventData eventData) {
+            if (eventData.button != PointerEventData.InputButton.Left)
+                return;
+
             MessageBus.GetController().Send(new ItemInspectionMessage(CombinedId));
+
+            if (eventData.clickCount >= 2)
+                MessageBus.GetController().Send(new UseObjectMessage(this));
         }
 
         // TODO update X,Y,Z etc. if changed in unity.
@@ -120,6 +127,10 @@ namespace SystemShock.Object {
         ChangeType = 0x18
     }
 
+    public enum InstanceFlags : byte {
+        Container = 0x80,
+    }
+
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct ObjectInstance {
@@ -142,7 +153,7 @@ namespace SystemShock.Object {
         public byte Unknown1;
         public byte State;
         public byte Unknown2;
-        public byte Unknown3;
+        public InstanceFlags Flags;
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]

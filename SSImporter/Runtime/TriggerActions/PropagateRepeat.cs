@@ -5,23 +5,22 @@ using System.Collections;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class PropagateRepeat : TriggerAction<ObjectInstance.Trigger.PropagateRepeat> {
+    public class PropagateRepeat : Triggerable<ObjectInstance.Trigger.PropagateRepeat> {
         public int Count;
 
-        private void Start() {
-        }
-
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             Count = ActionData.Count;
 
             StartCoroutine(RepeatTrigger());
+
+            return true;
         }
         private IEnumerator RepeatTrigger() {
             long delay = ActionData.Delay + Random.Range(ActionData.DelayVariationMin, ActionData.DelayVariationMax);
 
-            TriggerAction Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
+            ITriggerable Target = ObjectFactory.Get<ITriggerable>((ushort)ActionData.ObjectId);
             if (Target != null)
-                Target.Act();
+                Target.Trigger();
             else
                 yield break;
 
@@ -36,7 +35,7 @@ namespace SystemShock.TriggerActions {
             if (ObjectFactory == null)
                 return;
 
-            TriggerAction Target = ObjectFactory.Get<TriggerAction>((ushort)ActionData.ObjectId);
+            ITriggerable Target = ObjectFactory.Get<ITriggerable>((ushort)ActionData.ObjectId);
             if (Target != null)
                 Gizmos.DrawLine(transform.position, Target.transform.position);
         }

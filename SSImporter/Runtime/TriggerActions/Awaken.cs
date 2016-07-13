@@ -6,7 +6,7 @@ using System;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Awaken : TriggerAction<ObjectInstance.Trigger.Awaken> {
+    public class Awaken : Triggerable<ObjectInstance.Trigger.Awaken> {
         public SystemShockObject FirstCorner;
         public SystemShockObject SecondCorner;
 
@@ -15,7 +15,7 @@ namespace SystemShock.TriggerActions {
             SecondCorner = ObjectFactory.Get(ActionData.Corner2ObjectId);
         }
 
-        protected override void DoAct() { }
+        protected override bool DoTrigger() { return true; }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos() {

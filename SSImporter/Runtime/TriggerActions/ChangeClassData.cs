@@ -5,8 +5,8 @@ using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeClassData : TriggerAction<ObjectInstance.Trigger.ChangeClassData> {
-        protected override void DoAct() {
+    public class ChangeClassData : Triggerable<ObjectInstance.Trigger.ChangeClassData> {
+        protected override bool DoTrigger() {
             SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
 
             ObjectInstance objectInstance = Target.ObjectInstance;
@@ -14,6 +14,8 @@ namespace SystemShock.TriggerActions {
             IClassData classData = (IClassData)Extensions.Write(ActionData).Read(Target.GetClassData().GetType());
 
             ObjectFactory.Replace(Target.ObjectId, objectInstance, classData);
+
+            return true;
         }
 
 #if UNITY_EDITOR

@@ -6,16 +6,15 @@ using System;
 
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
-    public class CircuitAccess : Interactable<ObjectInstance.Interface.CircuitAccess>, IPointerClickHandler {
-        public TriggerAction Target;
+    public class CircuitAccess : Interactable<ObjectInstance.Interface.CircuitAccess> {
+        public ITriggerable Target;
 
         private void Start() {
-            Target = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger);
+            Target = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger);
         }
 
-        public void OnPointerClick(PointerEventData eventData) {
-            if (Target != null && PermissionProvider.CanAct())
-                Target.Act();
+        protected override bool DoInteraction() {
+            return Target.Trigger();
         }
 
 #if UNITY_EDITOR

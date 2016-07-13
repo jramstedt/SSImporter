@@ -8,7 +8,7 @@ using SystemShock.UserInterface;
 
 namespace SystemShock {
     [ExecuteInEditMode]
-    public class Door : StateMachine<Door.DoorState>, IActionPermission, IRaycastFilter {
+    public class Door : StateMachine<Door.DoorState>, IActionPermission, IRaycastFilter, ITriggerable {
         public enum DoorState {
             Closed,
             Closing,
@@ -154,6 +154,11 @@ namespace SystemShock {
                     UpdateFrame();
                 }
             }
+        }
+
+        public bool Trigger() {
+            Activate(); // Force door open
+            return true;
         }
 
         public bool CanAct() {

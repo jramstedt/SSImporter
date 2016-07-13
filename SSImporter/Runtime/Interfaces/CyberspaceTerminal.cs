@@ -5,11 +5,11 @@ using UnityEngine.EventSystems;
 using System;
 
 namespace SystemShock.Interfaces {
-    public class CyberspaceTerminal : Interactable<ObjectInstance.Interface.Cyberjack>, IPointerClickHandler {
-        public void OnPointerClick(PointerEventData eventData) {
-            if (PermissionProvider.CanAct()) {
-                // TODO enter cyberspace
-            }
+    public class CyberspaceTerminal : Interactable<ObjectInstance.Interface.Cyberjack> {
+        protected override bool DoInteraction() {
+            // TODO enter cyberspace
+
+            return false;
         }
     }
 }

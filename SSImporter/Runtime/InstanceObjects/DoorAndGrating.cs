@@ -41,7 +41,7 @@ namespace SystemShock.InstanceObjects {
                     door.Frames = spriteAnimation;
 
                     if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable)
-                        gameObject.AddComponent<ActivableDoor>();
+                        gameObject.AddComponent<InteractableTrigger>();
                 }
             } else if (properties.Base.DrawType == DrawType.ForceDoor) {
                 colorOverride = new Color(0.5f, 0f, 0f, 0.75f);

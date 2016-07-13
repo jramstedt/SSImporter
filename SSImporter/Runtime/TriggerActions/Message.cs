@@ -3,11 +3,13 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class Message : TriggerAction<ObjectInstance.Trigger.Message> {
-        protected override void DoAct() {
+    public class Message : Triggerable<ObjectInstance.Trigger.Message> {
+        protected override bool DoTrigger() {
             if(ActionData.Type == 0xFFFFFFFF) {
                 // Shodan
             }
+
+            return true;
         }
     }
 

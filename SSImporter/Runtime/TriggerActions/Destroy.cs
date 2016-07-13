@@ -4,9 +4,11 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class Destroy : TriggerAction<ObjectInstance.Trigger.Disable> {
-        protected override void DoAct() {
+    public class Destroy : Triggerable<ObjectInstance.Trigger.Disable> {
+        protected override bool DoTrigger() {
             ObjectFactory.Destroy((ushort)ActionData.ObjectId);
+
+            return true;
         }
 
 #if UNITY_EDITOR

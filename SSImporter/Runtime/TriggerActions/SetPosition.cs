@@ -4,7 +4,7 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class SetPosition : TriggerAction<ObjectInstance.Trigger.SetPosition> {
+    public class SetPosition : Triggerable<ObjectInstance.Trigger.SetPosition> {
         private Vector3 targetPosition;
 
         protected override void Awake() {
@@ -13,7 +13,7 @@ namespace SystemShock.TriggerActions {
             targetPosition = new Vector3(ActionData.TileX, ActionData.Z * ObjectFactory.LevelInfo.HeightFactor, ActionData.TileY);
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
 
             Rigidbody rigidbody = Target.GetComponent<Rigidbody>();
@@ -24,6 +24,8 @@ namespace SystemShock.TriggerActions {
                 Vector3 oldPos = Target.transform.position;
                 Target.transform.position = new Vector3(targetPosition.x + (oldPos.x % 1), targetPosition.y, targetPosition.z + (oldPos.z % 1));
             }
+
+            return true;
         }
     }
 }

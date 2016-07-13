@@ -6,21 +6,23 @@ using System;
 
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
-    public class KeyPad : Interactable<ObjectInstance.Interface.KeyPad>, IPointerClickHandler {
-        private TriggerAction Target1;
-        private TriggerAction Target2;
+    public class KeyPad : Interactable<ObjectInstance.Interface.KeyPad> {
+        private ITriggerable Target1;
+        private ITriggerable Target2;
 
         private void Start() {
-            Target1 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger1);
-            Target2 = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger2);
+            Target1 = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger1);
+            Target2 = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger2);
         }
 
-        public void OnPointerClick(PointerEventData eventData) {
+        protected override bool DoInteraction() {
             if (Target1 != null)
-                Target1.Act();
+                Target1.Trigger();
 
             if (Target2 != null)
-                Target2.Act();
+                Target2.Trigger();
+
+            return true;
         }
 
 #if UNITY_EDITOR

@@ -4,10 +4,12 @@ using SystemShock.Object;
 using SystemShock.Resource;
 
 namespace SystemShock.TriggerActions {
-    public class EmailPlayer : TriggerAction<ObjectInstance.Trigger.EmailPlayer> {
+    public class EmailPlayer : Triggerable<ObjectInstance.Trigger.EmailPlayer> {
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             MessageBus.Send(new EmailReceived(ActionData.Message));
+
+            return true;
         }
     }
 

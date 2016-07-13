@@ -7,7 +7,7 @@ using SystemShock.Resource;
 namespace SystemShock.Triggers {
     public class DeathWatch : MonoBehaviour, IActionPermission {
         private ObjectInstance.Trigger trigger;
-        private TriggerAction triggerable;
+        private ITriggerable triggerable;
 
         private MessageBus messageBus;
 
@@ -15,7 +15,7 @@ namespace SystemShock.Triggers {
 
         private void Awake() {
             trigger = GetComponent<InstanceObjects.Trigger>().ClassData;
-            triggerable = GetComponent<TriggerAction>();
+            triggerable = GetComponent<ITriggerable>();
         }
 
         private void Start() {
@@ -36,7 +36,7 @@ namespace SystemShock.Triggers {
                 ushort objectIndex = (ushort)(combinedId & 0x0FFF);
 
                 if (triggerable != null && msg.Payload.ObjectId == objectIndex)
-                    triggerable.Act();
+                    triggerable.Trigger();
             } else {
                 uint Class = (combinedId >> 16) & 0xFF;
                 uint Subclass = (combinedId >> 8) & 0xFF;
@@ -46,7 +46,7 @@ namespace SystemShock.Triggers {
                     msg.Payload.ObjectInstance.Class == (ObjectClass)Class &&
                     msg.Payload.ObjectInstance.SubClass == (byte)Subclass &&
                     msg.Payload.ObjectInstance.Type == (byte)Type)
-                    triggerable.Act();
+                    triggerable.Trigger();
             }
         }
 

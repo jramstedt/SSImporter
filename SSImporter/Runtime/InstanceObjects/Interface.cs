@@ -38,6 +38,8 @@ namespace SystemShock.InstanceObjects {
                 toggleSprite.Frames = Frames;
                 toggleSprite.SetFrame(State + 1);
 
+                gameObject.AddComponent<InteractableToggleSprite>();
+
                 UseAsTrigger();
             } else if (SubClass == 2) {
                 if (Type == 0) {

@@ -17,6 +17,11 @@ namespace SystemShock.UserInterface {
             messageBus.Receive<InterfaceMessage>(msg => Debug.LogFormat("Interface Message: {0}", stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[msg.Payload]));
             messageBus.Receive<ShodanSecurityMessage>(msg => Debug.LogFormat("Shodan Security: {0}", msg.Payload));
             messageBus.Receive<ItemInspectionMessage>(msg => Debug.LogFormat("Item inspection: {0}", stringLibrary.GetResource(KnownChunkId.ObjectNames)[objectPropertyLibrary.GetResource(msg.Payload).Index]));
+            messageBus.Receive<CantUseObjectMessage>(msg => {
+                string objectName = stringLibrary.GetResource(KnownChunkId.ObjectNames)[objectPropertyLibrary.GetResource(msg.Payload).Index];
+                string message = stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[96];
+                Debug.LogFormat("Cant use: {0}", message.Replace("%s", objectName));
+            });
         }
     }
 
@@ -50,5 +55,13 @@ namespace SystemShock.UserInterface {
         /// </summary>
         /// <param name="payload">Combined item id</param>
         public ItemInspectionMessage(uint payload) : base(payload) { }
+    }
+
+    public class CantUseObjectMessage : GenericMessage<uint> {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="payload">Combined item id</param>
+        public CantUseObjectMessage(uint payload) : base(payload) { }
     }
 }

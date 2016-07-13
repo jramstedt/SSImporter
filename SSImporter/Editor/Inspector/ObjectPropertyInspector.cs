@@ -26,7 +26,7 @@ public class ObjectPropertyInspector : InspectorBase<ObjectPropertyLibrary> {
         for (int i = 0; i < objectDatas.arraySize; ++i) {
             SerializedProperty dataProp = objectDatas.GetArrayElementAtIndex(i);
 
-            string label = (i + 1) + @" " + dataProp.objectReferenceValue.name;
+            string label = i + @" " + dataProp.objectReferenceValue.name;
             dataProp.isExpanded = GUILayout.Toggle(dataProp.isExpanded, label, EditorStyles.foldout);
 
             if (dataProp.isExpanded) {

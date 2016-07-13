@@ -4,14 +4,14 @@ using SystemShock.Resource;
 
 namespace SystemShock.Triggers {
     public class Continuous : Null {
-        private TriggerAction triggerable;
+        private ITriggerable triggerable;
 
         private double timeAccumulator;
         private double interval;
 
         protected override void Awake() {
             base.Awake();
-            triggerable = GetComponent<TriggerAction>();
+            triggerable = GetComponent<ITriggerable>();
         }
 
         private void Start() {
@@ -24,7 +24,7 @@ namespace SystemShock.Triggers {
             if (timeAccumulator >= interval) {
                 timeAccumulator = 0.0;
 
-                triggerable.Act();
+                triggerable.Trigger();
             }
             */
         }

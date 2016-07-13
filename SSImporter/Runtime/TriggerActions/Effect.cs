@@ -3,15 +3,17 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class Effect : TriggerAction<ObjectInstance.Trigger.Effect> {
+    public class Effect : Triggerable<ObjectInstance.Trigger.Effect> {
         private MessageBus messageBus;
 
         private void Start() {
             messageBus = MessageBus.GetController();
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             messageBus.Send(new ShowEffect());
+
+            return true;
         }
     }
 

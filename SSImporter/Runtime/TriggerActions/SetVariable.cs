@@ -5,7 +5,7 @@ using SystemShock.Gameplay;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class SetVariable : TriggerAction<ObjectInstance.Trigger.SetVariable> {
+    public class SetVariable : Triggerable<ObjectInstance.Trigger.SetVariable> {
         private GameVariables gameVariables;
 
         private void Start() {
@@ -14,7 +14,7 @@ namespace SystemShock.TriggerActions {
             //Debug.LogFormat(this, "{0} = {1}", ActionData.Variable, ActionData.Value);
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             for (int i = 0; i < ActionData.Variable.Length; ++i) {
                 ObjectInstance.Trigger.SetVariable.VariableAction action = ActionData.Action;
                 ushort variable = (ushort)(ActionData.Variable[i] & GameVariables.VARIABLEMASK);
@@ -38,6 +38,8 @@ namespace SystemShock.TriggerActions {
                 if(action == 0)
                     gameVariables[variable] = 0;
             }
+
+            return true;
         }
     }
 }

@@ -1,34 +1,48 @@
 ﻿using UnityEngine;
 using SystemShock.Resource;
-using SystemShock.Object;
 using System.Collections;
 
 namespace SystemShock {
-    public abstract class Interactable<DataType> : MonoBehaviour {
+    public interface IInteractable {
+        bool Interact();
+    }
+
+    public abstract class Interactable : MonoBehaviour, IInteractable {
         protected IActionPermission PermissionProvider;
-        public DataType ActionData;
         protected ObjectFactory ObjectFactory;
         protected MessageBus MessageBus;
 
+        public virtual bool Interact() {
+            if (PermissionProvider.CanAct())
+                return DoInteraction();
+
+            return false;
+        }
+
+        protected abstract bool DoInteraction();
+
         protected virtual void Awake() {
             PermissionProvider = GetComponentInParent<IActionPermission>();
-            IActionProvider actionProvider = GetComponentInParent<IActionProvider>();
-            ActionData = actionProvider.ActionData.Read<DataType>();
+
             ObjectFactory = ObjectFactory.GetController();
             MessageBus = MessageBus.GetController();
         }
 
-        protected static IEnumerator WaitAndTrigger(TriggerAction target, ushort delay) {
-            if (delay > 0)
-                yield return new WaitForSeconds(delay / 10f);
-
-            target.Act();
-        }
-
         protected void WaitAndTrigger(ushort objectId, ushort delay) {
-            TriggerAction Target = ObjectFactory.Get<TriggerAction>(objectId);
+            ITriggerable Target = ObjectFactory.Get<ITriggerable>(objectId);
             if (Target != null)
-                StartCoroutine(WaitAndTrigger(Target, delay));
+                StartCoroutine(Triggerable.WaitAndTrigger(Target, delay));
+        }
+    }
+
+    public abstract class Interactable<DataType> : Interactable {
+        public DataType ActionData;
+
+        protected override void Awake() {
+            base.Awake();
+
+            IActionProvider actionProvider = GetComponentInParent<IActionProvider>();
+            ActionData = actionProvider.ActionData.Read<DataType>();
         }
     }
 }

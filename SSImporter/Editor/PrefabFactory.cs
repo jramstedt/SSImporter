@@ -143,7 +143,7 @@ namespace SSImporter.Resource {
                                 }
                             }
 
-                            if (((Flags)baseProperties.Flags & Flags.Raycastable) == Flags.Raycastable ||
+                            if (((Flags)baseProperties.Flags & Flags.Interactable) == Flags.Interactable ||
                                 ((Flags)baseProperties.Flags & Flags.Touchable) == Flags.Touchable ||
                                 ((Flags)baseProperties.Flags & Flags.UsefulItem) == Flags.UsefulItem) {
                                 Renderer renderer = gameObject.GetComponentInChildren<Renderer>();

@@ -3,7 +3,7 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class MovePlatform : TriggerAction<ObjectInstance.Trigger.MovePlatform> {
+    public class MovePlatform : Triggerable<ObjectInstance.Trigger.MovePlatform> {
         public MovableCeiling Ceiling;
         public MovableFloor Floor;
 
@@ -29,12 +29,14 @@ namespace SystemShock.TriggerActions {
             Start();
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             if (Ceiling != null)
                 Ceiling.Height = ActionData.TargetCeilingHeight;
 
             if (Floor != null)
                 Floor.Height = ActionData.TargetFloorHeight;
+
+            return true;
         }
     }
 }

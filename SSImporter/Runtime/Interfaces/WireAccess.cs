@@ -6,16 +6,20 @@ using System;
 
 namespace SystemShock.Interfaces {
     [ExecuteInEditMode]
-    public class WireAccess : Interactable<ObjectInstance.Interface.WireAccess>, IPointerClickHandler {
-        public TriggerAction Target;
+    public class WireAccess : Interactable<ObjectInstance.Interface.WireAccess> {
+        public ITriggerable Target;
 
         private void Start() {
-            Target = ObjectFactory.Get<TriggerAction>(ActionData.ObjectToTrigger);
+            Target = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger);
         }
 
-        public void OnPointerClick(PointerEventData eventData) {
+        protected override bool DoInteraction() {
+            // TODO UI
+
             if (Target != null)
-                Target.Act();
+                Target.Trigger();
+
+            return true;
         }
 
 #if UNITY_EDITOR

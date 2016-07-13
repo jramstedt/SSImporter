@@ -3,6 +3,10 @@
 using SystemShock.Object;
 using SystemShock.TriggerActions;
 using System;
+using SystemShock.InstanceObjects;
+using SystemShock.Resource;
+using Item = SystemShock.InstanceObjects.Item;
+using SystemShock.UserInterface;
 
 namespace SystemShock.Gameplay {
     public class Hacker : MonoBehaviour {
@@ -28,6 +32,8 @@ namespace SystemShock.Gameplay {
 
         public ushort[] Inventory;
 
+        public SystemShockObject ObjectInHand;
+
         private void Start() {
             messageBus = MessageBus.GetController();
 
@@ -47,7 +53,44 @@ namespace SystemShock.Gameplay {
                 Radiation = 0;
             });
 
+            messageBus.Receive<ChargePlayerMessage>(msg => {
+                ChargePlayer(msg.Payload);
+            });
+
+            messageBus.Receive<UseObjectMessage>(UseObjectHandler);
+
             //Cursor.lockState = CursorLockMode.Locked;
+        }
+
+        private void UseObjectHandler(UseObjectMessage msg) {
+            Interactable interactable = msg.Sender.GetComponent<Interactable>();
+            if (interactable != null) {
+                interactable.Interact();
+                return;
+            }
+
+            if (ObjectInHand != null) {
+                messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedId));
+                return;
+            }
+
+            SystemShockObjectProperties properties = msg.Sender.GetComponent<SystemShockObjectProperties>();
+
+            if (((Flags)properties.Base.Flags & Flags.Interactable) != Flags.Interactable ||
+                ((Flags)properties.Base.Flags & Flags.NoPickup) == Flags.NoPickup) {
+                messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedId));
+                return;
+            }
+
+            ObjectInHand = msg.Sender;
+            ObjectInHand.gameObject.SetActive(false);
+        }
+
+        private void AddAccess() {
+            // 1. Check if inventory has current access item
+            // 2. Create access item, Add to inventory as first item.
+            // 3. Check access bit
+            // 4. Add bit or send message
         }
 
         public void OnApplicationFocus(bool focus) {
@@ -74,6 +117,7 @@ namespace SystemShock.Gameplay {
 
         public void ChargePlayer(ushort amount) {
             Power += amount;
+            Debug.Log("Charged! Power: " + Power);
         }
 
         [Serializable]
@@ -102,5 +146,9 @@ namespace SystemShock.Gameplay {
 
     public class ChargePlayerMessage : GenericBusMessage<ushort> {
         public ChargePlayerMessage(SystemShockObject sender, ushort payload) : base(sender, payload) { }
+    }
+
+    public class UseObjectMessage : BusMessage {
+        public UseObjectMessage(SystemShockObject sender) : base(sender) { }
     }
 }

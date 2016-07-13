@@ -107,7 +107,7 @@ namespace SystemShock.Resource {
     public enum Flags : ushort {
         UsefulItem = 0x0001,
         Touchable = 0x0002,
-        Raycastable = 0x0004,
+        Interactable = 0x0004,
         NoPickup = 0x0008,
         Consumable = 0x0010,
         OpaqueClosed = 0x0020,

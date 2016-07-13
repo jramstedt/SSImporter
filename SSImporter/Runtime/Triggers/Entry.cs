@@ -7,7 +7,7 @@ namespace SystemShock.Triggers {
     [RequireComponent(typeof(BoxCollider))]
     public class Entry : Null {
         private BoxCollider boxCollider;
-        private TriggerAction triggerable;
+        private ITriggerable triggerable;
 
         protected override void Awake() {
             base.Awake();
@@ -18,12 +18,12 @@ namespace SystemShock.Triggers {
             boxCollider.isTrigger = true;
             boxCollider.size = new Vector3(1f, 256.0f * levelInfo.HeightFactor, 1f);
 
-            triggerable = GetComponent<TriggerAction>();
+            triggerable = GetComponent<ITriggerable>();
         }
 
         private void OnTriggerEnter(Collider collider) {
             if (collider.GetComponentInChildren<Hacker>() != null)
-                triggerable.Act();
+                triggerable.Trigger();
         }
     }
 }

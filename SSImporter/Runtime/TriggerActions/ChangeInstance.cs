@@ -7,7 +7,7 @@ using SystemShock.Gameplay;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class ChangeInstance : TriggerAction<ObjectInstance.Trigger.ChangeInstance> {
+    public class ChangeInstance : Triggerable<ObjectInstance.Trigger.ChangeInstance> {
         private IChanger changer;
 
         private void Start() {
@@ -46,9 +46,11 @@ namespace SystemShock.TriggerActions {
                 changer = new ChangeEnemyType(this);
         }
 
-        protected override void DoAct() {
+        protected override bool DoTrigger() {
             if (changer != null)
                 changer.Change();
+
+            return true;
         }
 
         private interface IChanger {
