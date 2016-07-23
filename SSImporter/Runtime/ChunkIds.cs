@@ -32,11 +32,12 @@ namespace SystemShock.Resource {
 
         TrapMessages = 0x0867,
         DecalWords = 0x0868,
+        SpecialInterfaceDescriptions = 0x0869,
         TextureNames = 0x086A,
         CantUseMessages = 0x086B,
         ShortObjectNames = 0x086D,
-        InterfaceMessages = 0x0871,
-        LogoNames = 0x0876, // Engineering, Robotics ...
+        UserInterfaceMessages = 0x0871,
+        IconNames = 0x0876,
         ScreenTexts = 0x0877,
         AccessNames = 0x0879,
 

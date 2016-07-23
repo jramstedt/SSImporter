@@ -5,6 +5,7 @@ using System;
 using DoorAndGrating = SystemShock.InstanceObjects.DoorAndGrating;
 using SystemShock.Resource;
 using SystemShock.UserInterface;
+using SystemShock.Gameplay;
 
 namespace SystemShock {
     [ExecuteInEditMode]
@@ -17,6 +18,7 @@ namespace SystemShock {
         }
 
         private MessageBus messageBus;
+        private GameVariables gameVariables;
 
         private DoorAndGrating doorAndGrating;
         private Renderer Renderer;
@@ -35,9 +37,8 @@ namespace SystemShock {
         public event Action OnOpened;
         public event Action OnClosed;
 
-        // Access 255 = shodan security
-
         protected virtual void Awake() {
+            gameVariables = GameVariables.GetController();
             messageBus = MessageBus.GetController();
 
             Renderer = GetComponent<Renderer>();
@@ -162,13 +163,18 @@ namespace SystemShock {
         }
 
         public bool CanAct() {
-            if (doorAndGrating.ClassData.Lock == 0) // TODO check access cards
+            if (doorAndGrating.ClassData.Lock == 0 && doorAndGrating.ClassData.AccessRequired == 0)
                 return true;
 
             if (doorAndGrating.ClassData.AccessRequired == 255) {
                 messageBus.Send(new ShodanSecurityMessage(byte.MaxValue));
             } else if(doorAndGrating.ClassData.AccessRequired != 0) {
-                // TODO Access card required
+                uint accessBits = (uint)1 << (doorAndGrating.ClassData.AccessRequired - 1);
+
+                if (gameVariables.Hacker.HasAccess(accessBits))
+                    return true;
+                else
+                    messageBus.Send(new RequireAccessMessage(accessBits));
             } else {
                 messageBus.Send(new InterfaceMessage((byte)(doorAndGrating.ClassData.LockMessage + 7u)));
             }

@@ -19,7 +19,7 @@ namespace SystemShock.Object {
         public byte State { get { return ObjectInstance.State; } set { ObjectInstance.State = value; } }
         public bool InUse { get { return ObjectInstance.InUse != 0; } }
 
-        public uint CombinedType { get { return (uint)ObjectInstance.Class << 16 | (uint)ObjectInstance.SubClass << 8 | ObjectInstance.Type; } }
+        public uint CombinedType { get { return ObjectInstance.CombinedType; } }
 
         public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
             ObjectInstance = objectInstance;
@@ -37,7 +37,7 @@ namespace SystemShock.Object {
             if (eventData.button != PointerEventData.InputButton.Left)
                 return;
 
-            MessageBus.GetController().Send(new ItemInspectionMessage(CombinedType));
+            MessageBus.GetController().Send(new ItemInspectionMessage(this));
 
             if (eventData.clickCount >= 2)
                 MessageBus.GetController().Send(new UseObjectMessage(this));
@@ -158,10 +158,12 @@ namespace SystemShock.Object {
         public byte AIIndex;
         public byte Type;
         public ushort Hitpoints;
-        public byte Unknown1;
+        public byte Details;
         public byte State;
         public byte Unknown2;
         public byte Flags;
+
+        public uint CombinedType { get { return (uint)Class << 16 | (uint)SubClass << 8 | Type; } }
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]

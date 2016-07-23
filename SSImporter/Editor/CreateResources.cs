@@ -61,21 +61,23 @@ namespace SSImporter.Resource {
         }
 
         private static void CreateLayers() {
-            const string layerName = @"Level Geometry";
-
-            if (LayerMask.NameToLayer(layerName) != -1)
-                return;
+            string[] layerNames = { @"Level Geometry", @"Items" };
 
             SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
             //SerializedProperty tagsProp = tagManager.FindProperty("tags");
             SerializedProperty layersProp = tagManager.FindProperty("layers");
 
-            for (int layerIndex = 8; layerIndex < layersProp.arraySize; ++layerIndex) {
-                SerializedProperty sp = layersProp.GetArrayElementAtIndex(layerIndex);
+            foreach (string layerName in layerNames) {
+                if (LayerMask.NameToLayer(layerName) != -1)
+                    continue;
 
-                if (string.IsNullOrEmpty(sp.stringValue)) {
-                    sp.stringValue = layerName;
-                    break;
+                for (int layerIndex = 8; layerIndex < layersProp.arraySize; ++layerIndex) {
+                    SerializedProperty sp = layersProp.GetArrayElementAtIndex(layerIndex);
+
+                    if (string.IsNullOrEmpty(sp.stringValue)) {
+                        sp.stringValue = layerName;
+                        break;
+                    }
                 }
             }
 

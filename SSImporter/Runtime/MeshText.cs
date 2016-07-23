@@ -59,6 +59,13 @@ namespace SystemShock.Resource {
             using(VertexHelper vh = new VertexHelper()) {
                 vh.AddUIVertexStream(textGenerator.verts.ToList(), null);
 
+                UIVertex vertex = UIVertex.simpleVert;
+                for(int vertexIndex = 0; vertexIndex < vh.currentVertCount; ++vertexIndex) {
+                    vh.PopulateUIVertex(ref vertex, vertexIndex);
+                    vertex.position.z -= 0.01f;
+                    vh.SetUIVertex(vertex, vertexIndex);
+                }
+
                 for (int vertexIndex = 0; vertexIndex < textGenerator.vertexCount; vertexIndex += 4) {
                     vh.AddTriangle(vertexIndex, vertexIndex + 1, vertexIndex + 2);
                     vh.AddTriangle(vertexIndex + 2, vertexIndex + 3, vertexIndex);

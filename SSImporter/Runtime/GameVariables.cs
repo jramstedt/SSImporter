@@ -18,10 +18,16 @@ namespace SystemShock.Gameplay {
         public const ushort LESSTHAN = 0x4000;
         public const ushort INVERT = 0x8000;
 
+        [NonSerialized] private Hacker hacker;
+
+        public Hacker Hacker {
+            get { return hacker ?? (hacker = GameObject.FindObjectOfType<Hacker>()); }
+        }
+
         private void Start() {
             Add(20497, 255); // Medical shodan security
         }
-
+        
         public ushort this[ushort key] {
             get { return variableDictionary[(ushort)(key & INTERNAL_VARIABLEMASK)]; }
             set { variableDictionary[(ushort)(key & INTERNAL_VARIABLEMASK)] = value; }

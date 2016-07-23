@@ -123,6 +123,8 @@ namespace SSImporter.Resource {
 
                             StaticEditorFlags staticFlags = 0;
 
+                            // TODO navigation static should be false if door is openable by enemies (no lock, no access). (dynamic when opened?)
+
                             if (baseProperties.DrawType == DrawType.Decal || baseProperties.DrawType == DrawType.Screen)
                                 staticFlags |= StaticEditorFlags.BatchingStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.NavigationStatic;
 
@@ -140,40 +142,37 @@ namespace SSImporter.Resource {
                                 staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
                             #endregion
 
-                            #region collider
+                            #region Physics collider
                             {
                                 Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
+                                MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
+
                                 if (renderer == null) {
                                     Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
-                                } else {
-                                    Collider collider = gameObject.GetComponent<Collider>();
-                                    if (collider == null) {
-                                        MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
+                                } else if (((Flags)baseProperties.Flags & Flags.CylindericalCollider) == Flags.CylindericalCollider && meshFilter != null) {
+                                    MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
+                                    meshCollider.sharedMesh = meshFilter.sharedMesh;
 
-                                        if (((Flags)baseProperties.Flags & Flags.CylindericalCollider) == Flags.CylindericalCollider && meshFilter != null) {
-                                            MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>(); // TODO should be capsule?
-                                            meshCollider.sharedMesh = meshFilter.sharedMesh;
-
-                                            if (HasPhysics)
-                                                meshCollider.convex = true;
-
-                                            collider = meshCollider;
-                                        } else {
-                                            BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-
-                                            boxCollider.center = renderer.bounds.center;
-                                            boxCollider.size = renderer.bounds.size;
-
-                                            collider = boxCollider;
-                                        }
-                                    }
-
-                                    collider.isTrigger = !HasPhysics &&
-                                                         ((Flags)baseProperties.Flags & Flags.FlatCollider) == 0 &&
-                                                         ((Flags)baseProperties.Flags & Flags.CylindericalCollider) == 0 &&
-                                                         (baseProperties.DrawType == DrawType.Screen ||
-                                                          baseProperties.DrawType == DrawType.Decal ||
-                                                          baseProperties.DrawType == DrawType.Sprite);
+                                    if (HasPhysics)
+                                        meshCollider.convex = true;
+                                } else if (((Flags)baseProperties.Flags & Flags.FlatCollider) == Flags.FlatCollider || baseProperties.DrawType == DrawType.Special) {
+                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+                                    boxCollider.center = renderer.bounds.center;
+                                    boxCollider.size = renderer.bounds.size;
+                                } else if (baseProperties.DrawType == DrawType.Enemy) {
+                                    CapsuleCollider capsuleCollider = gameObject.AddComponent<CapsuleCollider>();
+                                    capsuleCollider.direction = 1;
+                                    capsuleCollider.height = renderer.bounds.size.y;
+                                    capsuleCollider.radius = renderer.bounds.extents.x;
+                                } else if(HasPhysics) {
+                                    SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
+                                    sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
+                                    sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
+                                } else if(gameObject.GetComponentInChildren<Collider>() == null) { // No colliders. Add trigger collider for targeting.
+                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+                                    boxCollider.center = renderer.bounds.center;
+                                    boxCollider.size = renderer.bounds.size;
+                                    boxCollider.isTrigger = true;
                                 }
                             }
                             #endregion
@@ -186,7 +185,10 @@ namespace SSImporter.Resource {
                                     rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
                             }
 
-                            if(((Flags)baseProperties.Flags & Flags.PlayerPushable) == 0)
+                            if(((Flags)baseProperties.Flags & Flags.PlayerPushable) == 0 &&
+                               ((Flags)baseProperties.Flags & Flags.CylindericalCollider) == 0 &&
+                               ((Flags)baseProperties.Flags & Flags.FlatCollider) == 0 &&
+                                baseProperties.DrawType != DrawType.Special)
                                 gameObject.layer = itemsLayer;
 
                             GameObjectUtility.SetStaticEditorFlags(gameObject, staticFlags);
@@ -399,6 +401,12 @@ namespace SSImporter.Resource {
                 sprite.UVRect);
             MeshRenderer meshRenderer = visualization.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = material;
+
+            // Collider for targeting
+            BoxCollider boxCollider = visualization.AddComponent<BoxCollider>();
+            boxCollider.center = meshRenderer.bounds.center;
+            boxCollider.size = meshRenderer.bounds.size;
+            boxCollider.isTrigger = true;
 
             visualization.AddComponent<Billboard>();
 

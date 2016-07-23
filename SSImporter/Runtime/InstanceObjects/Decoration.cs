@@ -6,10 +6,11 @@ using SystemShock.Object;
 using SystemShock.Resource;
 using System;
 using System.Linq;
+using SystemShock.UserInterface;
 
 namespace SystemShock.InstanceObjects {
     [ExecuteInEditMode]
-    public partial class Decoration : SystemShockObject<ObjectInstance.Decoration> {
+    public partial class Decoration : SystemShockObject<ObjectInstance.Decoration>, IDescriptionProvider {
         [SerializeField, HideInInspector]
         protected bool overrideColor;
         [SerializeField, HideInInspector]
@@ -286,6 +287,13 @@ namespace SystemShock.InstanceObjects {
 
                 meshRenderer.sharedMaterials = sharedMaterials;
             }
+        }
+
+        public string GetCustomDescription() {
+            if(SubClass == 2 && Type == 1)
+                return StringLibrary.GetLibrary().GetResource(KnownChunkId.IconNames)[ObjectInstance.State];
+
+            return string.Empty;
         }
     }
 }

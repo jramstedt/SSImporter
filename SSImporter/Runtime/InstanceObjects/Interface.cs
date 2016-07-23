@@ -11,7 +11,7 @@ using SystemShock.Gameplay;
 using UnityEngine.EventSystems;
 
 namespace SystemShock.InstanceObjects {
-    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider, IActionPermission {
+    public partial class Interface : SystemShockObject<ObjectInstance.Interface>, IActionProvider, IActionPermission, IDescriptionProvider {
         private bool hasBeenActivated;
         private GameVariables gameVariables;
         private MessageBus messageBus;
@@ -145,6 +145,10 @@ namespace SystemShock.InstanceObjects {
             }
 
             return /*hasBeenActivated = */canActivate;
+        }
+
+        public string GetCustomDescription() {
+            return StringLibrary.GetLibrary().GetResource(KnownChunkId.SpecialInterfaceDescriptions)[ObjectInstance.Details];
         }
     }
 }
