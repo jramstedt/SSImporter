@@ -29,18 +29,18 @@ namespace SystemShock.Triggers {
         }
 
         private void OnObjectDestroying(ObjectDestroying msg) {
-            uint combinedId = (uint)(trigger.ConditionValue << 16) | (uint)trigger.ConditionVariable;
-            bool IsId = ((combinedId >> 24) & 0xFF) != 0;
+            uint combinedType = (uint)(trigger.ConditionValue << 16) | (uint)trigger.ConditionVariable;
+            bool IsId = ((combinedType >> 24) & 0xFF) != 0;
 
             if(IsId) {
-                ushort objectIndex = (ushort)(combinedId & 0x0FFF);
+                ushort objectIndex = (ushort)(combinedType & 0x0FFF);
 
                 if (triggerable != null && msg.Payload.ObjectId == objectIndex)
                     triggerable.Trigger();
             } else {
-                uint Class = (combinedId >> 16) & 0xFF;
-                uint Subclass = (combinedId >> 8) & 0xFF;
-                uint Type = combinedId & 0xFF;
+                uint Class = (combinedType >> 16) & 0xFF;
+                uint Subclass = (combinedType >> 8) & 0xFF;
+                uint Type = combinedType & 0xFF;
 
                 if (triggerable != null &&
                     msg.Payload.ObjectInstance.Class == (ObjectClass)Class &&

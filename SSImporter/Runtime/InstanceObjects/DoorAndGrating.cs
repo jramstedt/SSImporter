@@ -40,7 +40,7 @@ namespace SystemShock.InstanceObjects {
                     Door door = gameObject.AddComponent<Door>();
                     door.Frames = spriteAnimation;
 
-                    if (((Flags)properties.Base.Flags & Flags.Activable) == Flags.Activable)
+                    if (((Flags)properties.Base.Flags & Flags.NoUse) == 0)
                         gameObject.AddComponent<InteractableTrigger>();
                 }
             } else if (properties.Base.DrawType == DrawType.ForceDoor) {

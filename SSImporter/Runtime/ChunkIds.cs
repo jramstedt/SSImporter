@@ -38,6 +38,7 @@ namespace SystemShock.Resource {
         InterfaceMessages = 0x0871,
         LogoNames = 0x0876, // Engineering, Robotics ...
         ScreenTexts = 0x0877,
+        AccessNames = 0x0879,
 
         ModelsStart = 0x08FC,
 

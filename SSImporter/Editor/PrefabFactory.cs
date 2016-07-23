@@ -38,6 +38,11 @@ namespace SSImporter.Resource {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                 AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
 
+            int itemsLayer = LayerMask.NameToLayer(@"Items");
+
+            if (itemsLayer == -1)
+                throw new Exception(@"No 'Items' Layer set.");
+
             try {
                 AssetDatabase.StartAssetEditing();
 
@@ -70,9 +75,9 @@ namespace SSImporter.Resource {
                         ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
                         for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                            uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
+                            uint combinedType = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
-                            ObjectData objectData = objectPropertyLibrary.GetResource(combinedId);
+                            ObjectData objectData = objectPropertyLibrary.GetResource(combinedType);
                             BaseProperties baseProperties = objectData.Base;
 
                             string fullName = objectNames[objectData.Index];
@@ -92,13 +97,13 @@ namespace SSImporter.Resource {
                             properties.SetProperties(objectData);
 
                             if (baseProperties.DrawType == DrawType.Model)
-                                AddModel(combinedId, baseProperties, gameObject);
+                                AddModel(combinedType, baseProperties, gameObject);
                             else if (baseProperties.DrawType == DrawType.Sprite)
-                                AddSprite(combinedId, baseProperties, gameObject, prefabAsset);
+                                AddSprite(combinedType, baseProperties, gameObject, prefabAsset);
                             else if (baseProperties.DrawType == DrawType.Screen)
-                                AddScreen(combinedId, baseProperties, gameObject);
+                                AddScreen(combinedType, baseProperties, gameObject);
                             else if (baseProperties.DrawType == DrawType.Enemy)
-                                AddEnemy(combinedId, baseProperties, gameObject, prefabAsset);
+                                AddEnemy(combinedType, baseProperties, gameObject, prefabAsset);
                             else if (baseProperties.DrawType == DrawType.T5)
                                 Debug.LogWarning("DrawType.T5 not supported", gameObject);
                             else if (baseProperties.DrawType == DrawType.Fragments)
@@ -106,15 +111,15 @@ namespace SSImporter.Resource {
                             else if (baseProperties.DrawType == DrawType.NoDraw)
                                 Debug.Log("DrawType.NoDraw", gameObject);
                             else if (baseProperties.DrawType == DrawType.Decal)
-                                AddDecal(combinedId, baseProperties, gameObject);
+                                AddDecal(combinedType, baseProperties, gameObject);
                             else if (baseProperties.DrawType == DrawType.T9)
                                 Debug.LogWarning("DrawType.T9 not supported", gameObject);
                             else if (baseProperties.DrawType == DrawType.T10)
                                 Debug.LogWarning("DrawType.T10 not supported", gameObject);
                             else if (baseProperties.DrawType == DrawType.Special)
-                                AddSpecial(combinedId, baseProperties, gameObject);
+                                AddSpecial(combinedType, baseProperties, gameObject);
                             else if (baseProperties.DrawType == DrawType.ForceDoor)
-                                AddForceDoor(combinedId, baseProperties, gameObject, prefabAsset);
+                                AddForceDoor(combinedType, baseProperties, gameObject, prefabAsset);
 
                             StaticEditorFlags staticFlags = 0;
 
@@ -124,74 +129,53 @@ namespace SSImporter.Resource {
                             bool HasPhysics = baseProperties.Rigidbody != 0;
 
                             #region Flags
-                            if (((Flags)baseProperties.Flags & Flags.Collider) == Flags.Collider) {
-                                MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
-                                Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-
-                                if (meshFilter != null) {
-                                    MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>();
-                                    meshCollider.sharedMesh = meshFilter.sharedMesh;
-
-                                    if (HasPhysics)
-                                        meshCollider.convex = true;
-                                } else if (renderer != null) {
-                                    SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
-                                    sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
-                                    sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
-                                } else {
-                                    Debug.LogWarning("Marked for collider, but has no mesh or renderer!" + gameObject.name, gameObject);
-                                }
-                            }
-
-                            if (((Flags)baseProperties.Flags & Flags.Interactable) == Flags.Interactable ||
-                                ((Flags)baseProperties.Flags & Flags.Touchable) == Flags.Touchable ||
-                                ((Flags)baseProperties.Flags & Flags.UsefulItem) == Flags.UsefulItem) {
-                                Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-
-                                if (renderer == null) {
-                                    Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
-                                } else if (gameObject.GetComponent<Collider>() == null) {
-                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-                                    boxCollider.isTrigger = !HasPhysics &&
-                                                            (baseProperties.DrawType == DrawType.Screen ||
-                                                            baseProperties.DrawType == DrawType.Decal ||
-                                                            baseProperties.DrawType == DrawType.Sprite);
-                                    boxCollider.center = renderer.bounds.center;
-                                    boxCollider.size = renderer.bounds.size;
-                                }
-                            }
-
-                            if (((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed ||
-                                ((Flags)baseProperties.Flags & Flags.Activable) == Flags.Activable) {
-                                Collider collider = gameObject.GetComponent<Collider>();
-                                if (collider == null) {
-                                    BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
-
-                                    Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-                                    if (renderer == null) {
-                                        Debug.LogWarning("Marked for collider, but has no renderer!" + gameObject.name, gameObject);
-                                    } else {
-                                        boxCollider.center = renderer.bounds.center;
-                                        boxCollider.size = renderer.bounds.size;
-                                    }
-
-                                    collider = boxCollider;
-                                }
-
-                                collider.isTrigger = false;
-
-                                staticFlags |= StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic;
-                            }
-
                             if (!HasPhysics &&
                                 (baseProperties.DrawType == DrawType.Special ||
                                  (baseProperties.DrawType != DrawType.Sprite &&
                                   baseProperties.Vulnerabilities == DamageType.None &&
                                   baseProperties.SpecialVulnerabilities == 0x00 &&
-                                  ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup)
+                                  ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup
                                  )
-                                )
+                                ))
                                 staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
+                            #endregion
+
+                            #region collider
+                            {
+                                Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
+                                if (renderer == null) {
+                                    Debug.LogWarning("Marked for collider, but has no renderer! " + gameObject.name, gameObject);
+                                } else {
+                                    Collider collider = gameObject.GetComponent<Collider>();
+                                    if (collider == null) {
+                                        MeshFilter meshFilter = gameObject.GetComponentInChildren<MeshFilter>();
+
+                                        if (((Flags)baseProperties.Flags & Flags.CylindericalCollider) == Flags.CylindericalCollider && meshFilter != null) {
+                                            MeshCollider meshCollider = gameObject.AddComponent<MeshCollider>(); // TODO should be capsule?
+                                            meshCollider.sharedMesh = meshFilter.sharedMesh;
+
+                                            if (HasPhysics)
+                                                meshCollider.convex = true;
+
+                                            collider = meshCollider;
+                                        } else {
+                                            BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+
+                                            boxCollider.center = renderer.bounds.center;
+                                            boxCollider.size = renderer.bounds.size;
+
+                                            collider = boxCollider;
+                                        }
+                                    }
+
+                                    collider.isTrigger = !HasPhysics &&
+                                                         ((Flags)baseProperties.Flags & Flags.FlatCollider) == 0 &&
+                                                         ((Flags)baseProperties.Flags & Flags.CylindericalCollider) == 0 &&
+                                                         (baseProperties.DrawType == DrawType.Screen ||
+                                                          baseProperties.DrawType == DrawType.Decal ||
+                                                          baseProperties.DrawType == DrawType.Sprite);
+                                }
+                            }
                             #endregion
 
                             if (HasPhysics) {
@@ -200,19 +184,10 @@ namespace SSImporter.Resource {
 
                                 if (baseProperties.DrawType == DrawType.Sprite || baseProperties.DrawType == DrawType.Enemy)
                                     rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-
-                                if (gameObject.GetComponent<Collider>() == null) { // Rigidbody always needs collider
-                                    Renderer renderer = gameObject.GetComponentInChildren<Renderer>();
-
-                                    if (renderer == null) {
-                                        Debug.LogWarning("Rigidbody needs collider, but object has no renderer!" + gameObject.name, gameObject);
-                                    } else {
-                                        SphereCollider sphereCollider = gameObject.AddComponent<SphereCollider>();
-                                        sphereCollider.center = gameObject.transform.InverseTransformPoint(renderer.bounds.center);
-                                        sphereCollider.radius = Mathf.Min(renderer.bounds.extents.x, renderer.bounds.extents.y);
-                                    }
-                                }
                             }
+
+                            if(((Flags)baseProperties.Flags & Flags.PlayerPushable) == 0)
+                                gameObject.layer = itemsLayer;
 
                             GameObjectUtility.SetStaticEditorFlags(gameObject, staticFlags);
                             foreach(Transform child in gameObject.transform)
@@ -229,7 +204,7 @@ namespace SSImporter.Resource {
                             EditorUtility.SetDirty(gameObject);
                             GameObject prefabGameObject = PrefabUtility.ReplacePrefab(gameObject, prefabAsset, ReplacePrefabOptions.ConnectToPrefab);
 
-                            prefabLibrary.AddResource(combinedId, prefabGameObject);
+                            prefabLibrary.AddResource(combinedType, prefabGameObject);
 
                             GameObject.DestroyImmediate(gameObject);
                         }
@@ -368,9 +343,9 @@ namespace SSImporter.Resource {
                 ObjectDeclaration objectDataType = objectDataSubclass[subclassIndex];
 
                 for (byte typeIndex = 0; typeIndex < objectDataType.Count; ++typeIndex) {
-                    uint combinedId = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
+                    uint combinedType = (uint)classIndex << 16 | (uint)subclassIndex << 8 | typeIndex;
 
-                    ObjectData objectData = objectPropertyLibrary.GetResource(combinedId);
+                    ObjectData objectData = objectPropertyLibrary.GetResource(combinedType);
                     BaseProperties baseProperties = objectData.Base;
 
                     enemyAnimations.Add(new EnemyAnimations {
@@ -402,13 +377,13 @@ namespace SSImporter.Resource {
             PrefabFactory.enemyAnimations = enemyAnimations.ToArray();
         }
 
-        private static void AddModel(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddModel(uint combinedType, BaseProperties baseProperties, GameObject gameObject) {
             GameObject modelGO = PrefabUtility.InstantiatePrefab(modelLibrary.GetResource(KnownChunkId.ModelsStart + baseProperties.ModelIndex)) as GameObject;
             modelGO.transform.SetParent(gameObject.transform, false);
         }
 
-        private static void AddSprite(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
-            uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
+        private static void AddSprite(uint combinedType, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
+            uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedType);
             spriteIndex += 1; // World sprite.
 
             SpriteDefinition sprite = spriteLibrary.GetResource(KnownChunkId.ObjectSprites)[spriteIndex];
@@ -430,7 +405,7 @@ namespace SSImporter.Resource {
             AssetDatabase.AddObjectToAsset(meshFilter.sharedMesh, prefabAsset);
         }
 
-        private static void AddScreen(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddScreen(uint combinedType, BaseProperties baseProperties, GameObject gameObject) {
             MeshProjector meshProjector = gameObject.AddComponent<MeshProjector>();
             meshProjector.Size = new Vector3(
                 baseProperties.Size.x,
@@ -443,7 +418,7 @@ namespace SSImporter.Resource {
             meshRenderer.sharedMaterial = nullMaterial;
         }
 
-        private static void AddEnemy(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
+        private static void AddEnemy(uint combinedType, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
             GameObject visualization = new GameObject("Visualization");
             visualization.transform.SetParent(gameObject.transform, false);
 
@@ -461,7 +436,7 @@ namespace SSImporter.Resource {
             lightProxyVolune.gridResolutionY = 2;
             lightProxyVolune.gridResolutionZ = 1;
 
-            int enemyIndex =    objectPropertyLibrary.GetIndex(combinedId) -
+            int enemyIndex =    objectPropertyLibrary.GetIndex(combinedType) -
                                 objectPropertyLibrary.GetIndex(ObjectClass.Enemy, 0, 0);
 
             Sprite snapshot;
@@ -476,37 +451,38 @@ namespace SSImporter.Resource {
             gameObject.AddComponent<SystemShock.Enemy>();
         }
 
-        private static void AddDecal(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
-            uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedId);
+        private static void AddDecal(uint combinedType, BaseProperties baseProperties, GameObject gameObject) {
+            uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(combinedType);
             Material material = spriteLibrary.Material;
 
             SpriteDefinition sprite = spriteLibrary.GetResource(KnownChunkId.ObjectSprites)[spriteIndex + 1];
 
             Vector3 worldSize = baseProperties.GetRenderSize(Vector2.Scale(sprite.UVRect.size, material.mainTexture.GetSize()));
 
-            if (((Flags)baseProperties.Flags & Flags.Collider) == Flags.Collider ||
-                ((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed ||
-                ((Flags)baseProperties.Flags & Flags.Activable) == Flags.Activable) {
+            if (((Flags)baseProperties.Flags & Flags.FlatCollider) == Flags.FlatCollider ||
+                ((Flags)baseProperties.Flags & Flags.CylindericalCollider) == Flags.CylindericalCollider) {
                 MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
                 meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(sprite.PivotNormalized, worldSize, sprite.UVRect);
                 meshFilter.sharedMesh.name = sprite.Name;
+
                 MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
                 meshRenderer.sharedMaterial = material;
             } else {
                 MeshProjector meshProjector = gameObject.AddComponent<MeshProjector>();
                 meshProjector.Size = worldSize;
                 meshProjector.UVRect = sprite.UVRect;
+
                 MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
                 meshRenderer.sharedMaterial = material;
             }
         }
 
-        private static void AddSpecial(uint combinedId, BaseProperties baseProperties, GameObject gameObject) {
+        private static void AddSpecial(uint combinedType, BaseProperties baseProperties, GameObject gameObject) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
         }
 
-        private static void AddForceDoor(uint combinedId, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
+        private static void AddForceDoor(uint combinedType, BaseProperties baseProperties, GameObject gameObject, UnityEngine.Object prefabAsset) {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(baseProperties.Size);
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();

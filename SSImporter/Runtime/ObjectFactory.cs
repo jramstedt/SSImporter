@@ -88,6 +88,10 @@ namespace SystemShock.Resource {
                     select component).ToArray();
         }
 
+        public SystemShockObject Instantiate(ObjectInstance objectInstance) {
+            return Instantiate(objectInstance, levelInfo.ClassDataTemplates[(byte)objectInstance.Class]);
+        }
+
         public SystemShockObject Instantiate(ObjectInstance objectInstance, IClassData instanceData) {
             if (objectInstance.InUse == 0) {
                 Debug.LogWarning(@"Instance not in use.");

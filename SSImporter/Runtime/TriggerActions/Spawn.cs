@@ -20,12 +20,12 @@ namespace SystemShock.TriggerActions {
             Bounds bounds = new Bounds(FirstCorner.transform.position, Vector3.zero);
             bounds.Encapsulate(SecondCorner.transform.position);
 
-            uint combinedId = ActionData.ObjectId;
-            uint Class = (combinedId >> 16) & 0xFF;
-            uint Subclass = (combinedId >> 8) & 0xFF;
-            uint Type = combinedId & 0xFF;
+            uint combinedType = ActionData.ObjectId;
+            uint Class = (combinedType >> 16) & 0xFF;
+            uint Subclass = (combinedType >> 8) & 0xFF;
+            uint Type = combinedType & 0xFF;
 
-            ObjectData objectData = ObjectPropertyLibrary.GetLibrary().GetResource(combinedId);
+            ObjectData objectData = ObjectPropertyLibrary.GetLibrary().GetResource(combinedType);
             BaseProperties baseProperties = objectData.Base;
 
             LevelInfo levelInfo = ObjectFactory.LevelInfo;

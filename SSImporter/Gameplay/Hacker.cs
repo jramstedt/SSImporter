@@ -1,12 +1,13 @@
 ﻿using UnityEngine;
 
+using System;
+using System.Linq;
+
 using SystemShock.Object;
 using SystemShock.TriggerActions;
-using System;
-using SystemShock.InstanceObjects;
 using SystemShock.Resource;
-using Item = SystemShock.InstanceObjects.Item;
 using SystemShock.UserInterface;
+using Item = SystemShock.InstanceObjects.Item;
 
 namespace SystemShock.Gameplay {
     public class Hacker : MonoBehaviour {
@@ -19,20 +20,23 @@ namespace SystemShock.Gameplay {
         public int Power;
         public int PowerUsage;
 
-        public byte[] HardwareVersion;
-        public byte[] SoftwareVersion;
+        public byte[] HardwareVersion = new byte[15];
+        public byte[] SoftwareVersion = new byte[15];
 
-        public byte[] FullClips;
-        public byte[] LooseAmmunition;
+        public byte[] FullClips = new byte[15];
+        public byte[] LooseAmmunition = new byte[15];
 
-        public byte[] Patches;
-        public byte[] Explosives;
+        public byte[] Patches = new byte[7];
+        public byte[] Explosives = new byte[7];
 
-        public WeaponState[] Weapons;
+        public WeaponState[] Weapons = new WeaponState[7];
 
-        public ushort[] Inventory;
+        public ushort[] Inventory = new ushort[14];
 
         public SystemShockObject ObjectInHand;
+
+        private ObjectFactory objectFactory;
+        private LevelInfo levelInfo;
 
         private void Start() {
             messageBus = MessageBus.GetController();
@@ -59,38 +63,98 @@ namespace SystemShock.Gameplay {
 
             messageBus.Receive<UseObjectMessage>(UseObjectHandler);
 
+            objectFactory = ObjectFactory.GetController();
+            levelInfo = objectFactory.LevelInfo;
+
             //Cursor.lockState = CursorLockMode.Locked;
         }
 
         private void UseObjectHandler(UseObjectMessage msg) {
             Interactable interactable = msg.Sender.GetComponent<Interactable>();
-            if (interactable != null) {
-                interactable.Interact();
-                return;
-            }
-
-            if (ObjectInHand != null) {
-                messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedId));
-                return;
-            }
 
             SystemShockObjectProperties properties = msg.Sender.GetComponent<SystemShockObjectProperties>();
 
-            if (((Flags)properties.Base.Flags & Flags.Interactable) != Flags.Interactable ||
-                ((Flags)properties.Base.Flags & Flags.NoPickup) == Flags.NoPickup) {
-                messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedId));
-                return;
-            }
+            if (((Flags)properties.Base.Flags & Flags.NoPickup) == 0) { // pickup
+                if (ObjectInHand != null) {
+                    messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedType));
+                    return;
+                }
 
-            ObjectInHand = msg.Sender;
-            ObjectInHand.gameObject.SetActive(false);
+                ObjectInHand = msg.Sender;
+                ObjectInHand.gameObject.SetActive(false);
+            } else if (((Flags)properties.Base.Flags & Flags.NoUse) == 0 && interactable != null) { // usable
+                interactable.Interact();
+            } else {
+                messageBus.Send(new CantUseObjectMessage(msg.Sender.CombinedType));
+            }
         }
 
-        private void AddAccess() {
-            // 1. Check if inventory has current access item
-            // 2. Create access item, Add to inventory as first item.
-            // 3. Check access bit
-            // 4. Add bit or send message
+        private void AddAccess(uint access) {
+            uint accessCard = (int)ObjectClass.Item << 16 | 4 << 8 | 0;
+
+            SystemShockObject ssobject = null;
+
+            foreach (ushort objectId in Inventory) {
+                if (!levelInfo.Objects.TryGetValue(objectId, out ssobject) || ssobject.CombinedType != accessCard)
+                    ssobject = null;
+            }
+
+            if (ssobject == null) { // Create access card
+                ssobject = objectFactory.Instantiate(new ObjectInstance() {
+                    InUse = 1,
+                    Class = ObjectClass.Item,
+                    SubClass = 4,
+                    Type = 0,
+                    X = 0xFFFF,
+                    Y = 0,
+                    Z = 0,
+                    Flags = (byte)InstanceFlags.LootNoRef
+                });
+
+                AddObjectToInventory(ssobject);
+            }
+
+            Item item = ssobject.GetComponent<Item>();
+            ObjectInstance.Item classData = item.ClassData;
+            ObjectInstance.Item.AccessCard accessCardData = classData.Data.Read<ObjectInstance.Item.AccessCard>();
+
+            if((accessCardData.AccessBitmask & access) == access) {
+                messageBus.Send(new InterfaceMessage(72)); // No new access gained
+            } else {
+                messageBus.Send(new AddAccessMessage((accessCardData.AccessBitmask | access) ^ access));
+                accessCardData.AccessBitmask |= access;
+                item.ClassData.Data = Extensions.Write(accessCardData);
+            }
+        }
+
+        public bool HasAccess(uint access) {
+            uint accessCard = (int)ObjectClass.Item << 16 | 4 << 8 | 0;
+
+            SystemShockObject ssobject = null;
+
+            foreach (ushort objectId in Inventory) {
+                if (!levelInfo.Objects.TryGetValue(objectId, out ssobject) || ssobject.CombinedType != accessCard)
+                    ssobject = null;
+            }
+
+            if (ssobject == null)
+                return false;
+
+            Item item = ssobject.GetComponent<Item>();
+            ObjectInstance.Item classData = item.ClassData;
+            ObjectInstance.Item.AccessCard accessCardData = classData.Data.Read<ObjectInstance.Item.AccessCard>();
+
+            return (accessCardData.AccessBitmask & access) == access;
+        }
+
+        public void AddObjectToInventory(SystemShockObject ssobject) {
+            ssobject.ObjectInstance.Flags |= (byte)InstanceFlags.LootNoRef;
+            ssobject.ObjectInstance.X = 0xFFFF;
+            ssobject.ObjectInstance.Y = 0;
+            ssobject.ObjectInstance.Z = 0;
+            ssobject.ObjectInstance.CrossReferenceTableIndex = 0; // TODO ObjectFactory should handle this
+
+            Inventory.AddOrReplaceLast(ssobject.ObjectId);
         }
 
         public void OnApplicationFocus(bool focus) {

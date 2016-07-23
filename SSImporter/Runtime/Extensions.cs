@@ -62,6 +62,27 @@ namespace SystemShock.Resource {
             return ret;
         }
 
+        public static void Remove<T>(this T[] array, int index) {
+            Array.Copy(array, index + 1, array, index, array.Length - index);
+            array[array.Length - 1] = default(T);
+        }
+
+        public static void AddLast<T>(this T[] array, T value) {
+            int index = Array.IndexOf(array, default(T));
+            if (index == -1)
+                index = array.Length - 1;
+
+            array[index] = value;
+        }
+
+        public static void AddOrReplaceLast<T>(this T[] array, T value) {
+            int index = Array.IndexOf(array, value);
+            if (index != -1)
+                Remove(array, index);
+
+            AddLast(array, value);
+        }
+
         public static float ReadFixed1616(this BinaryReader binaryReader) {
             return binaryReader.ReadInt32() / 65536f;
         }

@@ -274,10 +274,10 @@ namespace SystemShock.TriggerActions {
             public ChangeEnemyType(ChangeInstance changeInstance) : base(changeInstance) { }
 
             public override void Change() {
-                uint combinedId = ActionData.CombinedId;
-                uint Class = (combinedId >> 16) & 0xFF;
-                uint Subclass = (combinedId >> 8) & 0xFF;
-                uint Type = combinedId & 0xFF;
+                uint combinedType = ActionData.CombinedType;
+                uint Class = (combinedType >> 16) & 0xFF;
+                uint Subclass = (combinedType >> 8) & 0xFF;
+                uint Type = combinedType & 0xFF;
 
                 SystemShockObject[] ssObjects = objectFactory.GetAll((ObjectClass)Class, (byte)Subclass, (byte)Type);
                 int i = ssObjects.Length;
@@ -294,10 +294,10 @@ namespace SystemShock.TriggerActions {
             }
 #if UNITY_EDITOR
             public override void OnDrawGizmos() {
-                uint combinedId = ActionData.CombinedId;
-                uint Class = (combinedId >> 16) & 0xFF;
-                uint Subclass = (combinedId >> 8) & 0xFF;
-                uint Type = combinedId & 0xFF;
+                uint combinedType = ActionData.CombinedType;
+                uint Class = (combinedType >> 16) & 0xFF;
+                uint Subclass = (combinedType >> 8) & 0xFF;
+                uint Type = combinedType & 0xFF;
 
                 SystemShockObject[] ssObjects = objectFactory.GetAll((ObjectClass)Class, (byte)Subclass, (byte)Type);
                 foreach(SystemShockObject Target in ssObjects)

@@ -19,24 +19,24 @@ namespace SystemShock.Resource {
             return GetResource((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
-        public T GetResource<T>(uint combinedId) where T : ObjectData {
-            return (T)Resources[IndexMap.IndexOf(combinedId)];
+        public T GetResource<T>(uint combinedType) where T : ObjectData {
+            return (T)Resources[IndexMap.IndexOf(combinedType)];
         }
 
         public T GetResource<T>(ObjectClass Class, byte Subclass, byte Type) where T : ObjectData {
             return GetResource<T>((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
-        public int GetIndex(uint combinedId) {
-            return IndexMap.IndexOf(combinedId);
+        public int GetIndex(uint combinedType) {
+            return IndexMap.IndexOf(combinedType);
         }
 
         public int GetIndex(ObjectClass Class, byte Subclass, byte Type) {
             return GetIndex((uint)Class << 16 | (uint)Subclass << 8 | Type);
         }
 
-        public uint GetSpriteOffset(uint combinedId) {
-            return spriteOffsets[GetIndex(combinedId)];
+        public uint GetSpriteOffset(uint combinedType) {
+            return spriteOffsets[GetIndex(combinedType)];
         }
 
         public uint GetSpriteOffset(ObjectClass Class, byte Subclass, byte Type) {
@@ -106,21 +106,21 @@ namespace SystemShock.Resource {
     [Flags]
     public enum Flags : ushort {
         UsefulItem = 0x0001,
-        Touchable = 0x0002,
-        Interactable = 0x0004,
-        NoPickup = 0x0008,
+        PlayerPushable = 0x0002,
+        NoPickup = 0x0004,
+        NoUse = 0x0008,
         Consumable = 0x0010,
         OpaqueClosed = 0x0020,
-        F6 = 0x0040,    // Mutant, robot, cyborg.
+        Enemy = 0x0040,    // Mutant, robot, cyborg.
         F7 = 0x0080,    // Explosion, mutant, robot, cyborg.
-        Activable = 0x0100, 
-        Collider = 0x0200,
+        FlatCollider = 0x0100, 
+        CylindericalCollider = 0x0200,
         Explosion = 0x0400,
         ExplodeImpact = 0x0800,
-        F12 = 0x1000, // Target identifier, env suit, lamp, surgery machine, x-ray, control panel
-        F13 = 0x2000, // Gorilla, avian, plant, zero-g
-        F14 = 0x4000, // None
-        F15 = 0x8000 // Berserk, decoration, garbage
+        Electronic = 0x1000,
+        Organic = 0x2000,
+        F14 = 0x4000, // Unused
+        NoHelp = 0x8000
     }
 
     [Flags]
@@ -149,8 +149,8 @@ namespace SystemShock.Resource {
         }
 
         [Flags]
-        public enum ArtMask : ushort {
-            AdditionalSprites = 0x00F0
+        public enum ArtMask : byte {
+            AdditionalSprites = 0xF0
         }
 
         public uint Mass;
@@ -170,8 +170,9 @@ namespace SystemShock.Resource {
         public byte SizeFlags;
         public ushort Flags;
         public ushort ModelIndex;
-        public byte ExtraFrames;
-        public ushort ArtInfo;
+        public byte Unknown3;
+        public byte ArtInfo;
+        public byte ExtraFlags;
 
         public Vector2 Size {
             get {

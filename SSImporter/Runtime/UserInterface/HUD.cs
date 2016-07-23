@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using SystemShock.Resource;
+using SystemShock.Object;
 
 namespace SystemShock.UserInterface {
     public class HUD : MonoBehaviour {
@@ -22,6 +23,17 @@ namespace SystemShock.UserInterface {
                 string message = stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[96];
                 Debug.LogFormat("Cant use: {0}", message.Replace("%s", objectName));
             });
+            messageBus.Receive<AddAccessMessage>(msg => {
+                string message = stringLibrary.GetResource(KnownChunkId.InterfaceMessages)[73];
+                CyberString accessNames = stringLibrary.GetResource(KnownChunkId.AccessNames);
+                for (int i = 0; i < 32; ++i) { // sizeof(uint) * 8 = 32
+                    uint access = (uint)1 << i;
+                    if ((msg.Payload & access) == access)
+                        message += " " + accessNames[(uint)i << 1];
+                }
+
+                Debug.LogFormat("Access Message: {0}", message);
+            });
         }
     }
 
@@ -29,39 +41,55 @@ namespace SystemShock.UserInterface {
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload">Message index</param>
-        public TrapMessage(byte payload) : base(payload) { }
+        /// <param name="message">Message index</param>
+        public TrapMessage(byte message) : base(message) { }
     }
 
     public class InterfaceMessage : GenericMessage<byte> {
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload">Message index</param>
-        public InterfaceMessage(byte payload) : base(payload) { }
+        /// <param name="message">Message index</param>
+        public InterfaceMessage(byte message) : base(message) { }
     }
 
     public class ShodanSecurityMessage : GenericMessage<byte> {
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload">Security needed to open (delta)</param>
-        public ShodanSecurityMessage(byte payload) : base(payload) { }
+        /// <param name="securityDelta">Security needed to open (delta)</param>
+        public ShodanSecurityMessage(byte securityDelta) : base(securityDelta) { }
     }
 
     public class ItemInspectionMessage : GenericMessage<uint> {
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload">Combined item id</param>
-        public ItemInspectionMessage(uint payload) : base(payload) { }
+        /// <param name="combinedType">Combined item type</param>
+        public ItemInspectionMessage(uint combinedType) : base(combinedType) { }
     }
 
     public class CantUseObjectMessage : GenericMessage<uint> {
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload">Combined item id</param>
-        public CantUseObjectMessage(uint payload) : base(payload) { }
+        /// <param name="combinedType">Combined item type</param>
+        public CantUseObjectMessage(uint combinedType) : base(combinedType) { }
+    }
+
+    public class AddAccessMessage : GenericMessage<uint> {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="newAccessBits">New access bits</param>
+        public AddAccessMessage(uint newAccessBits) : base(newAccessBits) { }
+    }
+
+    public class ObjectInHandMessage : GenericMessage<SystemShockObject> {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ssobject">Object in hand</param>
+        public ObjectInHandMessage(SystemShockObject ssobject) : base(ssobject) { }
     }
 }

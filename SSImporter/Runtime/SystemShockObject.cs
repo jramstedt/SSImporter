@@ -19,7 +19,7 @@ namespace SystemShock.Object {
         public byte State { get { return ObjectInstance.State; } set { ObjectInstance.State = value; } }
         public bool InUse { get { return ObjectInstance.InUse != 0; } }
 
-        public uint CombinedId { get { return (uint)ObjectInstance.Class << 16 | (uint)ObjectInstance.SubClass << 8 | ObjectInstance.Type; } }
+        public uint CombinedType { get { return (uint)ObjectInstance.Class << 16 | (uint)ObjectInstance.SubClass << 8 | ObjectInstance.Type; } }
 
         public void Setup(ObjectInstance objectInstance, IClassData instanceData) {
             ObjectInstance = objectInstance;
@@ -37,7 +37,7 @@ namespace SystemShock.Object {
             if (eventData.button != PointerEventData.InputButton.Left)
                 return;
 
-            MessageBus.GetController().Send(new ItemInspectionMessage(CombinedId));
+            MessageBus.GetController().Send(new ItemInspectionMessage(CombinedType));
 
             if (eventData.clickCount >= 2)
                 MessageBus.GetController().Send(new UseObjectMessage(this));
@@ -128,7 +128,15 @@ namespace SystemShock.Object {
     }
 
     public enum InstanceFlags : byte {
-        Container = 0x80,
+        Nothing = 0x00,
+        F1 = 0x01,
+        F2 = 0x02,
+        F3 = 0x04,
+        F4 = 0x08,
+        Loot = 0x10,
+        LootNoRef = 0x20,
+        F7 = 0x40,
+        ContainerActivate = 0x80
     }
 
     [Serializable]
@@ -153,7 +161,7 @@ namespace SystemShock.Object {
         public byte Unknown1;
         public byte State;
         public byte Unknown2;
-        public InstanceFlags Flags;
+        public byte Flags;
 
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -722,7 +730,7 @@ namespace SystemShock.Object {
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeEnemy {
-                    public uint CombinedId;
+                    public uint CombinedType;
                     public byte Unknown;
                 }
 
@@ -751,7 +759,7 @@ namespace SystemShock.Object {
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeEnemyType {
-                    [ObjectReference] public uint CombinedId;
+                    public uint CombinedType;
                     public byte NewType;
                 }
             }

@@ -26,7 +26,7 @@ namespace SystemShock.InstanceObjects {
                 ObjectPropertyLibrary objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary();
                 SpriteLibrary spriteLibrary = SpriteLibrary.GetLibrary();
 
-                uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(CombinedId);
+                uint spriteIndex = objectPropertyLibrary.GetSpriteOffset(CombinedType);
 
                 SpriteDefinition[] Frames = new SpriteDefinition[3];
                 Array.Copy(spriteLibrary.GetResource(KnownChunkId.ObjectSprites).Sprites, spriteIndex, Frames, 0, Frames.Length);

@@ -437,6 +437,9 @@ namespace SSImporter.Resource {
                     if (ssObject == null)
                         continue;
 
+                    if (objectInstance.CrossReferenceTableIndex == 0)
+                        ssObject.gameObject.SetActive(false);
+
                     EditorUtility.SetDirty(ssObject.gameObject);
                 }
 
