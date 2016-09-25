@@ -102,21 +102,21 @@ namespace SystemShock.Object {
     public enum ActionType : byte {
         NoOp = 0x00,
         TeleportPlayer = 0x01,
-        ResurrectPlayer = 0x02,
-        SetPosition = 0x03,
+        ChangePlayerVitality = 0x02,
+        CloneOrMove = 0x03,
         SetVariable = 0x04,
-        Unknown0x05 = 0x05,
+        Cutscene = 0x05,
         Propagate = 0x06,
         Lighting = 0x07,
         Effect = 0x08,
         MovePlatform = 0x09,
         Unknown0x0A = 0x0A,
         PropagateRepeat = 0x0B,
-        PropagateConditional = 0x0C,
+        PropagateCycle = 0x0C,
         Destroy = 0x0D,
         Unknown0x0E = 0x0E,
         EmailPlayer = 0x0F,
-        RadiationTreatment = 0x10,
+        ChangeContamination = 0x10,
         ChangeClassData = 0x11,
         ChangeFrameLoop = 0x12,
         ChangeInstance = 0x13,
@@ -507,19 +507,33 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Resurrect {
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-                public byte[] Unknown;
+            public class ChangePlayerVitality {
+                public uint Unknown;
+                public ushort HealthDelta;
+                public ushort HealthChangeOperator;
+                public ushort PowerDelta;
+                public ushort PowerChangeOperator;
+                public uint Unknown2;
+
+                public enum ChangeOperator {
+                    Remove,
+                    Add
+                }
             }
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class SetPosition {
+            public class CloneOrMove {
                 [ObjectReference] public ushort ObjectId;
-                public ushort Scale;
+                public ushort Action;
                 public uint TileX;
                 public uint TileY;
                 public uint Z;
+
+                public enum Actions : ushort {
+                    Clone,
+                    Move
+                }
             }
 
             [Serializable]
@@ -528,23 +542,41 @@ namespace SystemShock.Object {
                 [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
                 public ushort[] Variable;
 
-                public VariableAction Action;
+                public ushort Value;
 
                 public VariableOperation Operation;
 
                 public uint MessageOn;
                 public uint MessageOff;
 
-                [Flags]
-                public enum VariableAction : ushort {
-                    Set = 0x0001,
-                    Toggle = 0x0010,
-                    Unknown = 0x0100
+                public enum BooleanAction : ushort {
+                    SetZero = 0x0000,
+                    SetOne = 0x0001,
+                    Toggle = 0x0010
                 }
 
                 public enum VariableOperation : ushort {
-                    One,
-                    Increment
+                    Set,
+                    Add,
+                    Subtract,
+                    Multiply,
+                    Divide
+                }
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Cutscene {
+                public uint CutsceneType;
+                public uint EndGame;
+
+                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+                public byte[] Unknown;
+
+                public enum CutsceneTypes : uint {
+                    Death,
+                    Intro,
+                    Ending
                 }
             }
 
@@ -567,15 +599,53 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Lighting {
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-                public byte[] Unknown;
+                public ushort Unknown;
+                [ObjectReference] public ushort Object;
+                public ushort TransitionType;
+                public uint Unknown2;
+                public ushort Surface;
+                public uint Unknown3;
+                
+                public enum TransitionTypes : ushort {
+                    Immediate = 0x000,
+                    Fade = 0x0001,
+                    Flicker = 0x0100
+                }
+                
+                public enum Surfaces : ushort {
+                    Floor = 0x0000,
+                    Ceiling = 0x0001,
+                    FloorCeiling = 0x0002
+                }
             }
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Effect {
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-                public byte[] Unknown;
+                public ushort SoundId;
+                public ushort LoopCount;
+                public ushort VisualEffect;
+                public ushort Unknown; // length?
+                public ushort AdditionalVisualEffect;
+                public ushort Unknown2; // length?
+                public uint Uknown3;
+
+                public enum VisualEffects : ushort {
+                    None,
+                    PowerFailure,
+                    ShakeCamera,
+                    EscapePodSequence,
+                    RedStaticFullscreen,
+                    RedStatic
+                }
+
+                public enum AdditionalVisualEffects : ushort {
+                    None,
+                    White,
+                    Pink,
+                    GreyStatic,
+                    VerticalPanning
+                }
             }
 
             [Serializable]
@@ -602,6 +672,43 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class PropagateCycle {
+                [ObjectReference]
+                public ushort ObjectToTrigger1;
+                public ushort Delay1;
+
+                [ObjectReference]
+                public ushort ObjectToTrigger2;
+                public ushort Delay2;
+
+                [ObjectReference]
+                public ushort ObjectToTrigger3;
+                public ushort Delay3;
+
+                public uint NextIndex;
+            }
+
+            [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            public class Destroy {
+                [ObjectReference]
+                public ushort ObjectToDestroy1;
+                public ushort Delay1;
+
+                [ObjectReference]
+                public ushort ObjectToDestroy2;
+                public ushort Delay2;
+
+                [ObjectReference]
+                public ushort ObjectToDestroy3;
+                public ushort Delay3;
+
+                public uint Message;
+            }
+
+
+           [Serializable]
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class EmailPlayer {
                 public ushort Message;
 
@@ -611,9 +718,23 @@ namespace SystemShock.Object {
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class RadiationTreatment {
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+            public class ChangeContamination {
+                public ushort DeltaValue;
+                public ushort ChangeOperator;
+                public int ContaminationType;
+
+                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Unknown;
+
+                public enum ChangeOperators : ushort {
+                    Add,
+                    Remove
+                }
+
+                public enum ContaminationTypes : int {
+                    Radiation = 0x00000004,
+                    BioContamination = 0x00000008,
+                }
             }
 
             [Serializable]
@@ -649,12 +770,13 @@ namespace SystemShock.Object {
                     ReturnToMenu = 0x00000006,
                     ChangeYaw = 0x00000007,
                     ChangeEnemy = 0x00000008, // Behaviour unknown
+                    Shodan = 0x00000009,
                     ChangeInterfaceCondition = 0x0000000A,
                     ShowSystemAnalyzer = 0x0000000B,
                     RadiatePlayer = 0x0000000C,
                     ActivateIfPlayerYaw = 0x0000000D,
-                    DisableKeypad = 0x0000000E,
-                    GameFailed = 0x0000000F, // Behaviour unknown
+                    CloseMFD = 0x0000000E,
+                    LaserDestructionMessage = 0x0000000F,
                     ChangeEnemyType = 0x00000010
                 }
 
@@ -665,17 +787,17 @@ namespace SystemShock.Object {
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeRepulsor {
+                    [ObjectReference] public uint ObjectId;
+                    public byte OffTextureIndex;
+                    public byte OnTextureIndex;
+                    public ushort Unknown;
+                    public Direction ForceDirection;
+
                     public enum Direction : byte {
                         Toggle = 0x00,
                         Up = 0x01,
                         Down = 0x02
                     }
-
-                    [ObjectReference] public uint ObjectId;
-                    public byte Unknown;
-                    public byte Unknown1;
-                    public ushort Unknown2;
-                    public Direction ForceDirection;
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -708,15 +830,17 @@ namespace SystemShock.Object {
                 public class ActivateDoor {
                     // TODO Lock door at Diego boss fight!
 
-                    public enum State : uint {
-                        Toggle = 0x00,
-                        Open = 0x01,
-                        Close = 0x02
-                    }
-
                     [ObjectReference] public uint ObjectId;
                     public State TargetState;
                     public uint Unknown;
+
+
+                    public enum State : uint {
+                        Open = 0x01,
+                        Close = 0x02,
+                        Toggle = 0x03,
+                        StopAutoClose = 0x04
+                    }
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -760,6 +884,11 @@ namespace SystemShock.Object {
                 }
 
                 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+                public class CloseMFD {
+                    [ObjectReference] public uint ObjectId;
+                }
+
+                [StructLayout(LayoutKind.Sequential, Pack = 1)]
                 public class ChangeEnemyType {
                     public uint CombinedType;
                     public byte NewType;
@@ -780,19 +909,28 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Message {
-                public uint Type;
+                public enum ImageMask : uint {
+                    IsSpecial = 0x80000000
+                }
+
+                public uint BackgroundImage;
 
                 public uint MessageId;
 
-                public uint Unknown;
+                public uint TextColor;
 
-                public uint Unknown2;
+                public uint MessageLocation;
+
+                public enum MessageLocations : uint {
+                    MFD,
+                    View
+                }
             }
 
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Spawn {
-                public uint ObjectId;
+                public uint CombinedType;
                 [ObjectReference] public ushort Corner1ObjectId;
                 [ObjectReference] public ushort Corner2ObjectId;
                 public uint Amount;
@@ -807,15 +945,6 @@ namespace SystemShock.Object {
                 public ushort Resettable;
 
                 [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-                public byte[] Unknown;
-            }
-
-            [Serializable]
-            [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            public class Disable {
-                [ObjectReference] public ushort ObjectId;
-
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 14)]
                 public byte[] Unknown;
             }
 

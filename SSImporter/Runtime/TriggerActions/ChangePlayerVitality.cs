@@ -3,7 +3,7 @@
 using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
-    public class RadiationTreatment : Triggerable<ObjectInstance.Trigger.RadiationTreatment> {
+    public class ChangePlayerVitality : Triggerable<ObjectInstance.Trigger.ChangePlayerVitality> {
         private MessageBus messageBus;
 
         private void Start() {
@@ -11,13 +11,15 @@ namespace SystemShock.TriggerActions {
         }
 
         protected override bool DoTrigger() {
-            messageBus.Send(new RadiationTreatmentMessage());
+            messageBus.Send(new ResurrectPlayerMessage());
+
+            // TODO
 
             return true;
         }
     }
 
-    public class RadiationTreatmentMessage : BaseMessage {
-        public RadiationTreatmentMessage() : base() { }
+    public class ResurrectPlayerMessage : BaseMessage {
+        public ResurrectPlayerMessage() { }
     }
 }

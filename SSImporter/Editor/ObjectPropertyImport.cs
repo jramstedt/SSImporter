@@ -242,7 +242,7 @@ namespace SSImporter.Resource {
                 ResourceLibrary.GetController().AddLibrary(objectPropertyLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

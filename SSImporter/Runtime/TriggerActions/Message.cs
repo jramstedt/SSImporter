@@ -5,8 +5,10 @@ using SystemShock.Object;
 namespace SystemShock.TriggerActions {
     public class Message : Triggerable<ObjectInstance.Trigger.Message> {
         protected override bool DoTrigger() {
-            if(ActionData.Type == 0xFFFFFFFF) {
+            if (ActionData.BackgroundImage == 0xFFFFFFFF) {
                 // Shodan
+            } else if (ActionData.BackgroundImage == 0xFFFFFFFE) {
+                // Diego
             }
 
             return true;

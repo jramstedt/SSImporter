@@ -36,7 +36,7 @@ namespace SystemShock {
 #endif
 
                 gameControllers.name = ResourceName;
-                gameControllers.hideFlags = HideFlags.DontSaveInBuild;
+                gameControllers.hideFlags = HideFlags.DontSaveInBuild | HideFlags.DontSaveInEditor;
 
                 foreach (AbstractGameController gameController in gameControllers.GetComponents<AbstractGameController>())
                     typeof(AbstractGameController<>).MakeGenericType(gameController.GetType()).GetField(@"instance", BindingFlags.Static | BindingFlags.NonPublic).SetValue(gameController, gameController);

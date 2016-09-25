@@ -489,7 +489,7 @@ namespace SSImporter.Resource {
                 Debug.LogException(e);
             } finally {
                 EditorUtility.ClearProgressBar();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();
@@ -701,7 +701,7 @@ namespace SSImporter.Resource {
 
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            mesh.Optimize();
+            ;
             mesh.RecalculateBounds();
 
             MeshUtility.Optimize(mesh);

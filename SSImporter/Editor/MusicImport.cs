@@ -9,12 +9,12 @@ using System.Text;
 using SystemShock.Resource;
 
 public class MusicImport : ScriptableObject {
-    [MenuItem("Assets/System Shock/12. Import music", false, 1012)]
+    [MenuItem("Assets/System Shock/12. Import Music", false, 1012)]
     public static void Init() {
         CreateMusicAssets();
     }
 
-    [MenuItem("Assets/System Shock/12. Import music", true)]
+    [MenuItem("Assets/System Shock/12. Import Music", true)]
     public static bool Validate() {
         return PlayerPrefs.HasKey(@"SSHOCKRES");
     }

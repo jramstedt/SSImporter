@@ -148,6 +148,15 @@ namespace SystemShock.Resource {
 
             return ssObject;
         }
+
+        public ushort GetFreeObjectId() {
+            for (ushort i = 0; i < ushort.MaxValue; ++i) {
+                if (!LevelInfo.Objects.ContainsKey(i))
+                    return i;
+            }
+
+            throw new Exception("No free ids!");
+        }
     }
 
     public sealed class ObjectDestroying : GenericMessage<SystemShockObject> {

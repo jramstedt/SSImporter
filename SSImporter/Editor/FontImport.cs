@@ -79,7 +79,7 @@ namespace SSImporter.Resource {
                 ResourceLibrary.GetController().AddLibrary(fontLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

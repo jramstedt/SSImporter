@@ -69,10 +69,10 @@ namespace SystemShock.InstanceObjects {
                 // Nothing
             } else if (actionType == ActionType.TeleportPlayer) {
                 gameObject.AddComponent<TeleportPlayer>();
-            } else if (actionType == ActionType.ResurrectPlayer) {
-                gameObject.AddComponent<ResurrectPlayer>();
-            } else if (actionType == ActionType.SetPosition) {
-                gameObject.AddComponent<SetPosition>();
+            } else if (actionType == ActionType.ChangePlayerVitality) {
+                gameObject.AddComponent<ChangePlayerVitality>();
+            } else if (actionType == ActionType.CloneOrMove) {
+                gameObject.AddComponent<CloneOrMove>();
             } else if (actionType == ActionType.SetVariable) {
                 gameObject.AddComponent<SetVariable>();
             } else if (actionType == ActionType.Propagate) {
@@ -85,14 +85,14 @@ namespace SystemShock.InstanceObjects {
                 gameObject.AddComponent<MovePlatform>();
             } else if (actionType == ActionType.PropagateRepeat) {
                 gameObject.AddComponent<PropagateRepeat>();
-            } else if (actionType == ActionType.PropagateConditional) {
-                gameObject.AddComponent<PropagateConditional>();
+            } else if (actionType == ActionType.PropagateCycle) {
+                gameObject.AddComponent<PropagateCycle>();
             } else if (actionType == ActionType.Destroy) {
                 gameObject.AddComponent<Destroy>();
             } else if (actionType == ActionType.EmailPlayer) {
                 gameObject.AddComponent<EmailPlayer>();
-            } else if (actionType == ActionType.RadiationTreatment) {
-                gameObject.AddComponent<RadiationTreatment>();
+            } else if (actionType == ActionType.ChangeContamination) {
+                gameObject.AddComponent<ChangeContamination>();
             } else if (actionType == ActionType.ChangeClassData) {
                 gameObject.AddComponent<ChangeClassData>();
             } else if (actionType == ActionType.ChangeFrameLoop) {

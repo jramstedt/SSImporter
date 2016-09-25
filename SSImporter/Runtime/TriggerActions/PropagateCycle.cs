@@ -4,23 +4,15 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class PropagateConditional : Triggerable<ObjectInstance.Trigger.Propagate> {
-        public bool condition;
-
+    public class PropagateCycle : Triggerable<ObjectInstance.Trigger.PropagateCycle> {
         protected override bool DoTrigger() {
-            condition = !condition;
-
-            if(condition)
+            uint nextIndex = ActionData.NextIndex++ & 0x03;
+            if (nextIndex == 0)
                 WaitAndTrigger(ActionData.ObjectToTrigger1, ActionData.Delay1);
-
-            if (!condition)
+            else if (nextIndex == 1)
                 WaitAndTrigger(ActionData.ObjectToTrigger2, ActionData.Delay2);
-
-            if (condition)
+            else
                 WaitAndTrigger(ActionData.ObjectToTrigger3, ActionData.Delay3);
-
-            if (!condition)
-                WaitAndTrigger(ActionData.ObjectToTrigger4, ActionData.Delay4);
 
             return true;
         }
@@ -41,10 +33,6 @@ namespace SystemShock.TriggerActions {
             ITriggerable Target3 = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger3);
             if (Target3 != null)
                 Gizmos.DrawLine(transform.position, Target3.transform.position);
-
-            ITriggerable Target4 = ObjectFactory.Get<ITriggerable>(ActionData.ObjectToTrigger4);
-            if (Target4 != null)
-                Gizmos.DrawLine(transform.position, Target4.transform.position);
         }
 
         private void OnDrawGizmosSelected() {

@@ -216,7 +216,7 @@ namespace SSImporter.Resource {
                 EditorUtility.SetDirty(prefabLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

@@ -20,7 +20,7 @@ namespace SystemShock.TriggerActions {
             Bounds bounds = new Bounds(FirstCorner.transform.position, Vector3.zero);
             bounds.Encapsulate(SecondCorner.transform.position);
 
-            uint combinedType = ActionData.ObjectId;
+            uint combinedType = ActionData.CombinedType;
             uint Class = (combinedType >> 16) & 0xFF;
             uint Subclass = (combinedType >> 8) & 0xFF;
             uint Type = combinedType & 0xFF;

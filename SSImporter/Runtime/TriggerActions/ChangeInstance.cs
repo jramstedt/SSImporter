@@ -38,10 +38,10 @@ namespace SystemShock.TriggerActions {
                 changer = new RadiatePlayer(this);
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ActivateIfPlayerYaw)
                 changer = null; // TODO Should activate object if player looking between -45 and +45 from target yaw angle.
-            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.DisableKeypad)
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.CloseMFD)
                 changer = null; // TODO Should disable keypad.
-            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.GameFailed)
-                changer = null; // TODO Behaviour unknown
+            else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.LaserDestructionMessage)
+                changer = null; // TODO show earth destruction message
             else if (ActionData.Action == ObjectInstance.Trigger.ChangeInstance.ChangeAction.ChangeEnemyType)
                 changer = new ChangeEnemyType(this);
         }
@@ -213,8 +213,12 @@ namespace SystemShock.TriggerActions {
             }
 
             public override void Change() {
-                if (Value == ActionData.Limit[State])
-                    State = ActionData.Step[++State] > 0 ? State : (byte)0;
+                if (Value == ActionData.Limit[State]) {
+                    State = (byte)(++State & 3);
+
+                    if (ActionData.Step[State] == 0)
+                        State = 0;
+                }
 
                 if (ActionData.Limit[State] == 0)
                     Value += (short)ActionData.Step[State];

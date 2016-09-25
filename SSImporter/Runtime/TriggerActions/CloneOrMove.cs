@@ -4,7 +4,7 @@ using SystemShock.Object;
 
 namespace SystemShock.TriggerActions {
     [ExecuteInEditMode]
-    public class SetPosition : Triggerable<ObjectInstance.Trigger.SetPosition> {
+    public class CloneOrMove : Triggerable<ObjectInstance.Trigger.CloneOrMove> {
         private Vector3 targetPosition;
 
         protected override void Awake() {
@@ -15,6 +15,13 @@ namespace SystemShock.TriggerActions {
 
         protected override bool DoTrigger() {
             SystemShockObject Target = ObjectFactory.Get(ActionData.ObjectId);
+
+            if (ActionData.Action == (ushort)ObjectInstance.Trigger.CloneOrMove.Actions.Clone) {
+                ObjectInstance objectInstance = Target.ObjectInstance;
+                IClassData classData = Target.GetClassData();
+                classData.ObjectId = ObjectFactory.GetFreeObjectId();
+                Target = ObjectFactory.Instantiate(objectInstance, classData);
+            }
 
             Rigidbody rigidbody = Target.GetComponent<Rigidbody>();
             if (rigidbody != null) {

@@ -39,7 +39,7 @@ namespace SSImporter.Resource {
             } finally {
                 EditorApplication.UnlockReloadAssemblies();
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

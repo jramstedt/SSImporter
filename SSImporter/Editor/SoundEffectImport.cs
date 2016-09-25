@@ -65,7 +65,7 @@ namespace SSImporter.Resource {
                 ResourceLibrary.GetController().AddLibrary(soundLibrary);
             } finally {
                 EditorUtility.ClearProgressBar();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

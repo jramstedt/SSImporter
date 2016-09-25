@@ -261,7 +261,7 @@ namespace SSImporter.Resource {
                 ResourceLibrary.GetController().AddLibrary(textureLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();
@@ -278,6 +278,9 @@ namespace SSImporter.Resource {
             foreach (ResourceFile spritesResource in spritesResources) {
                 ICollection<KnownChunkId> spriteChunkIds = spritesResource.GetChunkList();
                 foreach (KnownChunkId chunkId in spriteChunkIds) {
+                    if (spritesResource.GetChunkInfo(chunkId).info.ContentType != ContentType.Bitmap)
+                        continue;
+
                     TextureSet[] sprites = spritesResource.ReadBitmaps(chunkId, gamePalette);
 
                     int[] indices = new int[sprites.Length];
@@ -296,7 +299,7 @@ namespace SSImporter.Resource {
             }
 
             Texture2D atlasDiffuse = new Texture2D(1024, 1024, TextureFormat.RGBA32, true, true);
-            Rect[] allRects = atlasDiffuse.PackTextures(allSpritesDiffuse.ToArray(), 1, 4096);
+            Rect[] allRects = atlasDiffuse.PackTextures(allSpritesDiffuse.ToArray(), 2, 4096);
             atlasDiffuse.name = Path.GetFileNameWithoutExtension(libraryAssetPath) + @" Diffuse";
             atlasDiffuse.alphaIsTransparency = true;
             atlasDiffuse.Apply(true, false);

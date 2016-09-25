@@ -46,7 +46,7 @@ namespace SSImporter.Resource {
                 PrefabUtility.ReplacePrefab(gameControllerPrefab, PrefabUtility.GetPrefabParent(gameControllerPrefab), ReplacePrefabOptions.ConnectToPrefab);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

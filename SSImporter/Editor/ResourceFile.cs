@@ -19,9 +19,13 @@ namespace SSImporter.Resource {
 
         private Dictionary<KnownChunkId, ChunkInfo> chunkInfoPointers;
 
+        public string FilePath;
+
         public ResourceFile(string filePath) {
             if (!File.Exists(filePath))
                 throw new ArgumentException(@"File does not exist.");
+
+            FilePath = filePath;
 
             fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
             binaryReader = new BinaryReader(fileStream, Encoding.ASCII);

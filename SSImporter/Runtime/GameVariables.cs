@@ -11,8 +11,6 @@ namespace SystemShock.Gameplay {
 
         private const ushort INTERNAL_VARIABLEMASK = 0x1FFF;
 
-        public const ushort VARIABLEMASK = 0x01FF;
-
         public const ushort ACCUM = 0x1000;
         // 0x2000 Unknown
         public const ushort LESSTHAN = 0x4000;

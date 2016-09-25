@@ -54,7 +54,11 @@ namespace SystemShock.Gameplay {
             });
 
             messageBus.Receive<RadiationTreatmentMessage>(msg => {
-                Radiation = 0;
+                Radiation += msg.Payload;
+            });
+
+            messageBus.Receive<ContamiantionTreatmentMessage>(msg => {
+                Contamiantion += msg.Payload;
             });
 
             messageBus.Receive<ChargePlayerMessage>(msg => {
@@ -82,6 +86,8 @@ namespace SystemShock.Gameplay {
 
                 ObjectInHand = msg.Sender;
                 ObjectInHand.gameObject.SetActive(false);
+
+                messageBus.Send(new ObjectInHandMessage(ObjectInHand));
             } else if (((Flags)properties.Base.Flags & Flags.NoUse) == 0 && interactable != null) { // usable
                 interactable.Interact();
             } else {

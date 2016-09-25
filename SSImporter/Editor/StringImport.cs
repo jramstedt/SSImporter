@@ -49,7 +49,7 @@ namespace SSImporter.Resource {
                 ResourceLibrary.GetController().AddLibrary(stringLibrary);
             } finally {
                 AssetDatabase.StopAssetEditing();
-                EditorApplication.SaveAssets();
+                AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();

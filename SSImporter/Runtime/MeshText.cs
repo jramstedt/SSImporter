@@ -76,7 +76,7 @@ namespace SystemShock.Resource {
             
             //mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            mesh.Optimize();
+            ;
             mesh.RecalculateBounds();
         }
 
