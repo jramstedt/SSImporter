@@ -11,10 +11,12 @@ using SystemShock.Resource;
 
 public class SerializeHUD : ScriptableObject {
     private static GraphicsLibrary GraphicsLibrary;
+    private static FontLibrary FontLibrary;
 
     [MenuItem("Tools/Serialize HUD to JSON")]
     static void Serialize() {
         GraphicsLibrary = GraphicsLibrary.GetLibrary();
+        FontLibrary = FontLibrary.GetLibrary();
 
         JSONObject jsonGameObject = serializeGameObject(Selection.activeGameObject);
 
@@ -49,7 +51,13 @@ public class SerializeHUD : ScriptableObject {
 
                         jsonComponent.AddField(@"SpriteData", spriteData);
                     }
+                } else if(component is Text) {
+                    Text text = component as Text;
 
+                    if(text.font != null) {
+                        KnownChunkId fontIdentifier = (KnownChunkId)FontLibrary.GetIdentifier(text.font);
+                        jsonComponent.AddField(@"FontData", (int)fontIdentifier);
+                    }
                 }
             }
         }
@@ -95,12 +103,16 @@ public class SerializeHUD : ScriptableObject {
                 } else if (component is Image) {
                     Image image = component as Image;
 
-                    if(jsonGameObjectData.HasField(@"SpriteData")) {
+                    if (jsonGameObjectData.HasField(@"SpriteData")) {
                         JSONObject spriteData = jsonGameObjectData.GetField(@"SpriteData");
                         ushort chunkId = (ushort)spriteData.GetField(@"ChunkId").i;
                         uint spriteIndex = (uint)spriteData.GetField(@"Index").i;
                         image.sprite = GraphicsLibrary.GetResource(chunkId)[spriteIndex];
                     }
+                } else if (component is Text) {
+                    Text text = component as Text;
+                    if (jsonGameObjectData.HasField(@"FontData"))
+                        text.font = FontLibrary.GetResource((KnownChunkId)jsonGameObjectData.GetField(@"FontData").i);
                 }
             }
         }

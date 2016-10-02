@@ -50,6 +50,16 @@ namespace SystemShock {
         }
 
         public static void Initialize() { Initializer.Initialize(); }
+
+#if UNITY_EDITOR
+        public void Save() {
+            gameObject.hideFlags = HideFlags.None;
+
+            UnityEditor.PrefabUtility.ReplacePrefab(gameObject, UnityEditor.PrefabUtility.GetPrefabParent(gameObject), UnityEditor.ReplacePrefabOptions.ConnectToPrefab);
+
+            gameObject.hideFlags = HideFlags.DontSaveInBuild | HideFlags.DontSaveInEditor;
+        }
+#endif
     }
 
     public abstract class AbstractGameController<T> : AbstractGameController where T : AbstractGameController<T> {

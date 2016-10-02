@@ -67,8 +67,8 @@ namespace SystemShock.Resource {
                 }
 
                 for (int vertexIndex = 0; vertexIndex < textGenerator.vertexCount; vertexIndex += 4) {
-                    vh.AddTriangle(vertexIndex, vertexIndex + 1, vertexIndex + 2);
-                    vh.AddTriangle(vertexIndex + 2, vertexIndex + 3, vertexIndex);
+                    vh.AddTriangle(vertexIndex + 2, vertexIndex + 1, vertexIndex);
+                    vh.AddTriangle(vertexIndex, vertexIndex + 3, vertexIndex + 2);
                 }
 
                 vh.FillMesh(mesh);
@@ -76,7 +76,6 @@ namespace SystemShock.Resource {
             
             //mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            ;
             mesh.RecalculateBounds();
         }
 

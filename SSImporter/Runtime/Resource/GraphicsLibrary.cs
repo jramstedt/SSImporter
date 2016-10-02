@@ -6,6 +6,11 @@ using System;
 
 namespace SSImporter.Resource {
     public class GraphicsLibrary : AbstractResourceLibrary<GraphicsLibrary, ushort /*KnownChunkId*/, GraphicsChunk> {
+
+        public GraphicsChunk GetResource(KnownChunkId chunkId) {
+            return GetResource((ushort)chunkId);
+        }
+
         public KeyValuePair<KnownChunkId, int> GetIdentifiers(Sprite sprite) {
             foreach (ushort identifier in IndexMap) {
                 GraphicsChunk sprites = GetResource(identifier);
@@ -18,7 +23,6 @@ namespace SSImporter.Resource {
             throw new Exception("Sprite not found! " + sprite.name);
         }
     }
-
 
     [Serializable]
     public class GraphicsChunk : IEnumerable<Sprite> {

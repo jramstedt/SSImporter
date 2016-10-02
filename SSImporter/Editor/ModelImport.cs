@@ -295,7 +295,6 @@ namespace SSImporter.Resource {
 
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            ;
             mesh.RecalculateBounds();
 
             MeshUtility.SetMeshCompression(mesh, ModelImporterMeshCompression.High);

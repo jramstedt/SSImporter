@@ -33,6 +33,8 @@ namespace SSImporter.Resource {
         private static EnemyAnimations[] enemyAnimations;
 
         private static Material spriteMaterial;
+        private static Material textMaterial;
+        private static Material forceMaterial;
 
         private static void CreateObjectPrefabs() {
             if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
@@ -55,9 +57,54 @@ namespace SSImporter.Resource {
                 objectPropertyLibrary = ObjectPropertyLibrary.GetLibrary();
                 nullMaterial = TextureLibrary.GetLibrary().GetResource(KnownChunkId.ModelTexturesStart);
 
+                #region Sprite Material
                 spriteMaterial = new Material(Shader.Find(@"Sprites/Diffuse"));
                 spriteMaterial.name = @"SpriteMaterial";
                 AssetDatabase.CreateAsset(spriteMaterial, @"Assets/SystemShock/SpriteMaterial.asset");
+                #endregion
+
+                #region Text Material
+                textMaterial = new Material(Shader.Find(@"Standard"));
+                textMaterial.color = Color.white;
+                textMaterial.SetFloat(@"_Mode", 1f); // Cutout
+                textMaterial.SetFloat(@"_Cutoff", 0.25f);
+                textMaterial.SetColor(@"_EmissionColor", Color.white);
+                textMaterial.SetFloat(@"_Glossiness", 0f);
+
+                textMaterial.SetOverrideTag("RenderType", "TransparentCutout");
+                textMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                textMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                textMaterial.SetInt("_ZWrite", 1);
+                textMaterial.EnableKeyword("_ALPHATEST_ON");
+                textMaterial.DisableKeyword("_ALPHABLEND_ON");
+                textMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                textMaterial.renderQueue = 2450;
+
+                textMaterial.EnableKeyword(@"_EMISSION");
+
+                AssetDatabase.CreateAsset(textMaterial, @"Assets/SystemShock/TextMaterial.asset");
+                #endregion
+
+                #region Force Material
+                forceMaterial = new Material(Shader.Find(@"Standard"));
+                forceMaterial.color = Color.magenta;
+                forceMaterial.SetFloat(@"_Mode", 2f); // Fade
+                forceMaterial.SetColor(@"_EmissionColor", Color.magenta);
+                forceMaterial.SetFloat(@"_Glossiness", 0f);
+
+                forceMaterial.SetOverrideTag("RenderType", "Transparent");
+                forceMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                forceMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                forceMaterial.SetInt("_ZWrite", 0);
+                forceMaterial.DisableKeyword("_ALPHATEST_ON");
+                forceMaterial.EnableKeyword("_ALPHABLEND_ON");
+                forceMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                forceMaterial.renderQueue = 3000;
+
+                forceMaterial.EnableKeyword(@"_EMISSION");
+
+                AssetDatabase.CreateAsset(forceMaterial, @"Assets/SystemShock/ForceDoorMaterial.asset");
+                #endregion
 
                 PrefabLibrary prefabLibrary = ScriptableObject.CreateInstance<PrefabLibrary>();
                 AssetDatabase.CreateAsset(prefabLibrary, @"Assets/SystemShock/objprefabs.asset");
@@ -121,16 +168,14 @@ namespace SSImporter.Resource {
                             else if (baseProperties.DrawType == DrawType.ForceDoor)
                                 AddForceDoor(combinedType, baseProperties, gameObject, prefabAsset);
 
+                            #region Flags
                             StaticEditorFlags staticFlags = 0;
-
-                            // TODO navigation static should be false if door is openable by enemies (no lock, no access). (dynamic when opened?)
-
+                            
                             if (baseProperties.DrawType == DrawType.Decal || baseProperties.DrawType == DrawType.Screen)
                                 staticFlags |= StaticEditorFlags.BatchingStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.NavigationStatic;
 
                             bool HasPhysics = baseProperties.Rigidbody != 0;
-
-                            #region Flags
+                            
                             if (!HasPhysics &&
                                 (baseProperties.DrawType == DrawType.Special ||
                                  (baseProperties.DrawType != DrawType.Sprite &&
@@ -138,8 +183,13 @@ namespace SSImporter.Resource {
                                   baseProperties.SpecialVulnerabilities == 0x00 &&
                                   ((Flags)baseProperties.Flags & Flags.NoPickup) == Flags.NoPickup
                                  )
-                                ))
+                                )
+                               )
                                 staticFlags |= StaticEditorFlags.ReflectionProbeStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.LightmapStatic | StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.NavigationStatic;
+
+                            if (((Flags)baseProperties.Flags & Flags.OpaqueClosed) == Flags.OpaqueClosed)
+                                staticFlags &= ~(StaticEditorFlags.NavigationStatic | StaticEditorFlags.OccludeeStatic | StaticEditorFlags.OccluderStatic);
+                            
                             #endregion
 
                             #region Physics collider
@@ -230,30 +280,7 @@ namespace SSImporter.Resource {
                     if (typeIndex == 3) { // Text
                         GameObject.DestroyImmediate(gameObject.GetComponent<MeshProjector>());
                         gameObject.AddComponent<MeshText>();
-
-                        // TODO create text material. Add to same place as screen material
-
-                        Material material = new Material(Shader.Find(@"Standard"));
-                        material.color = Color.white;
-                        material.SetFloat(@"_Mode", 1f); // Cutout
-                        material.SetFloat(@"_Cutoff", 0.25f);
-                        material.SetColor(@"_EmissionColor", Color.white);
-                        material.SetFloat(@"_Glossiness", 0f);
-
-                        material.SetOverrideTag("RenderType", "TransparentCutout");
-                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-                        material.SetInt("_ZWrite", 1);
-                        material.EnableKeyword("_ALPHATEST_ON");
-                        material.DisableKeyword("_ALPHABLEND_ON");
-                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                        material.renderQueue = 2450;
-
-                        material.EnableKeyword(@"_EMISSION");
-
-                        AssetDatabase.AddObjectToAsset(material, prefabAsset); // TODO remove when in global materials
-
-                        gameObject.GetComponent<MeshRenderer>().sharedMaterial = material;
+                        gameObject.GetComponent<MeshRenderer>().sharedMaterial = textMaterial;
                     }
                 } else if (subclassIndex == 3) {
                     Light light = gameObject.AddComponent<Light>();
@@ -264,30 +291,8 @@ namespace SSImporter.Resource {
                     if (properties.Base.DrawType == DrawType.Special) {
                         Material[] materials = new Material[2];
 
-                        if (typeIndex == 7 || typeIndex == 9) { // forcebridge
-                            // TODO create force material. Add to same place as screen material
-
-                            Material colorMaterial = new Material(Shader.Find(@"Standard"));
-                            colorMaterial.color = Color.magenta;
-                            colorMaterial.SetFloat(@"_Mode", 2f); // Fade
-                            colorMaterial.SetColor(@"_EmissionColor", Color.magenta);
-                            colorMaterial.SetFloat(@"_Glossiness", 0f);
-
-                            colorMaterial.SetOverrideTag("RenderType", "Transparent");
-                            colorMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                            colorMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                            colorMaterial.SetInt("_ZWrite", 0);
-                            colorMaterial.DisableKeyword("_ALPHATEST_ON");
-                            colorMaterial.EnableKeyword("_ALPHABLEND_ON");
-                            colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                            colorMaterial.renderQueue = 3000;
-
-                            colorMaterial.EnableKeyword(@"_EMISSION");
-
-                            AssetDatabase.AddObjectToAsset(colorMaterial, prefabAsset); // TODO remove when in global materials
-
-                            materials[0] = materials[1] = colorMaterial;
-                        }
+                        if (typeIndex == 7 || typeIndex == 9) // forcebridge
+                            materials[0] = materials[1] = forceMaterial;
 
                         gameObject.GetComponent<MeshFilter>().sharedMesh = MeshUtils.CreateCubeTopPivot(1, 1, 1f / 32f);
                         gameObject.GetComponent<MeshRenderer>().sharedMaterials = materials;
@@ -494,29 +499,7 @@ namespace SSImporter.Resource {
             MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = MeshUtils.CreateTwoSidedPlane(baseProperties.Size);
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
-
-            // TODO create force material. Add to same place as screen material
-
-            Material colorMaterial = new Material(Shader.Find(@"Standard"));
-            colorMaterial.color = Color.magenta;
-            colorMaterial.SetFloat(@"_Mode", 2f); // Fade
-            colorMaterial.SetColor(@"_EmissionColor", Color.magenta);
-            colorMaterial.SetFloat(@"_Glossiness", 0f);
-
-            colorMaterial.SetOverrideTag("RenderType", "Transparent");
-            colorMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            colorMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            colorMaterial.SetInt("_ZWrite", 0);
-            colorMaterial.DisableKeyword("_ALPHATEST_ON");
-            colorMaterial.EnableKeyword("_ALPHABLEND_ON");
-            colorMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            colorMaterial.renderQueue = 3000;
-
-            colorMaterial.EnableKeyword(@"_EMISSION");
-
-            AssetDatabase.AddObjectToAsset(colorMaterial, prefabAsset); // TODO remove when in global materials
-
-            meshRenderer.sharedMaterial = colorMaterial;
+            meshRenderer.sharedMaterial = forceMaterial;
         }
 
         private const string AttackPrimaryParameter = @"AttackPrimary";

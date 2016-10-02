@@ -35,6 +35,7 @@ namespace SystemShock.Resource {
         SpecialInterfaceDescriptions = 0x0869,
         TextureNames = 0x086A,
         CantUseMessages = 0x086B,
+        HeadsUpDisplayTexts = 0x086C,
         ShortObjectNames = 0x086D,
         UserInterfaceMessages = 0x0871,
         IconNames = 0x0876,

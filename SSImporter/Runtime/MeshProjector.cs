@@ -251,7 +251,6 @@ namespace SystemShock.Resource {
 
             projectedMesh.CombineMeshes(combineInstances.ToArray(), true, false);
             projectedMesh.RecalculateNormals();
-            ;
             projectedMesh.UploadMeshData(!dynamicUpdateEnabled);
 
             meshFilter.sharedMesh = projectedMesh;

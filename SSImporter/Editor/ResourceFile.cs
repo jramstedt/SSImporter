@@ -295,10 +295,10 @@ namespace SSImporter.Resource {
                         glyphHeight = (int)rect.height,
                         glyphWidth = (int)rect.width,
 
-                        uvTopLeft = new Vector2(     rect.x / (float)texture.width,                 (rect.y + rect.height) / (float)texture.height),
-                        uvTopRight = new Vector2(   (rect.x + rect.width) / (float)texture.width,   (rect.y + rect.height) / (float)texture.height),
-                        uvBottomLeft = new Vector2(  rect.x / (float)texture.width,                  rect.y / (float)texture.height),
-                        uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,    rect.y / (float)texture.height),
+                        uvTopLeft = new Vector2(     rect.x / (float)texture.width,                 rect.y / (float)texture.height),
+                        uvTopRight = new Vector2(   (rect.x + rect.width) / (float)texture.width,   rect.y / (float)texture.height),
+                        uvBottomLeft = new Vector2(  rect.x / (float)texture.width,                 (rect.y + rect.height) / (float)texture.height),
+                        uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,   (rect.y + rect.height) / (float)texture.height),
                         /*
                         minX = 0,
                         minY = 0,
@@ -397,6 +397,7 @@ namespace SSImporter.Resource {
 
                         if (paletteIndex > 2 && paletteIndex < 32) { // TODO check these against original game
                             emission.SetPixel(x, y, palette[paletteIndex]);
+                            //emission.SetPixel(x, y, new Color32(paletteIndex, paletteIndex, paletteIndex, 1));
                             emissionHasPixels = true;
                         }
 
@@ -404,6 +405,7 @@ namespace SSImporter.Resource {
                         //    animated = true;
 
                         diffuse.SetPixel(x, y, palette[paletteIndex]);
+                        //diffuse.SetPixel(x, y, new Color32(paletteIndex, paletteIndex, paletteIndex, 1));
                     }
                 }
 

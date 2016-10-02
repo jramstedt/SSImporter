@@ -26,7 +26,6 @@ namespace SystemShock.Resource {
 
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            ;
             mesh.RecalculateBounds();
 
             return mesh;
@@ -48,7 +47,6 @@ namespace SystemShock.Resource {
 
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            ;
             mesh.RecalculateBounds();
 
             return mesh;
@@ -108,7 +106,6 @@ namespace SystemShock.Resource {
 
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
-            ;
             mesh.RecalculateBounds();
 
             return mesh;

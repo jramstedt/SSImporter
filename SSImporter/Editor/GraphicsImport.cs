@@ -1,19 +1,20 @@
 ﻿using UnityEngine;
 using UnityEditor;
 
-using System;
 using System.IO;
-using System.Text;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
 using SystemShock.Resource;
+using System.Collections;
 
 namespace SSImporter.Resource {
     public class GraphicsImport : ScriptableObject {
         [MenuItem("Assets/System Shock/13. Import UI Graphics", false, 1013)]
         public static void Init() {
-            CreateAssets();
+            Coroutines = new List<IEnumerator>();
+            Coroutines.Add(CreateAssets());
+
+            EditorApplication.update += Update;
         }
 
         [MenuItem("Assets/System Shock/13. Import UI Graphics", true)]
@@ -23,7 +24,22 @@ namespace SSImporter.Resource {
 
         public const bool compressTextures = false;
 
-        private static void CreateAssets() {
+        private static List<IEnumerator> Coroutines;
+        private static void Update() {
+            if (Coroutines.Count > 0) {
+                IEnumerator Coroutine = Coroutines[Coroutines.Count - 1];
+                if (Coroutine.MoveNext()) {
+                    if (Coroutine.Current is IEnumerator)
+                        Coroutines.Add(Coroutine.Current as IEnumerator);
+                } else {
+                    Coroutines.RemoveAt(Coroutines.Count - 1);
+                }
+            } else {
+                EditorApplication.update -= Update;
+            }
+        }
+
+        private static IEnumerator CreateAssets() {
             string filePath = PlayerPrefs.GetString(@"SSHOCKRES");
 
             string gamePalettePath = filePath + @"\DATA\gamepal.res";
@@ -38,10 +54,10 @@ namespace SSImporter.Resource {
                 !File.Exists(handartPath) ||
                 !File.Exists(mfdartPath)/* ||
                 !File.Exists(sideartPath)*/)
-                return;
+                yield break;
 
             try {
-                AssetDatabase.StartAssetEditing();
+                //AssetDatabase.StartAssetEditing();
 
                 if (!Directory.Exists(Application.dataPath + @"/SystemShock"))
                     AssetDatabase.CreateFolder(@"Assets", @"SystemShock");
@@ -51,20 +67,24 @@ namespace SSImporter.Resource {
                 PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
                 #endregion
 
-                CreateSpriteLibrary(@"gamescr.res", gamePalette,
+                Debug.Log("WAT!?!!");
+
+                yield return CreateSpriteLibrary(@"mfdart.res", gamePalette,
                     new ResourceFile(gamescrPath),
                     new ResourceFile(handartPath),
                     new ResourceFile(mfdartPath)/*,
                     new ResourceFile(sideartPath)*/);
+
+                Debug.Log("PASKA!");
             } finally {
-                AssetDatabase.StopAssetEditing();
+                //AssetDatabase.StopAssetEditing();
                 AssetDatabase.SaveAssets();
             }
 
             AssetDatabase.Refresh();
         }
 
-        private static void CreateSpriteLibrary(string libraryAssetPath, PaletteChunk gamePalette, params ResourceFile[] spritesResources) {
+        private static IEnumerator CreateSpriteLibrary(string libraryAssetPath, PaletteChunk gamePalette, params ResourceFile[] spritesResources) {
             List<Texture2D> allSpritesDiffuse = new List<Texture2D>();
 
             Dictionary<KnownChunkId, int[]> spriteRectIndices = new Dictionary<KnownChunkId, int[]>();
@@ -101,14 +121,6 @@ namespace SSImporter.Resource {
 
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
 
-            TextureImporter textureImporter = TextureImporter.GetAtPath(assetPath) as TextureImporter;
-            textureImporter.alphaIsTransparency = true;
-            textureImporter.compressionQuality = 100;
-            textureImporter.sRGBTexture = true;
-            textureImporter.npotScale = TextureImporterNPOTScale.None;
-            textureImporter.isReadable = false;
-            textureImporter.wrapMode = TextureWrapMode.Clamp;
-
             SpriteMetaData[] spriteMetaDatas = new SpriteMetaData[allRects.Length];
 
             foreach (KeyValuePair<KnownChunkId, int[]> rectIndices in spriteRectIndices) {
@@ -132,10 +144,24 @@ namespace SSImporter.Resource {
                 }
             }
 
+            TextureImporter textureImporter = TextureImporter.GetAtPath(assetPath) as TextureImporter;
+
+            while(textureImporter == null) {
+                textureImporter = TextureImporter.GetAtPath(assetPath) as TextureImporter;
+                yield return true;
+            }
+
+            textureImporter.alphaIsTransparency = true;
+            textureImporter.compressionQuality = 100;
+            textureImporter.sRGBTexture = true;
+            textureImporter.npotScale = TextureImporterNPOTScale.None;
+            textureImporter.isReadable = false;
+            textureImporter.wrapMode = TextureWrapMode.Clamp;
             textureImporter.spritesheet = spriteMetaDatas;
             textureImporter.textureType = TextureImporterType.Sprite;
             textureImporter.spriteImportMode = SpriteImportMode.Multiple;
             textureImporter.spritePixelsPerUnit = 128f;
+            textureImporter.filterMode = FilterMode.Point;
             textureImporter.SetPlatformTextureSettings(new TextureImporterPlatformSettings() {
                 allowsAlphaSplitting = true,
                 compressionQuality = (int)TextureCompressionQuality.Best,
@@ -146,6 +172,8 @@ namespace SSImporter.Resource {
             });
 
             textureImporter.SaveAndReimport();
+
+            yield return true;
 
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
 
@@ -159,7 +187,7 @@ namespace SSImporter.Resource {
                     string[] splittedName = sprite.name.Split(' ');
 
                     KnownChunkId chunkId = (KnownChunkId)int.Parse(splittedName[0]);
-                    uint spriteIndex = uint.Parse(splittedName[1]); ;
+                    uint spriteIndex = uint.Parse(splittedName[1]);
 
                     Sprite[] chunkSprites;
                     if (!spriteChunks.TryGetValue(chunkId, out chunkSprites))

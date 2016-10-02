@@ -14,7 +14,7 @@ namespace SystemShock.Resource {
             Array.Resize(ref libraries, libraries.Length + 1);
             libraries[newIndex] = library;
 
-            UnityEditor.PrefabUtility.ReplacePrefab(gameObject, UnityEditor.PrefabUtility.GetPrefabParent(gameObject), UnityEditor.ReplacePrefabOptions.ConnectToPrefab);
+            this.Save();
         }
 #endif
     }
