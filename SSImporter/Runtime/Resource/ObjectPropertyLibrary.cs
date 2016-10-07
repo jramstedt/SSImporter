@@ -167,8 +167,8 @@ namespace SystemShock.Resource {
         public byte SpecialVulnerabilities; // TODO "Special Effects"
         public ushort Unknown2;
         public byte Defence;
-        public byte SizeFlags;
-        public ushort Flags;
+        public SizeFlags SizeFlags;
+        public Flags Flags;
         public ushort ModelIndex;
         public byte Unknown3;
         public byte ArtInfo;
@@ -277,7 +277,7 @@ namespace SystemShock.Resource {
             public DamageInfo DamageInfo;
             public byte Energy;
 
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 5)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
             private byte[] Padding;
 
             public byte ProjectileType;
@@ -325,7 +325,7 @@ namespace SystemShock.Resource {
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Tracer {
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 20)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
             private byte[] Zero;
         }
 
@@ -352,7 +352,7 @@ namespace SystemShock.Resource {
     public struct Explosive {
         public DamageInfo DamageInfo;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 7)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 7)]
         private byte[] Unknown;
 
         [Serializable]
@@ -364,7 +364,7 @@ namespace SystemShock.Resource {
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Bomb {
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
             private byte[] Unknown;
         }
     }
@@ -374,7 +374,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct DermalPatch {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 23)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 23)]
         private byte[] Unknown;
 
         [Serializable]
@@ -389,7 +389,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Hardware {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
         private byte[] Unknown;
 
         [Serializable]
@@ -404,7 +404,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct SoftwareAndLog {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 4)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         private byte[] Unknown;
 
         [Serializable]
@@ -419,7 +419,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Decoration {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 2)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
         public byte[] Unknown;
 
         [Serializable]
@@ -434,7 +434,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Item {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 2)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
         private byte[] Unknown;
 
         [Serializable]
@@ -526,7 +526,7 @@ namespace SystemShock.Resource {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Container {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
         private byte[] Unknown;
 
         [Serializable]
@@ -579,7 +579,7 @@ namespace SystemShock.Resource {
 
         public WeaponInfo Primary;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         private byte[] Unknown3;
 
         public WeaponInfo Secondary;
@@ -590,7 +590,7 @@ namespace SystemShock.Resource {
         public ushort Perception;
         [EnumMask] public TraitFlags Trait;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 12)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
         private byte[] Unknown5;
 
         public byte DeathAnimationFramerate;
@@ -618,7 +618,7 @@ namespace SystemShock.Resource {
             private byte Unknown1;
             public byte Kickback;
 
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
             private byte[] Unknown2;
 
             public byte Range;
@@ -627,7 +627,7 @@ namespace SystemShock.Resource {
         [Serializable]
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Mutant {
-            [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 3)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
             private byte[] Unknown;
         }
 

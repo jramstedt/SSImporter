@@ -127,6 +127,7 @@ namespace SystemShock.Object {
         ChangeType = 0x18
     }
 
+    [Flags]
     public enum InstanceFlags : byte {
         Nothing = 0x00,
         F1 = 0x01,
@@ -161,7 +162,7 @@ namespace SystemShock.Object {
         public byte Details;
         public byte State;
         public byte Unknown2;
-        public byte Flags;
+        public InstanceFlags Flags;
 
         public uint CombinedType { get { return (uint)Class << 16 | (uint)SubClass << 8 | Type; } }
 
@@ -510,12 +511,12 @@ namespace SystemShock.Object {
             public class ChangePlayerVitality {
                 public uint Unknown;
                 public ushort HealthDelta;
-                public ushort HealthChangeOperator;
+                public ChangeOperator HealthChangeOperator;
                 public ushort PowerDelta;
-                public ushort PowerChangeOperator;
+                public ChangeOperator PowerChangeOperator;
                 public uint Unknown2;
 
-                public enum ChangeOperator {
+                public enum ChangeOperator : ushort {
                     Remove,
                     Add
                 }
@@ -525,7 +526,7 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class CloneOrMove {
                 [ObjectReference] public ushort ObjectId;
-                public ushort Action;
+                public Actions Action;
                 public uint TileX;
                 public uint TileY;
                 public uint Z;
@@ -567,7 +568,7 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class Cutscene {
-                public uint CutsceneType;
+                public CutsceneTypes CutsceneType;
                 public uint EndGame;
 
                 [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
@@ -601,9 +602,9 @@ namespace SystemShock.Object {
             public class Lighting {
                 public ushort Unknown;
                 [ObjectReference] public ushort Object;
-                public ushort TransitionType;
+                public TransitionTypes TransitionType;
                 public uint Unknown2;
-                public ushort Surface;
+                public Surfaces Surface;
                 public uint Unknown3;
                 
                 public enum TransitionTypes : ushort {
@@ -624,9 +625,9 @@ namespace SystemShock.Object {
             public class Effect {
                 public ushort SoundId;
                 public ushort LoopCount;
-                public ushort VisualEffect;
+                public VisualEffects VisualEffect;
                 public ushort Unknown; // length?
-                public ushort AdditionalVisualEffect;
+                public AdditionalVisualEffects AdditionalVisualEffect;
                 public ushort Unknown2; // length?
                 public uint Uknown3;
 
@@ -720,8 +721,8 @@ namespace SystemShock.Object {
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeContamination {
                 public ushort DeltaValue;
-                public ushort ChangeOperator;
-                public int ContaminationType;
+                public ChangeOperators ChangeOperator;
+                public ContaminationTypes ContaminationType;
 
                 [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
                 public byte[] Unknown;
@@ -731,9 +732,10 @@ namespace SystemShock.Object {
                     Remove
                 }
 
+                [Flags]
                 public enum ContaminationTypes : int {
                     Radiation = 0x00000004,
-                    BioContamination = 0x00000008,
+                    BioContamination = 0x00000008
                 }
             }
 
@@ -761,7 +763,7 @@ namespace SystemShock.Object {
             [Serializable]
             [StructLayout(LayoutKind.Sequential, Pack = 1)]
             public class ChangeInstance {
-                public enum ChangeAction {
+                public enum ChangeAction : uint {
                     ChangeRepulsor = 0x00000001,
                     ChangeScreen = 0x00000002,
                     ChangeCode = 0x00000003,
@@ -919,7 +921,7 @@ namespace SystemShock.Object {
 
                 public uint TextColor;
 
-                public uint MessageLocation;
+                public MessageLocations MessageLocation;
 
                 public enum MessageLocations : uint {
                     MFD,

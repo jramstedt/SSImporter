@@ -13,7 +13,7 @@ namespace SystemShock.TriggerActions {
         protected override bool DoTrigger() {
             int amount = ActionData.ChangeOperator == (ushort)ObjectInstance.Trigger.ChangeContamination.ChangeOperators.Add ? ActionData.DeltaValue : -ActionData.DeltaValue;
 
-            if (ActionData.ContaminationType == (int)ObjectInstance.Trigger.ChangeContamination.ContaminationTypes.Radiation)
+            if (ActionData.ContaminationType == ObjectInstance.Trigger.ChangeContamination.ContaminationTypes.Radiation)
                 messageBus.Send(new RadiationTreatmentMessage(amount));
             else
                 messageBus.Send(new ContamiantionTreatmentMessage(amount));

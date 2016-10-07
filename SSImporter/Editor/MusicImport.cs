@@ -77,7 +77,7 @@ public class MusicImport : ScriptableObject {
         public byte Unknown5;
         public byte DataCount;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
         public byte[] Data;
 
         public override string ToString() {
@@ -88,13 +88,13 @@ public class MusicImport : ScriptableObject {
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct TrackDescriptor {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 16)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
         public byte[] Quiet;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         public byte[] Tension;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 8)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         public byte[] Action;
 
         public byte Menu;
@@ -115,17 +115,17 @@ public class MusicImport : ScriptableObject {
 
         public byte Unknown6;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 32)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
         public TrackEntry[] Tracks;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 43)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 43)]
         public byte[] Unknown7;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct TrackEntry {
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
         public byte[] Sequences;
     }
 }

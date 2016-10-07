@@ -85,12 +85,6 @@ namespace SSImporter.Resource {
                 vertices[2].y = ceilingCornerHeight[rightCorner] * mapScale;
                 vertices[3].y = Mathf.Max(movingCeilingHeightRange[1], floorCornerHeight[leftCorner]) * mapScale;
 
-                /*
-                vertices[0].y = movingCeilingHeightRange[1] * mapScale;
-                vertices[1].y = Mathf.Min(movingCeilingHeightRange[0], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;
-                vertices[2].y = Mathf.Min(movingCeilingHeightRange[0], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;
-                vertices[3].y = movingCeilingHeightRange[1] * mapScale;
-                */
                 uvs[0].y = vertices[0].y - textureVerticalOffset;
                 uvs[1].y = vertices[1].y - textureVerticalOffset;
                 uvs[2].y = vertices[2].y - textureVerticalOffset;

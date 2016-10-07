@@ -128,7 +128,7 @@ namespace SystemShock {
         public ushort ObjectId;
         public byte LoopWrapMode;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 10)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
         public byte[] Unknown;
 
         public ushort Frametime;

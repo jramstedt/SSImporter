@@ -145,13 +145,13 @@ namespace SSImporter.Resource {
 
         public BitmapDataType DataType;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 34)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 34)]
         public byte[] Unknown1;
 
         public ushort FirstAscii;
         public ushort LastAscii;
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 32)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
         public byte[] Unknown2;
 
         public uint xOffset;
@@ -206,7 +206,7 @@ namespace SSImporter.Resource {
             SoundDataNew
         }
 
-        [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 19)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 19)]
         private byte[] MagicIdentifier;
         private byte MagicIdentifierTerminator;
         public ushort HeaderLength;

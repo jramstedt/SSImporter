@@ -790,7 +790,7 @@ namespace SSImporter.Resource {
         public byte RadiationEnabled;
         public byte BioContaminationEnabled;
 
-        //[MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 85)]
+        //[MarshalAs(UnmanagedType.ByValArray, SizeConst = 85)]
         //public byte[] Unknown;
     }
 

@@ -299,12 +299,6 @@ namespace SSImporter.Resource {
                         uvTopRight = new Vector2(   (rect.x + rect.width) / (float)texture.width,   rect.y / (float)texture.height),
                         uvBottomLeft = new Vector2(  rect.x / (float)texture.width,                 (rect.y + rect.height) / (float)texture.height),
                         uvBottomRight = new Vector2((rect.x + rect.width) / (float)texture.width,   (rect.y + rect.height) / (float)texture.height),
-                        /*
-                        minX = 0,
-                        minY = 0,
-                        maxX = (int)rect.width + 1,
-                        maxY = (int)rect.height + 1
-                        */
                     };
                 }
 

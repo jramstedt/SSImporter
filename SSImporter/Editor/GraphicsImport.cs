@@ -47,13 +47,11 @@ namespace SSImporter.Resource {
             string gamescrPath = filePath + @"\DATA\gamescr.res";
             string handartPath = filePath + @"\DATA\handart.res";
             string mfdartPath = filePath + @"\DATA\mfdart.res";
-            //string sideartPath = filePath + @"\DATA\sideart.res";
 
             if (!File.Exists(gamePalettePath) ||
                 !File.Exists(gamescrPath) ||
                 !File.Exists(handartPath) ||
-                !File.Exists(mfdartPath)/* ||
-                !File.Exists(sideartPath)*/)
+                !File.Exists(mfdartPath))
                 yield break;
 
             try {
@@ -67,15 +65,10 @@ namespace SSImporter.Resource {
                 PaletteChunk gamePalette = paletteResource.ReadPalette(KnownChunkId.Palette);
                 #endregion
 
-                Debug.Log("WAT!?!!");
-
                 yield return CreateSpriteLibrary(@"mfdart.res", gamePalette,
                     new ResourceFile(gamescrPath),
                     new ResourceFile(handartPath),
-                    new ResourceFile(mfdartPath)/*,
-                    new ResourceFile(sideartPath)*/);
-
-                Debug.Log("PASKA!");
+                    new ResourceFile(mfdartPath));
             } finally {
                 //AssetDatabase.StopAssetEditing();
                 AssetDatabase.SaveAssets();

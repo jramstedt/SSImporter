@@ -7,9 +7,6 @@ System Shock's assets importer for Unity. Requires Unity 5.5.0 beta.
 ###Notes
 **This project is still under heavy development. Anything can change!**
 
-You will get error messages about enums, they are harmless. Example of one is provided below.
-`Unsupported enum type 'SystemShock.Resource.Enemy.TraitFlags' used for field 'Trait' in class 'Enemy'`
-
 Prefab creation can take couple of minutes.
 
 Before running map import, please restart Unity. Font importing is broken in Unity and new fonts will only work after restart.

@@ -114,7 +114,7 @@ namespace SystemShock.Gameplay {
                     X = 0xFFFF,
                     Y = 0,
                     Z = 0,
-                    Flags = (byte)InstanceFlags.LootNoRef
+                    Flags = InstanceFlags.LootNoRef
                 });
 
                 AddObjectToInventory(ssobject);
@@ -154,7 +154,7 @@ namespace SystemShock.Gameplay {
         }
 
         public void AddObjectToInventory(SystemShockObject ssobject) {
-            ssobject.ObjectInstance.Flags |= (byte)InstanceFlags.LootNoRef;
+            ssobject.ObjectInstance.Flags |= InstanceFlags.LootNoRef;
             ssobject.ObjectInstance.X = 0xFFFF;
             ssobject.ObjectInstance.Y = 0;
             ssobject.ObjectInstance.Z = 0;
