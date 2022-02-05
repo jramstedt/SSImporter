@@ -1,0 +1,19 @@
+luodaan kartasta lightmap (width * height) lattialle ja katolle
+Samplataan verteksin X ja Z mukaan.
+*Shaderiin CLUT varjostuksista (kaivettava pelin koodista / resursseista kyseinen ramppi)
+
+Tekstuurit
+Flatti
+Goraud
+
+CLUT generointi shadetable + paletti
+
+Model interpreteri
+
+Levelin renderöinti. Liikkuvat korkeudet?
+
+Scheduler: https://github.com/inkyblackness/ss-specs/blob/master/archives/levelSchedules.md
+
+Texture animation state: https://github.com/inkyblackness/ss-specs/blob/master/archives/textureAnimation.md
+
+Loop config: https://github.com/inkyblackness/ss-specs/blob/master/archives/loopConfiguration.md
