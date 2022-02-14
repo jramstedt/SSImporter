@@ -17,6 +17,7 @@ using Unity.Entities;
 using Unity.Collections;
 using Unity.Transforms;
 using SS.System;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -39,6 +40,28 @@ namespace SS.Resources {
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
       var tileMap = ReadMapElements(saveData.GetResourceData((ushort)(0x0005 + resourceId), 0), levelInfo);
       var textureMap = saveData.GetResourceData<TextureMap>((ushort)(0x0007 + resourceId));
+
+      var materials = new Dictionary<ushort, Material>(textureMap.blockIndex.Length);
+
+      for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
+        if (materials.ContainsKey(i)) continue;
+
+        var textureBlockIndex = textureMap.blockIndex[i];
+
+        // TODO instead of await, run parallel
+
+        var bitmapSet = await CreateMipmapTexture(textureBlockIndex); //await Addressables.LoadAssetAsync<BitmapSet>($"{0x03E8 + textureBlockIndex}").Task;
+        Debug.Log($"Loaded texture {textureBlockIndex} = {bitmapSet}");
+
+        var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+        material.DisableKeyword(@"_SPECGLOSSMAP");
+        material.DisableKeyword(@"_SPECULAR_COLOR");
+        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
+        material.enableInstancing = true;
+        materials.Add(i, material);
+      }
+
 /*
       var instanceDatas = new object[][] {
           saveData.GetResourceDataArray<ObjectInstance.Weapon>((ushort)(0x000A + resourceId)),
@@ -76,24 +99,18 @@ namespace SS.Resources {
           saveData.GetResourceDataArray<ObjectInstance.Enemy>((ushort)(0x0027 + resourceId))
       };
 */
-
-      var map = new Map { Id = mapId };
-
       var defaultSystems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
 
-      var world = new World($"map{mapId:D}");
-      var mapSystem = world.CreateSystem<MapElementBuilderSystem>();
-      DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
-      ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
+      var world = World.DefaultGameObjectInjectionWorld;
+      //var world = new World($"map{mapId:D}");
+      var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
+      mapSystem.mapMaterial = materials;
+      //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
+      //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
 
       var entityManager = world.EntityManager;
-
-      var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Map));
-      var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
-      mapSystem.SetSingleton(levelInfo);
-      mapSystem.SetSingleton(map);
       
-      var mapElemenArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(MapElement), typeof(NeedsRebuildTag));
+      var mapElemenArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalToWorld), typeof(MapElement));
       var entityArray = entityManager.CreateEntity(mapElemenArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp);
 
       for (int x = 0; x < levelInfo.Width; ++x) {
@@ -105,25 +122,29 @@ namespace SS.Resources {
           entityManager.AddComponentData(entity, default(LocalToWorld));
           entityManager.AddComponentData(entity, tileMap[x, y]);
           entityManager.AddComponentData(entity, default(NeedsRebuildTag));
-/*
-          var buffer = entityManager.AddBuffer<TileNeighbour>(entity);
-
-          if (x > 0)
-            buffer.Add(new TileNeighbour { Entity = entityArray[rowIndex + x - 1] });
-          if (x < levelInfo.Width - 1)
-            buffer.Add(new TileNeighbour { Entity = entityArray[rowIndex + x + 1] });
-          if (y > 0)
-            buffer.Add(new TileNeighbour { Entity = entityArray[rowIndex + x - levelInfo.Width] });
-          if (y < levelInfo.Height - 1)
-            buffer.Add(new TileNeighbour { Entity = entityArray[rowIndex + x + levelInfo.Width] });
-*/
         }
       }
+
+      var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Map));
+      var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
+      mapSystem.SetSingleton(levelInfo);
+      BuildBlob(mapSystem, mapId, ref levelInfo, ref entityArray);
 
       return world;
     }
 
-    public static MapElement[,] ReadMapElements(byte[] rawData, LevelInfo levelInfo) {
+    private static unsafe void BuildBlob (MapElementBuilderSystem mapSystem, byte mapId, ref LevelInfo levelInfo, ref NativeArray<Entity> entities) {
+      using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp)) {
+        ref var tileArrayAsset = ref blobBuilder.ConstructRoot<BlobArray<Entity>>();
+        var tileArray = blobBuilder.Allocate(ref tileArrayAsset, levelInfo.Width * levelInfo.Height);
+        UnsafeUtility.MemCpy(tileArray.GetUnsafePtr(), entities.GetUnsafeReadOnlyPtr(), entities.Length * UnsafeUtility.SizeOf<Entity>());
+        var assetReference = blobBuilder.CreateBlobAssetReference<BlobArray<Entity>>(Allocator.Persistent);
+
+        mapSystem.SetSingleton(new Map { Id = mapId, TileMap = assetReference });
+      }
+    }
+
+    private static MapElement[,] ReadMapElements(byte[] rawData, LevelInfo levelInfo) {
       using (MemoryStream ms = new MemoryStream(rawData)) {
           BinaryReader msbr = new BinaryReader(ms);
 
@@ -136,10 +157,49 @@ namespace SS.Resources {
           return mapElements;
       }
     }
+
+    private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {
+      var tex128x128 = Addressables.LoadAssetAsync<BitmapSet>($"{0x03E8 + textureIndex}");
+      var tex64x64 = Addressables.LoadAssetAsync<BitmapSet>($"{0x02C3 + textureIndex}");
+      var tex32x32 = Addressables.LoadAssetAsync<BitmapSet>($"{0x004D}:{textureIndex}");
+      var tex16x16 = Addressables.LoadAssetAsync<BitmapSet>($"{0x004C}:{textureIndex}");
+
+      await Task.WhenAll(tex128x128.Task, tex64x64.Task, tex32x32.Task, tex16x16.Task);
+
+      Texture2D complete = new Texture2D(128, 128, tex128x128.Result.Texture.format, 4, true);
+      if (SystemInfo.copyTextureSupport.HasFlag(UnityEngine.Rendering.CopyTextureSupport.Basic)) {
+        Graphics.CopyTexture(tex128x128.Result.Texture, 0, 0, complete, 0, 0);
+        Graphics.CopyTexture(tex64x64.Result.Texture, 0, 0, complete, 0, 1);
+        Graphics.CopyTexture(tex32x32.Result.Texture, 0, 0, complete, 0, 2);
+        Graphics.CopyTexture(tex16x16.Result.Texture, 0, 0, complete, 0, 3);
+      } else {
+        complete.SetPixelData(tex128x128.Result.Texture.GetPixelData<byte>(0), 0);
+        complete.SetPixelData(tex64x64.Result.Texture.GetPixelData<byte>(0), 1);
+        complete.SetPixelData(tex32x32.Result.Texture.GetPixelData<byte>(0), 2);
+        complete.SetPixelData(tex16x16.Result.Texture.GetPixelData<byte>(0), 3);
+      }
+      complete.Apply(false, true);
+
+      var result = new BitmapSet {
+        Texture = complete,
+        Transparent = tex128x128.Result.Transparent,
+        AnchorPoint = tex128x128.Result.AnchorPoint,
+        AnchorRect = tex128x128.Result.AnchorRect,
+        Palette = tex128x128.Result.Palette
+      };
+
+      Addressables.Release(tex128x128);
+      Addressables.Release(tex64x64);
+      Addressables.Release(tex32x32);
+      Addressables.Release(tex16x16);
+
+      return result;
+    }
   }
 
   public struct Map : IComponentData {
       public byte Id;
+      public BlobAssetReference<BlobArray<Entity>> TileMap;
   }
 
   public struct TileLocation : IComponentData {
@@ -147,16 +207,10 @@ namespace SS.Resources {
     public byte Y;
   }
 
-  public struct Floor : IComponentData {
+  public struct ViewPart : IComponentData { }
 
-  }
+  public struct Floor : IComponentData { }
 
-/*
-  [InternalBufferCapacity(4)]
-  public unsafe struct TileNeighbour : IBufferElementData {
-    public Entity Entity;
-  }
-*/
   public struct NeedsRebuildTag : IComponentData { }
 
   /**
@@ -340,5 +394,5 @@ namespace SS.Resources {
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct TextureMap {
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 54)]
-  public readonly ushort[] textureIndex;
+  public readonly ushort[] blockIndex;
 }

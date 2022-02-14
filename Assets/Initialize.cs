@@ -32,7 +32,7 @@ namespace SS.Resources {
       { ContentType.Obj3D, typeof(Mesh) },
     };
 
-    private static readonly BlockResourceLocator resourceLocator = new BlockResourceLocator();
+    private static readonly ChunkResourceLocator resourceLocator = new ChunkResourceLocator();
 
     [RuntimeInitializeOnLoadMethod]
     private static void Init() {
@@ -53,6 +53,7 @@ namespace SS.Resources {
       Addressables.ResourceManager.ResourceProviders.Add(new RawDataProvider()); // Generic data loader
 
       Addressables.AddResourceLocator(resourceLocator);
+      Addressables.AddResourceLocator(new BlockResourceLocator());
 
       var resourceFiles = new List<string> {
         "gamepal.res",
@@ -78,8 +79,10 @@ namespace SS.Resources {
         "vidmail.res",
       }.ConvertAll<IResourceLocation>(resPath => new ResourceLocationBase(resPath, rootPath + @"\DATA\" + resPath, typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
 
+      var resourceLocationLoadOps = new List<AsyncOperationHandle>();
+
       foreach (var resourceLocation in resourceFiles) {
-        Debug.Log($"InitializeResourceManager {resourceLocation.PrimaryKey} {resourceLocation.InternalId} {resourceLocation.ResourceType} {resourceLocation.Dependencies}");
+        // Debug.Log($"InitializeResourceManager {resourceLocation.PrimaryKey} {resourceLocation.InternalId} {resourceLocation.ResourceType} {resourceLocation.Dependencies}");
 
         var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(resourceLocation);
         loadOp.Completed += op => {
@@ -90,43 +93,35 @@ namespace SS.Resources {
             if (!contentTypes.TryGetValue(resource.info.ContentType, out resourceType))
               resourceType = typeof(object);
 
-            /*
-            var blockCount = resFile.GetResourceBlockCount(resource);
-            
-            Debug.Log($"Res {resId} blocks {blockCount}");
-
-            for (var block = 0; block < blockCount; ++block)
-              resourceLocator.Add(resId, new ResourceLocationBase($"{resId}", $"{resId}:{block}", contentProviders[resource.info.ContentType], resourceType, resourceLocation));
-            */
-
             resourceLocator.Add(resId, new ResourceLocationBase($"{resId}", $"{resId}", contentProviders[resource.info.ContentType], resourceType, resourceLocation));
           }
         };
+
+        resourceLocationLoadOps.Add(loadOp);
       }
 
+      var resourceLocatorBuild = Addressables.ResourceManager.CreateGenericGroupOperation(resourceLocationLoadOps);
+
       // Tests:
-      var allResourcesOp = Addressables.ResourceManager.ProvideResources<ResourceFile>(resourceFiles, null);
-      allResourcesOp.Completed += (op) => {
+      resourceLocatorBuild.Completed += op => {
         var audioOp = Addressables.LoadAssetAsync<AudioClip>(0x00C9);
         audioOp.Completed += loadOp => AudioSource.PlayClipAtPoint(loadOp.Result, Vector3.zero);
 
         var paletteOp = Addressables.LoadAssetAsync<Palette>(0x02BC);
         paletteOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
 
-        var textureOp = Addressables.LoadAssetAsync<BitmapSet>(0x03E8);
+        var textureOp = Addressables.LoadAssetAsync<BitmapSet>($"{0x004D}:{10}");
         textureOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
       };
 
       var shadetableOp = Addressables.LoadAssetAsync<ShadeTable>(new ResourceLocationBase("SHADTABL.DAT", rootPath + @"\DATA\SHADTABL.DAT", typeof(RawDataProvider).FullName, typeof(ShadeTable)));
       shadetableOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
 
-      var mapLoadOp = SaveLoader.LoadMap(1, rootPath + @"\DATA\ARCHIVE.DAT");
-      Debug.Log(mapLoadOp.Result);
-
-/*
-      var sceneOp = Addressables.LoadSceneAsync(new SSLevelLocation(0, rootPath + @"\DATA\ARCHIVE.DAT"));
-      sceneOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
-*/
+      #region Load archive.dat
+      resourceLocatorBuild.Completed += op => {
+        SaveLoader.LoadMap(1, rootPath + @"\DATA\ARCHIVE.DAT");
+      };
+      #endregion
     }
   }
 

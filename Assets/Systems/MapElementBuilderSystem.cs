@@ -15,19 +15,40 @@ using static Unity.Mathematics.math;
 namespace SS.System {
   [UpdateInGroup (typeof(InitializationSystemGroup))]
   public sealed class MapElementBuilderSystem : SystemBase {
+    public Dictionary<ushort, Material> mapMaterial;
+
+    private EntityArchetype viewPartArchetype;
+
     // private EndSimulationEntityCommandBufferSystem ecbSystem;
-    private EntityQuery mapElementquery;
+    private EntityQuery mapElementQuery;
+    private EntityQuery viewPartQuery;
 
     protected override void OnCreate() {
       base.OnCreate();
 
-      mapElementquery = GetEntityQuery(new EntityQueryDesc {
+      viewPartArchetype = World.EntityManager.CreateArchetype(
+        typeof(ViewPart),
+        typeof(Parent),
+        typeof(LocalToWorld),
+        typeof(LocalToParent),
+        typeof(RenderBounds),
+        typeof(RenderMesh),
+        typeof(FrozenRenderSceneTag)
+      );
+
+      mapElementQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<TileLocation>(),
           ComponentType.ReadOnly<MapElement>(),
           ComponentType.ReadWrite<LocalToWorld>(),
-          // ComponentType.ReadOnly<TileNeighbour>(),
           ComponentType.ReadOnly<NeedsRebuildTag>()
+        }
+      });
+
+      viewPartQuery = GetEntityQuery(new EntityQueryDesc {
+        All = new ComponentType[] {
+          ComponentType.ReadOnly<ViewPart>(),
+          ComponentType.ReadOnly<Parent>()
         }
       });
     }
@@ -36,27 +57,49 @@ namespace SS.System {
       var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      var entityCount = this.mapElementquery.CalculateEntityCount();
+      //var entityCount = this.mapElementQuery.CalculateEntityCount();
+      var entities = this.mapElementQuery.ToEntityArray(Allocator.TempJob);
+      var entityCount = entities.Length;
+
+      var map = GetSingleton<Map>();
+      var levelInfo = GetSingleton<LevelInfo>();
+
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
 
+      #region Clean up old view parts that are going to be replaced
+      var cleanJob = new DestroyOldViewPartsJob {
+        entityTypeHandle = GetEntityTypeHandle(),
+        parentTypeHandle = GetComponentTypeHandle<Parent>(true),
+        updateMapElements = entities,
+        CommandBuffer = commandBuffer.AsParallelWriter()
+      };
+
+      var destroyOldViewParts = cleanJob.ScheduleParallel(viewPartQuery, dependsOn: Dependency);
+      Dependency = destroyOldViewParts;
+      ecbSystem.AddJobHandleForProducer(destroyOldViewParts);
+      destroyOldViewParts.Complete();
+      #endregion
+
+      #region  Build new view parts
       var buildJob = new BuildMapElementMeshJob {
         entityTypeHandle = GetEntityTypeHandle(),
         tileLocationTypeHandle = GetComponentTypeHandle<TileLocation>(true),
         mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
         localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(false),
-        // tileNeighbourBufferTypeHandle = GetBufferTypeHandle<TileNeighbour>(true),
         allMapElements = GetComponentDataFromEntity<MapElement>(true),
 
-        levelInfo = GetSingleton<LevelInfo>(),
+        levelInfo = levelInfo,
         CommandBuffer = commandBuffer.AsParallelWriter(),
         meshDataArray = meshDataArray,
       };
 
-      var buildMapElements = buildJob.ScheduleParallel(mapElementquery, dependsOn: Dependency);
-      buildMapElements.Complete();
-
-      ecbSystem.AddJobHandleForProducer(buildMapElements);
+      var buildMapElements = buildJob.ScheduleParallel(mapElementQuery, dependsOn: Dependency);
       Dependency = buildMapElements;
+      ecbSystem.AddJobHandleForProducer(buildMapElements);
+      buildMapElements.Complete();
+      #endregion
+
+      // TODO reuse meshes from removed viewpart entities.
 
       var meshes = new Mesh[entityCount];
       for (var i = 0; i < entityCount; ++i)
@@ -64,12 +107,9 @@ namespace SS.System {
 
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
-      var mat = new Material(Shader.Find("Unlit/Color"));
-      mat.enableInstancing = true;
-
-      var entities = this.mapElementquery.ToEntityArray(Allocator.Temp);
       for (int i = 0; i < entityCount; ++i) {
         var entity = entities[i];
+        var tile = GetComponent<MapElement>(entity);
 
         var mesh = meshes[i];
         mesh.RecalculateNormals();
@@ -77,19 +117,57 @@ namespace SS.System {
         mesh.RecalculateBounds();
         mesh.UploadMeshData(true);
 
-        // commandBuffer.AddComponent(entity, new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(float3(0f, 0f, 0f)) });
-        commandBuffer.AddComponent(entity, default(RenderBounds));
-        commandBuffer.AddSharedComponent(entity, new RenderMesh {
-          mesh = mesh,
-          material = mat,
-          subMesh = 0,
-          layer = 0,
-          castShadows = ShadowCastingMode.On,
-          receiveShadows = true,
-          needMotionVectorPass = false
-        });
+        var sceneTileTag = new FrozenRenderSceneTag {
+          SceneGUID = new Unity.Entities.Hash128 { Value = map.Id },
+          SectionIndex = i
+        };
+
+        for (int subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
+          var material = subMesh == 0 ? mapMaterial[tile.FloorTexture] : mapMaterial[tile.CeilingTexture]; // TODO FIXME HACK
+
+          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
+          commandBuffer.SetComponent(viewPart, default(ViewPart));
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, default(LocalToWorld));
+          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(float3(0f, 0f, 0f)) });
+          commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
+          commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
+            mesh = mesh,
+            material = material,
+            subMesh = subMesh,
+            layer = 0,
+            castShadows = ShadowCastingMode.On,
+            receiveShadows = true,
+            needMotionVectorPass = false
+          });
+          commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
+        }
       }
       entities.Dispose();
+    }
+  }
+
+  struct DestroyOldViewPartsJob : IJobEntityBatchWithIndex {
+    [ReadOnly] public EntityTypeHandle entityTypeHandle;
+
+    [ReadOnly] public ComponentTypeHandle<Parent> parentTypeHandle;
+
+    [ReadOnly] public NativeArray<Entity> updateMapElements;
+
+    [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+
+    [BurstCompile]
+    public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int indexOfFirstEntityInQuery) {
+      var entities = batchInChunk.GetNativeArray(entityTypeHandle);
+      var parents = batchInChunk.GetNativeArray(parentTypeHandle);
+
+      for (int i = 0; i < batchInChunk.Count; ++i) {
+        var entity = entities[i];
+        var parent = parents[i];
+
+        if (updateMapElements.Contains(parent.Value))
+          CommandBuffer.DestroyEntity(batchIndex, entity);
+      }
     }
   }
 
@@ -113,8 +191,6 @@ namespace SS.System {
       var localToWorld = batchInChunk.GetNativeArray(localToWorldTypeHandle);
       var mapElements = batchInChunk.GetNativeArray(mapElementTypeHandle);
 
-      // var neighbourEntitiesVector = batchInChunk.GetBufferAccessor(tileNeighbourBufferTypeHandle);
-
       // Mesh.ApplyAndDisposeWritableMeshData()
 
       for (int i = 0; i < batchInChunk.Count; ++i) {
@@ -123,14 +199,6 @@ namespace SS.System {
         
         var tileLocation = tileLocations[i];
         var mapElement = mapElements[i];
-
-        // var neighbourEntities = neighbourEntitiesVector[i];
-
-        // var test = 0f;
-        // for (int n = 0; n < neighbourEntities.Length; ++n) {
-        //   var neighbourMapElement = allMapElements[neighbourEntities[n].Entity];
-        //   test += neighbourMapElement.FloorHeight;
-        // }
 
         localToWorld[i] = new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(float3(tileLocation.X, 0f, tileLocation.Y)) };
 
@@ -146,6 +214,11 @@ namespace SS.System {
     }
 
     private void BuildMesh (ref LevelInfo levelInfo, ref MapElement tile, ref Mesh.MeshData mesh) {
+      if (tile.TileType == TileType.Solid) {
+        mesh.subMeshCount = 0;
+        return;
+      }
+
       mesh.subMeshCount = 2; // TODO dynamic value based on what needs to be created
 
       mesh.SetIndexBufferParams(6 * mesh.subMeshCount, IndexFormat.UInt16);
@@ -194,8 +267,8 @@ namespace SS.System {
       var indexStart = subMeshIndex * 6;
 
       for (int corner = 0; corner < 4; ++corner) {
-        int cornerHeight = isCeiling ? tile.FloorCornerHeight(corner) : tile.FloorCornerHeight(corner);
-        pos[vertexStart + corner] = MapUtils.VerticeTemplate[corner] + float3(0f, cornerHeight / levelInfo.HeightDivisor, 0f);
+        int cornerHeight = isCeiling ? tile.CeilingCornerHeight(corner) : tile.FloorCornerHeight(corner);
+        pos[vertexStart + corner] = MapUtils.VerticeTemplate[corner] + float3(0f, (float)cornerHeight / (float)levelInfo.HeightDivisor, 0f);
       }
 
       var uvs = MapUtils.UVTemplate.RotateRight(isCeiling ? tile.CeilingRotation : tile.FloorRotation);

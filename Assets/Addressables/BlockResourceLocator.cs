@@ -2,49 +2,41 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace SS.Resources {
   public class BlockResourceLocator : IResourceLocator {
     public string LocatorId => nameof(BlockResourceLocator);
-    private readonly Dictionary<ushort, IList<IResourceLocation>> Locations;
-    public IEnumerable<object> Keys => Locations.Keys.Cast<object>();
+    public IEnumerable<object> Keys => new object[0];
 
-    public BlockResourceLocator(int capacity = 100) {
-      Locations = new Dictionary<ushort, IList<IResourceLocation>>(capacity);
-    }
+    public BlockResourceLocator() { }
 
     public bool Locate(object key, Type type, out IList<IResourceLocation> locations) {
-      locations = null;
-
-      // Debug.Log($"BlockResourceLocator Locate {key} {type}");
-
       ushort resId, block;
-      if (!Utils.ExtractResourceIdAndBlock(key, out resId, out block))
-        return false;
+      if (Utils.ExtractResourceIdAndBlock(key, out resId, out block)) {
+        HashSet<IResourceLocation> chunkLocations = new HashSet<IResourceLocation>();
+        foreach (var locator in Addressables.ResourceLocators) {
+          if (locator == this) continue;
 
-      // Debug.Log($"BlockResourceLocator SS {resId} {block}");
+          if (locator.Locate(resId, type, out IList<IResourceLocation> locs))
+            chunkLocations.UnionWith(locs);
+        }
 
-      if (Locations.TryGetValue(resId, out locations)) {
-        locations = locations.Where(loc => loc.ResourceType.IsAssignableFrom(type)).ToList();
+        locations = new List<IResourceLocation>(chunkLocations.Count);
+        foreach (var location in chunkLocations) {
+          if (location.HasDependencies)
+            locations.Add(new ResourceLocationBase($"{location.PrimaryKey}", $"{location.InternalId}:{block}", location.ProviderId, type, location.Dependencies.ToArray()));
+          else
+            locations.Add(new ResourceLocationBase($"{location.PrimaryKey}", $"{location.InternalId}:{block}", location.ProviderId, type));
+        }
+        
         return true;
       }
 
+      locations = null;
       return false;
-    }
-
-    public void Add(ushort resourceId, IResourceLocation location) {
-      IList<IResourceLocation> locations;
-      if (!Locations.TryGetValue(resourceId, out locations))
-        Locations.Add(resourceId, locations = new List<IResourceLocation>());
-
-      locations.Add(location);
-    }
-
-    public void Add(ushort resourceId, IList<IResourceLocation> locations) {
-      foreach (var location in locations)
-        Add(resourceId, location);
     }
   }
 }

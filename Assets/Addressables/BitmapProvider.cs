@@ -103,7 +103,7 @@ namespace SS.Resources {
         }
         #endregion
 
-        provideHandle.Complete(new BitmapSet() {
+        provideHandle.Complete(new BitmapSet {
           Texture = texture,
           Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
           AnchorPoint = new Vector2(anchorPoint.x, anchorPoint.y),
