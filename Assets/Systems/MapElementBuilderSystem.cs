@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -57,9 +58,10 @@ namespace SS.System {
       var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      //var entityCount = this.mapElementQuery.CalculateEntityCount();
+      var entityCount = this.mapElementQuery.CalculateEntityCount();
+      if (entityCount == 0) return;
+
       var entities = this.mapElementQuery.ToEntityArray(Allocator.TempJob);
-      var entityCount = entities.Length;
 
       var map = GetSingleton<Map>();
       var levelInfo = GetSingleton<LevelInfo>();
@@ -88,6 +90,7 @@ namespace SS.System {
         mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
         localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(false),
         allMapElements = GetComponentDataFromEntity<MapElement>(true),
+        map = GetSingleton<Map>(),
 
         levelInfo = levelInfo,
         CommandBuffer = commandBuffer.AsParallelWriter(),
@@ -145,6 +148,8 @@ namespace SS.System {
           commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
       }
+
+      submeshTextureIndex.Dispose();
       entities.Dispose();
     }
   }
@@ -180,6 +185,7 @@ namespace SS.System {
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
     public ComponentTypeHandle<LocalToWorld> localToWorldTypeHandle;
     [ReadOnly] public ComponentDataFromEntity<MapElement> allMapElements;
+    [ReadOnly] public Map map;
 
     [ReadOnly] public LevelInfo levelInfo;
     [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
@@ -231,6 +237,15 @@ namespace SS.System {
       return flip;
     }
 
+    private const int VerticesPerViewPart = 8;
+    private const int IndicesPerViewPart = 12;
+
+    [BurstCompile]
+    private unsafe void ClearIndexArray (ref Mesh.MeshData mesh) {
+      var index = mesh.GetIndexData<ushort>();
+      UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
+    }
+
     [BurstCompile]
     private void BuildMesh (ref TileLocation tileLocation, ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
       if (tile.TileType == TileType.Solid) {
@@ -238,31 +253,85 @@ namespace SS.System {
         return;
       }
 
-      mesh.subMeshCount = 2; // TODO dynamic value based on what needs to be created
+      mesh.subMeshCount = 6; // TODO precalculate how many submeshes really is needed.
 
-      mesh.SetIndexBufferParams(6 * mesh.subMeshCount, IndexFormat.UInt16);
       mesh.SetVertexBufferParams(
-        4 * mesh.subMeshCount,
+        VerticesPerViewPart * mesh.subMeshCount,
         new VertexAttributeDescriptor(VertexAttribute.Position, stream: 0),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2, 1),
         new VertexAttributeDescriptor(VertexAttribute.Normal, stream: 2),
         new VertexAttributeDescriptor(VertexAttribute.Tangent, stream: 3)
       );
+      mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
-      //for (int i = 0; i < mesh.subMeshCount; ++i)
-      //  mesh.SetSubMesh(i, new SubMeshDescriptor(i * 6, 6, MeshTopology.Triangles));
+      ClearIndexArray(ref mesh);
 
-      this.CreatePlane(ref tile, ref mesh, ref textureIndices, 0, false);
-      this.CreatePlane(ref tile, ref mesh, ref textureIndices, 1, true);
+      var subMeshAccumulator = 0;
+
+      subMeshAccumulator += this.CreatePlane(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, false);
+      subMeshAccumulator += this.CreatePlane(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, true);
+
+      #region North Wall
+      {
+        var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y + 1) * levelInfo.Width + tileLocation.X];
+        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+
+        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).y;
+
+        if (tile.TileType == TileType.OpenDiagonalSE)
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip);
+        else if (tile.TileType == TileType.OpenDiagonalSW)
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 1, 3, ref adjacentTile, 1, 3, flip);
+        else
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 1, 2, ref adjacentTile, 0, 3, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalNW);
+      }
+      #endregion
+
+      #region East Wall
+      if (tile.TileType != TileType.OpenDiagonalSW && tile.TileType != TileType.OpenDiagonalNW) {
+        var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X + 1];
+        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+
+        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).x;
+        subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalSE);
+      }
+      #endregion
+
+      #region South Wall
+      {
+        var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y - 1) * levelInfo.Width + tileLocation.X];
+        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+
+        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).y;
+
+        if (tile.TileType == TileType.OpenDiagonalNE)
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip);
+        else if (tile.TileType == TileType.OpenDiagonalNW)
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 2, 0, ref adjacentTile, 2, 0, flip);
+        else
+          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 3, 0, ref adjacentTile, 2, 1, flip, TileType.OpenDiagonalSE, TileType.OpenDiagonalSW);
+      }
+      #endregion
+
+      #region West Wall
+      if (tile.TileType != TileType.OpenDiagonalSE && tile.TileType != TileType.OpenDiagonalNE) {
+        var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X - 1];
+        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+
+        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).x;
+        subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, TileType.OpenDiagonalNW, TileType.OpenDiagonalSW);
+      }
+      #endregion
     }
 
-    private void CreatePlane (ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, bool isCeiling) {
+    [BurstCompile]
+    private int CreatePlane (ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, bool isCeiling) {
       var pos = mesh.GetVertexData<float3>(0);
       var uv = mesh.GetVertexData<half2>(1);
       var index = mesh.GetIndexData<ushort>();
 
-      var vertexStart = subMeshIndex * 4;
-      var indexStart = subMeshIndex * 6;
+      var vertexStart = subMeshIndex * VerticesPerViewPart;
+      var indexStart = subMeshIndex * IndicesPerViewPart;
 
       for (int corner = 0; corner < 4; ++corner) {
         int cornerHeight = isCeiling ? tile.CeilingCornerHeight(corner) : tile.FloorCornerHeight(corner);
@@ -272,9 +341,6 @@ namespace SS.System {
       var uvs = MapUtils.UVTemplate.RotateRight(isCeiling ? tile.CeilingRotation : tile.FloorRotation);
       NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
 
-      for (int i = indexStart; i < indexStart+6; ++i)
-        index[i] = 0;
-
       ushort[] indicesTemplate = MapUtils.faceIndices[(int)tile.TileType];
       if (isCeiling) // Reverses index order in ceiling
         for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[indicesTemplate.Length - 1 - i] + vertexStart);
@@ -283,15 +349,18 @@ namespace SS.System {
 
       mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
       textureIndices[subMeshIndex] = isCeiling ? tile.CeilingTexture : tile.FloorTexture;
+
+      return 1;
     }
 
-    private void CreateWall(ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, ref MapElement tile, int leftCorner, int rightCorner, ref MapElement adjacent, int adjacentLeftCorner, int adjacentRightCorner, bool flip, params TileType[] ignoreTypes) {
+    [BurstCompile]
+    private int CreateWall(ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, int leftCorner, int rightCorner, ref MapElement adjacent, int adjacentLeftCorner, int adjacentRightCorner, bool flip, params TileType[] ignoreTypes) {
       var pos = mesh.GetVertexData<float3>(0);
       var uv = mesh.GetVertexData<half2>(1);
       var index = mesh.GetIndexData<ushort>();
 
-      var vertexStart = subMeshIndex * 4;
-      var indexStart = subMeshIndex * 6;
+      var vertexStart = subMeshIndex * VerticesPerViewPart;
+      var indexStart = subMeshIndex * IndicesPerViewPart;
       
       var indicesTemplate = MapUtils.faceIndices[1];
       var vertices = new float3[] {
@@ -301,7 +370,7 @@ namespace SS.System {
         MapUtils.VerticeTemplate[rightCorner]
       };
 
-      var uvs = flip ? MapUtils.UVTemplateFlipped : MapUtils.UVTemplate;
+      var uvs = (half2[])(flip ? MapUtils.UVTemplateFlipped : MapUtils.UVTemplate).Clone();
 
       bool isSolidWall = adjacent.TileType == TileType.Solid;
       for (int i = 0; i < ignoreTypes.Length; ++i)
@@ -332,74 +401,73 @@ namespace SS.System {
 
         NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
         NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
-        NativeArray<ushort>.Copy(indicesTemplate, 0, index, indexStart, indicesTemplate.Length);
+        for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
+        
+        mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
+        textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
+        return 1;
       } else { // Possibly two part wall
-/*
-        List<CombineInstance> partInstances = new List<CombineInstance>();
-
         int[] portalPoints = new int[] {
-                Mathf.Max(floorCornerHeight[leftCorner], otherTile.floorCornerHeight[otherLeftCorner]),
-                Mathf.Min(ceilingCornerHeight[leftCorner], otherTile.ceilingCornerHeight[otherLeftCorner]),
-                Mathf.Min(ceilingCornerHeight[rightCorner], otherTile.ceilingCornerHeight[otherRightCorner]),
-                Mathf.Max(floorCornerHeight[rightCorner], otherTile.floorCornerHeight[otherRightCorner])
-            };
+          Mathf.Max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)),
+          Mathf.Min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)),
+          Mathf.Min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)),
+          Mathf.Max(tile.FloorCornerHeight(rightCorner), adjacent.FloorCornerHeight(adjacentRightCorner))
+        };
 
         bool floorAboveCeiling = portalPoints[0] > portalPoints[1] ^ portalPoints[3] > portalPoints[2]; // Other corner of ceiling is above and other below floor
 
+        var originalIndexStart = indexStart;
+        var indiceCount = 0;
+
         // Upper portal border is below ceiling
-        if (!ceilingMoving && Mathf.Min(portalPoints[1], portalPoints[2]) < Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) {
-          vertices[0].y = (floorAboveCeiling ? portalPoints[1] : Mathf.Max(portalPoints[1], floorCornerHeight[leftCorner])) * mapScale;
-          vertices[1].y = ceilingCornerHeight[leftCorner] * mapScale;
-          vertices[2].y = ceilingCornerHeight[rightCorner] * mapScale;
-          vertices[3].y = (floorAboveCeiling ? portalPoints[2] : Mathf.Max(portalPoints[2], floorCornerHeight[leftCorner])) * mapScale;
+        if (Mathf.Min(portalPoints[1], portalPoints[2]) < Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) {
+          vertices[0].y = (floorAboveCeiling ? portalPoints[1] : Mathf.Max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
+          vertices[1].y = tile.CeilingCornerHeight(leftCorner) * mapScale;
+          vertices[2].y = tile.CeilingCornerHeight(rightCorner) * mapScale;
+          vertices[3].y = (floorAboveCeiling ? portalPoints[2] : Mathf.Max(portalPoints[2], tile.FloorCornerHeight(leftCorner))) * mapScale;
 
-          uvs[0].y = vertices[0].y - textureVerticalOffset;
-          uvs[1].y = vertices[1].y - textureVerticalOffset;
-          uvs[2].y = vertices[2].y - textureVerticalOffset;
-          uvs[3].y = vertices[3].y - textureVerticalOffset;
+          uvs[0].y = (half)(vertices[0].y - textureVerticalOffset);
+          uvs[1].y = (half)(vertices[1].y - textureVerticalOffset);
+          uvs[2].y = (half)(vertices[2].y - textureVerticalOffset);
+          uvs[3].y = (half)(vertices[3].y - textureVerticalOffset);
 
-          Mesh topMesh = new Mesh();
-          topMesh.vertices = vertices;
-          topMesh.uv = uvs;
-          topMesh.triangles = triangles;
+          NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
+          NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+          for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
 
-          partInstances.Add(new CombineInstance() {
-            mesh = topMesh,
-            subMeshIndex = 0,
-            transform = Matrix4x4.identity
-          });
+          indiceCount += indicesTemplate.Length;
+
+          vertexStart += vertices.Length;
+          indexStart += indicesTemplate.Length;
         }
 
         // Lower border is above floor
-        if (!floorMoving && Mathf.Max(portalPoints[0], portalPoints[3]) > Mathf.Min(floorCornerHeight[leftCorner], floorCornerHeight[rightCorner])) {
-          vertices[0].y = floorCornerHeight[leftCorner] * mapScale;
-          vertices[1].y = Mathf.Min(portalPoints[0], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;
-          vertices[2].y = Mathf.Min(portalPoints[3], Mathf.Max(ceilingCornerHeight[leftCorner], ceilingCornerHeight[rightCorner])) * mapScale;
-          vertices[3].y = floorCornerHeight[rightCorner] * mapScale;
+        if (Mathf.Max(portalPoints[0], portalPoints[3]) > Mathf.Min(tile.FloorCornerHeight(leftCorner), tile.FloorCornerHeight(rightCorner))) {
+          vertices[0].y = tile.FloorCornerHeight(leftCorner) * mapScale;
+          vertices[1].y = Mathf.Min(portalPoints[0], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          vertices[2].y = Mathf.Min(portalPoints[3], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          vertices[3].y = tile.FloorCornerHeight(rightCorner) * mapScale;
 
-          uvs[0].y = vertices[0].y - textureVerticalOffset;
-          uvs[1].y = vertices[1].y - textureVerticalOffset;
-          uvs[2].y = vertices[2].y - textureVerticalOffset;
-          uvs[3].y = vertices[3].y - textureVerticalOffset;
+          uvs[0].y = (half)(vertices[0].y - textureVerticalOffset);
+          uvs[1].y = (half)(vertices[1].y - textureVerticalOffset);
+          uvs[2].y = (half)(vertices[2].y - textureVerticalOffset);
+          uvs[3].y = (half)(vertices[3].y - textureVerticalOffset);
 
-          Mesh bottomMesh = new Mesh();
-          bottomMesh.vertices = vertices;
-          bottomMesh.uv = uvs;
-          bottomMesh.triangles = triangles;
+          NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
+          NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+          for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
 
-          partInstances.Add(new CombineInstance() {
-            mesh = bottomMesh,
-            subMeshIndex = 0,
-            transform = Matrix4x4.identity
-          });
+          indiceCount += indicesTemplate.Length;
         }
 
-        if (partInstances.Count > 0)
-          mesh.CombineMeshes(partInstances.ToArray(), true, false);
-*/
+        if (indiceCount > 0) {
+          mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(originalIndexStart, indiceCount, MeshTopology.Triangles));
+          textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
+          return 1;
+        }
       }
 
-//      return mesh.vertices.Length > 0 ? mesh : null;
+      return 0;
     }
   }
 
