@@ -235,7 +235,7 @@ namespace SS.Resources {
         } else if (command == OpCode.getvscolor) {
           ushort colorIndex = msbr.ReadUInt16();
           ushort shade = msbr.ReadUInt16();
-          polygon.color = shadeTable.paletteIndex[(shade << 8) | _vcolor_tab[colorIndex]];
+          polygon.color = shadeTable[(shade << 8) | _vcolor_tab[colorIndex]];
         } else if (command == OpCode.rgbshades) {
           ushort count = msbr.ReadUInt16();
           while (count-- > 0) {
@@ -260,7 +260,7 @@ namespace SS.Resources {
         } else if (command == OpCode.getpscolor) {
           ushort colorIndex = msbr.ReadUInt16();
           ushort shade = msbr.ReadUInt16();
-          polygon.color = shadeTable.paletteIndex[(shade << 8) | _vcolor_tab[colorIndex]];
+          polygon.color = shadeTable[(shade << 8) | _vcolor_tab[colorIndex]];
         } else if (command == OpCode.scaleres) {
           break;
         } else if (command == OpCode.vpnt_p) {

@@ -77,6 +77,9 @@ namespace SS.Resources {
 
         if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
           texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.R8, false, true);
+          texture.filterMode = FilterMode.Point;
+          texture.wrapMode = TextureWrapMode.Repeat;
+
           NativeArray<byte> textureData = texture.GetRawTextureData<byte>();
 
           for (int y = 0; y < bitmap.Height; ++y)
@@ -85,6 +88,9 @@ namespace SS.Resources {
           texture.Apply();
         } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
           texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true);
+          texture.filterMode = FilterMode.Point;
+          texture.wrapMode = TextureWrapMode.Repeat;
+
           NativeArray<Color32> textureData = texture.GetRawTextureData<Color32>();
 
           int pixelIndex = 0;

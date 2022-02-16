@@ -18,7 +18,7 @@ namespace SS.Resources {
     private float ProgressHandler() => webRequestOp != null ? webRequestOp.progress : 0.0f;
 
     public override void Provide(ProvideHandle provideHandle) {
-      Debug.Log($"RawDataProvider Provide {typeof(T)} {provideHandle.Location.PrimaryKey} {provideHandle.Location.InternalId} {provideHandle.Location.ResourceType} {provideHandle.Location.Dependencies}");
+      // Debug.Log($"RawDataProvider Provide {typeof(T)} {provideHandle.Location.PrimaryKey} {provideHandle.Location.InternalId} {provideHandle.Location.ResourceType} {provideHandle.Location.Dependencies}");
 
       this.provideHandle = provideHandle;
       provideHandle.SetWaitForCompletionCallback(WaitForCompletionHandler);

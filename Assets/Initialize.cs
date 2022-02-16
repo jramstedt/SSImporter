@@ -114,20 +114,11 @@ namespace SS.Resources {
         textureOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
       };
 
-      var shadetableOp = Addressables.LoadAssetAsync<ShadeTable>(new ResourceLocationBase("SHADTABL.DAT", rootPath + @"\DATA\SHADTABL.DAT", typeof(RawDataProvider).FullName, typeof(ShadeTable)));
-      shadetableOp.Completed += loadOp => Debug.Log($"{loadOp.Status} {loadOp.Result}");
-
       #region Load archive.dat
       resourceLocatorBuild.Completed += op => {
-        SaveLoader.LoadMap(1, rootPath + @"\DATA\ARCHIVE.DAT");
+        SaveLoader.LoadMap(1, rootPath + @"\DATA\ARCHIVE.DAT", rootPath + @"\DATA\SHADTABL.DAT");
       };
       #endregion
     }
-  }
-
-  [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct ShadeTable {
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 16)]
-    public readonly byte[] paletteIndex;
   }
 }

@@ -18,6 +18,7 @@ using Unity.Collections;
 using Unity.Transforms;
 using SS.System;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Mathematics;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -26,15 +27,16 @@ namespace SS.Resources {
 
     private static ushort ResourceIdFromLevel (byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
 
-    public static async Task<World> LoadMap(byte mapId, string saveGame) {
-      var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", saveGame, typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
+    public static async Task<World> LoadMap(byte mapId, string saveGamePath, string shadeTablePath) {
+      var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", saveGamePath, typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
+      var paletteOp = Addressables.LoadAssetAsync<Palette>(0x02BC);
+      var shadetableOp = Addressables.LoadAssetAsync<ShadeTable>(new ResourceLocationBase("SHADTABL.DAT", shadeTablePath, typeof(RawDataProvider).FullName, typeof(ShadeTable)));
+
       var saveData = await loadOp.Task;
+      var palette = await paletteOp.Task;
+      var shadetable = await shadetableOp.Task; // TODO should be global.
 
-      if (loadOp.Status != AsyncOperationStatus.Succeeded)
-        throw loadOp.OperationException;
-
-      //foreach (var kvp in saveData.ResourceEntries)
-      //  Debug.Log($"{kvp.Value.info.Id} {kvp.Value.info.Flags}");
+      var clutTexture = CreateColorLookupTable(palette, shadetable);
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
@@ -46,18 +48,23 @@ namespace SS.Resources {
       for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
         if (materials.ContainsKey(i)) continue;
 
-        var textureBlockIndex = textureMap.blockIndex[i];
+        var bitmapSet = await CreateMipmapTexture(textureMap.blockIndex[i]); // TODO instead of await, run parallel
 
-        // TODO instead of await, run parallel
-
-        var bitmapSet = await CreateMipmapTexture(textureBlockIndex); //await Addressables.LoadAssetAsync<BitmapSet>($"{0x03E8 + textureBlockIndex}").Task;
-        Debug.Log($"Loaded texture {textureBlockIndex} = {bitmapSet}");
-
-        var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+        material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
         material.DisableKeyword(@"_SPECGLOSSMAP");
         material.DisableKeyword(@"_SPECULAR_COLOR");
         material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
+        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+
+        material.EnableKeyword(@"LINEAR");
+        if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+        else material.DisableKeyword(@"TRANSPARENCY_ON");
+
+        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
+        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
         material.enableInstancing = true;
         materials.Add(i, material);
       }
@@ -158,6 +165,20 @@ namespace SS.Resources {
       }
     }
 
+    private static Texture2D CreateColorLookupTable(Palette palette, ShadeTable shadeTable) {
+      Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, true);
+      clut.filterMode = FilterMode.Point;
+      clut.wrapMode = TextureWrapMode.Clamp;
+
+      var textureData = clut.GetRawTextureData<Color32>();
+
+      for (int i = 0; i < textureData.Length; ++i)
+        textureData[i] = palette[shadeTable[i]];
+
+      clut.Apply(false, true);
+      return clut;
+    }
+
     private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {
       var tex128x128 = Addressables.LoadAssetAsync<BitmapSet>($"{0x03E8 + textureIndex}");
       var tex64x64 = Addressables.LoadAssetAsync<BitmapSet>($"{0x02C3 + textureIndex}");
@@ -167,6 +188,9 @@ namespace SS.Resources {
       await Task.WhenAll(tex128x128.Task, tex64x64.Task, tex32x32.Task, tex16x16.Task);
 
       Texture2D complete = new Texture2D(128, 128, tex128x128.Result.Texture.format, 4, true);
+      complete.filterMode = tex128x128.Result.Texture.filterMode;
+      complete.wrapMode = tex128x128.Result.Texture.wrapMode;
+
       if (SystemInfo.copyTextureSupport.HasFlag(UnityEngine.Rendering.CopyTextureSupport.Basic)) {
         Graphics.CopyTexture(tex128x128.Result.Texture, 0, 0, complete, 0, 0);
         Graphics.CopyTexture(tex64x64.Result.Texture, 0, 0, complete, 0, 1);
@@ -194,6 +218,17 @@ namespace SS.Resources {
       Addressables.Release(tex16x16);
 
       return result;
+    }
+  }
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct ShadeTable {
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 16)]
+    private readonly byte[] paletteIndex;
+
+    public byte this[int index] {
+      get => paletteIndex[index];
+      set => paletteIndex[index] = value;
     }
   }
 
@@ -286,7 +321,7 @@ namespace SS.Resources {
       // Flag 2
       UseAdjacentWallTexture = 0x00000100,
       DeconstructedMusic = 0x00000200,
-      Mirrored = 0x00000C00, // MirrorControl
+      SlopeControl = 0x00000C00, // SlopeControl
       Peril = 0x00001000,
       Music = 0x0000E000,
 
@@ -306,7 +341,7 @@ namespace SS.Resources {
       CyberspaceGOL = Flip,
     };
 
-    public enum MirrorControl : uint {
+    public enum SlopeControl : uint {
       Match = 0x00000000,       // 0
       Mirror = 0x00000400,      // 1
       FloorOnly = 0x00000800,   // 2
@@ -358,16 +393,16 @@ namespace SS.Resources {
     public Orientation FloorOrientation => (Orientation)(FloorInfo & InfoMask.Orientation);
     public int FloorRotation => ((byte)FloorOrientation >> 5) & 0x03;
     public bool FloorHazard => (FloorInfo & InfoMask.Hazard) == InfoMask.Hazard;
-    public ushort FloorTexture => (ushort)((ushort)(TextureInfo & TextureInfoMask.FloorTexture) >> 11);
+    public byte FloorTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.FloorTexture) >> 11);
 
     public int CeilingHeight => MAX_HEIGHT - (int)(CeilingInfo & InfoMask.Height);
     public Orientation CeilingOrientation => (Orientation)(CeilingInfo & InfoMask.Orientation);
     public int CeilingRotation => ((byte)CeilingOrientation >> 5) & 0x03;
 
     public bool CeilingHazard => (CeilingInfo & InfoMask.Hazard) == InfoMask.Hazard;
-    public ushort CeilingTexture => (ushort)((ushort)(TextureInfo & TextureInfoMask.CeilingTexture) >> 6);
+    public byte CeilingTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.CeilingTexture) >> 6);
 
-    public ushort WallTexture => (ushort)(TextureInfo & TextureInfoMask.WallTexture);
+    public byte WallTexture => (byte)(TextureInfo & TextureInfoMask.WallTexture);
 
     // Flag 1
     public byte TextureOffset => (byte)(Flags & FlagMask.Offset);
@@ -376,9 +411,9 @@ namespace SS.Resources {
 
     // Flag 2
     public bool UseAdjacentTexture => (Flags & FlagMask.UseAdjacentWallTexture) == FlagMask.UseAdjacentWallTexture;
-    public bool IsCeilingMirrored => ((MirrorControl)Flags & MirrorControl.Mirror) == MirrorControl.Mirror;
-    public bool IsCeilingOnly => ((MirrorControl)Flags & MirrorControl.CeilingOnly) == MirrorControl.CeilingOnly;
-    public bool IsFloorOnly => ((MirrorControl)Flags & MirrorControl.FloorOnly) == MirrorControl.FloorOnly;
+    public bool IsCeilingMirrored => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.Mirror;
+    public bool IsCeilingOnly => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.CeilingOnly;
+    public bool IsFloorOnly => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.FloorOnly;
 
     // Flag 3
     public int ShadeFloor => (byte)(Flags & FlagMask.ShadeFloor) >> 16;
