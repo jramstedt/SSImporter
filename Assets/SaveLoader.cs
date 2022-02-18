@@ -36,38 +36,10 @@ namespace SS.Resources {
       var palette = await paletteOp.Task;
       var shadetable = await shadetableOp.Task; // TODO should be global.
 
-      var clutTexture = CreateColorLookupTable(palette, shadetable);
-
       ushort resourceId = ResourceIdFromLevel(mapId);
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
       var tileMap = ReadMapElements(saveData.GetResourceData((ushort)(0x0005 + resourceId), 0), levelInfo);
       var textureMap = saveData.GetResourceData<TextureMap>((ushort)(0x0007 + resourceId));
-
-      var materials = new Dictionary<ushort, Material>(textureMap.blockIndex.Length);
-
-      for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
-        if (materials.ContainsKey(i)) continue;
-
-        var bitmapSet = await CreateMipmapTexture(textureMap.blockIndex[i]); // TODO instead of await, run parallel
-
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-        material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-        material.DisableKeyword(@"_SPECGLOSSMAP");
-        material.DisableKeyword(@"_SPECULAR_COLOR");
-        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
-
-        material.EnableKeyword(@"LINEAR");
-        if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-        else material.DisableKeyword(@"TRANSPARENCY_ON");
-
-        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-        material.enableInstancing = true;
-        materials.Add(i, material);
-      }
 
 /*
       var instanceDatas = new object[][] {
@@ -110,8 +82,42 @@ namespace SS.Resources {
 
       var world = World.DefaultGameObjectInjectionWorld;
       //var world = new World($"map{mapId:D}");
+      var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
+      lightmapSystem.lightmap = CreateLightmap(in levelInfo);
+
       var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
+
+      var clutTexture = CreateColorLookupTable(palette, shadetable);
+
+      var materials = new Dictionary<ushort, Material>(textureMap.blockIndex.Length);
+      for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
+        if (materials.ContainsKey(i)) continue;
+
+        var bitmapSet = await CreateMipmapTexture(textureMap.blockIndex[i]); // TODO instead of await, run parallel
+
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+        material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
+        material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmapSystem.lightmap);
+        material.DisableKeyword(@"_SPECGLOSSMAP");
+        material.DisableKeyword(@"_SPECULAR_COLOR");
+        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
+        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+
+        material.EnableKeyword(@"LINEAR");
+        if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+        else material.DisableKeyword(@"TRANSPARENCY_ON");
+
+        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
+        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+        material.enableInstancing = true;
+        materials.Add(i, material);
+      }
+
       mapSystem.mapMaterial = materials;
+
+
       //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
       //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
 
@@ -128,19 +134,20 @@ namespace SS.Resources {
           entityManager.AddComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
           entityManager.AddComponentData(entity, default(LocalToWorld));
           entityManager.AddComponentData(entity, tileMap[x, y]);
-          entityManager.AddComponentData(entity, default(NeedsRebuildTag));
+          entityManager.AddComponentData(entity, default(ViewPartRebuildTag));
+          entityManager.AddComponentData(entity, default(LightmapRebuildTag));
         }
       }
 
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Map));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       mapSystem.SetSingleton(levelInfo);
-      BuildBlob(mapSystem, mapId, ref levelInfo, ref entityArray);
+      BuildBlob(mapSystem, mapId, in levelInfo, ref entityArray);
 
       return world;
     }
 
-    private static unsafe void BuildBlob (MapElementBuilderSystem mapSystem, byte mapId, ref LevelInfo levelInfo, ref NativeArray<Entity> entities) {
+    private static unsafe void BuildBlob (MapElementBuilderSystem mapSystem, byte mapId, in LevelInfo levelInfo, ref NativeArray<Entity> entities) {
       using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp)) {
         ref var tileArrayAsset = ref blobBuilder.ConstructRoot<BlobArray<Entity>>();
         var tileArray = blobBuilder.Allocate(ref tileArrayAsset, levelInfo.Width * levelInfo.Height);
@@ -151,7 +158,7 @@ namespace SS.Resources {
       }
     }
 
-    private static MapElement[,] ReadMapElements(byte[] rawData, LevelInfo levelInfo) {
+    private static MapElement[,] ReadMapElements(byte[] rawData, in LevelInfo levelInfo) {
       using (MemoryStream ms = new MemoryStream(rawData)) {
           BinaryReader msbr = new BinaryReader(ms);
 
@@ -166,7 +173,7 @@ namespace SS.Resources {
     }
 
     private static Texture2D CreateColorLookupTable(Palette palette, ShadeTable shadeTable) {
-      Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, true);
+      Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, false);
       clut.filterMode = FilterMode.Point;
       clut.wrapMode = TextureWrapMode.Clamp;
 
@@ -177,6 +184,20 @@ namespace SS.Resources {
 
       clut.Apply(false, true);
       return clut;
+    }
+
+    private static Texture2D CreateLightmap(in LevelInfo levelInfo) {
+      Texture2D lightmap;
+      if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16)) {
+        lightmap = new Texture2D(levelInfo.Width, levelInfo.Height, TextureFormat.RG16, false, true);
+      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+        lightmap = new Texture2D(levelInfo.Width, levelInfo.Height, TextureFormat.RGBA32, false, true);
+      } else {
+        throw new Exception("No supported TextureFormat found.");
+      }
+
+      lightmap.name = @"Lightmap";
+      return lightmap;
     }
 
     private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {
@@ -243,10 +264,8 @@ namespace SS.Resources {
   }
 
   public struct ViewPart : IComponentData { }
-
-  public struct Floor : IComponentData { }
-
-  public struct NeedsRebuildTag : IComponentData { }
+  public struct ViewPartRebuildTag : IComponentData { }
+  public struct LightmapRebuildTag : IComponentData { }
 
   /**
    * FullMap
@@ -416,10 +435,10 @@ namespace SS.Resources {
     public bool IsFloorOnly => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.FloorOnly;
 
     // Flag 3
-    public int ShadeFloor => (byte)(Flags & FlagMask.ShadeFloor) >> 16;
+    public byte ShadeFloor => (byte)((uint)(Flags & FlagMask.ShadeFloor) >> 16);
 
     // Flag 4
-    public int ShadeCeiling => (byte)(Flags & FlagMask.ShadeCeiling) >> 24;
+    public byte ShadeCeiling => (byte)((uint)(Flags & FlagMask.ShadeCeiling) >> 24);
 
     public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
     public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;

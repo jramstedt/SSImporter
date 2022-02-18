@@ -5,6 +5,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
         [MainTexture] _BaseMap("Texture", 2D) = "white" {}
         [MainColor] _BaseColor("Color", Color) = (1, 1, 1, 1)
         [NonModifiableTextureData] _CLUT("Color Lookup Table", 2D) = "white" {}
+        [NonModifiableTextureData] _LightGrid("Color Lookup Table", 2D) = "white" {}
         _Cutoff("AlphaCutout", Range(0.0, 1.0)) = 0.5
 
         // BlendMode
@@ -65,32 +66,11 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitForwardPass.hlsl"
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             //#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceData.hlsl"
             //#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
             //#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
 
-            TEXTURE2D(_BaseMap);
-            SAMPLER(sampler_BaseMap);
-            TEXTURE2D(_CLUT);
-            SAMPLER(sampler_CLUT);
-
-            CBUFFER_START(UnityPerMaterial)
-                float4 _BaseMap_TexelSize;
-                float4 _BaseMap_ST;
-                half _Cutoff;
-                half _Surface;
-            CBUFFER_END
-
-            #ifdef UNITY_DOTS_INSTANCING_ENABLED
-            UNITY_DOTS_INSTANCING_START(MaterialPropertyMetadata)
-                UNITY_DOTS_INSTANCED_PROP(float , _Cutoff)
-                UNITY_DOTS_INSTANCED_PROP(float , _Surface)
-            UNITY_DOTS_INSTANCING_END(MaterialPropertyMetadata)
-
-            #define _Cutoff             UNITY_ACCESS_DOTS_INSTANCED_PROP_FROM_MACRO(float  , Metadata_Cutoff)
-            #define _Surface            UNITY_ACCESS_DOTS_INSTANCED_PROP_FROM_MACRO(float  , Metadata_Surface)
-            #endif
+            #include "Input.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Unlit.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -99,6 +79,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
+                half lightblend : BLENDWEIGHTS;
 
                 #if defined(DEBUG_DISPLAY)
                 float3 normalOS : NORMAL;
@@ -111,13 +92,14 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             struct Varyings
             {
                 float2 uv : TEXCOORD0;
-                float fogCoord : TEXCOORD1;
+                float3 uvwLight : TEXCOORD1;
+                float fogCoord : TEXCOORD2;
                 float4 positionCS : SV_POSITION;
 
                 #if defined(DEBUG_DISPLAY)
-                float3 positionWS : TEXCOORD2;
-                float3 normalWS : TEXCOORD3;
-                float3 viewDirWS : TEXCOORD4;
+                float3 positionWS : TEXCOORD3;
+                float3 normalWS : TEXCOORD4;
+                float3 viewDirWS : TEXCOORD5;
                 #endif
 
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -157,6 +139,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
                 output.positionCS = vertexInput.positionCS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.uvwLight = float3(vertexInput.positionWS.x * _LightGrid_TexelSize.x, vertexInput.positionWS.z * _LightGrid_TexelSize.y, input.lightblend);
                 #if defined(_FOG_FRAGMENT)
                 output.fogCoord = vertexInput.positionVS.z;
                 #else
@@ -180,10 +163,17 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             }
 
             half4 clut(float index, float shade) {
-              half4 c = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(floor(index * 255.0) / 256.0, floor(shade * 15.0) / 16.0));
+              #if defined(LINEAR)
+                half4 c = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade)); //float2(floor(index * 255.0) / 256.0, floor(shade * 15.0) / 16.0));
+              #else
+                shade -= 0.5 / 16.0;
+                half4 uc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade));
+                half4 lc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade + (1.0 / 16.0)));
+                half4 c = lerp(uc, lc, frac(shade * 16.0));
+              #endif
 
               #if defined(TRANSPARENCY_ON)
-              c.a = index < 1.0/255.0 ? 0.0 : 1.0;
+                c.a = index < 1.0/255.0 ? 0.0 : 1.0;
               #endif
 
               return c;
@@ -191,25 +181,25 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
             half4 texture2D_bilinear(TEXTURE2D_PARAM(textureName, samplerName), float2 uv, float4 texelSize, float shade) {
               #if defined(LINEAR)
-                  return clut(SAMPLE_TEXTURE2D(textureName, samplerName, uv).r, shade);
+                return clut(SAMPLE_TEXTURE2D(textureName, samplerName, uv).r, shade);
               #else
-                  uv -= texelSize.xy / 2.0;
-                  
-                  half tli = SAMPLE_TEXTURE2D(textureName, samplerName, uv).r;
-                  half tri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(texelSize.x, 0.0)).r;
-                  half bli = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(0.0, texelSize.y)).r;
-                  half bri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + texelSize.xy).r;
+                uv -= texelSize.xy / 2.0;
+                
+                half tli = SAMPLE_TEXTURE2D(textureName, samplerName, uv).r;
+                half tri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(texelSize.x, 0.0)).r;
+                half bli = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(0.0, texelSize.y)).r;
+                half bri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + texelSize.xy).r;
 
-                  half4 tl = clut(tli, shade);
-                  half4 tr = clut(tri, shade);
-                  half4 bl = clut(bli, shade);
-                  half4 br = clut(bri, shade);
+                half4 tl = clut(tli, shade);
+                half4 tr = clut(tri, shade);
+                half4 bl = clut(bli, shade);
+                half4 br = clut(bri, shade);
 
-                  float2 f = frac(uv * texelSize.zw);
+                float2 f = frac(uv * texelSize.zw);
 
-                  half4 tA = lerp(tl, tr, f.x);
-                  half4 tB = lerp(bl, br, f.x);
-                  return lerp(tA, tB, f.y);
+                half4 tA = lerp(tl, tr, f.x);
+                half4 tB = lerp(bl, br, f.x);
+                return lerp(tA, tB, f.y);
               #endif
             }
 
@@ -218,8 +208,11 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
+                half2 lightmap = SAMPLE_TEXTURE2D(_LightGrid, sampler_LightGrid, input.uvwLight.xy + (_LightGrid_TexelSize.xy * 0.5)).rg;
+                half shade = lerp(lightmap.r, lightmap.g, input.uvwLight.z);
+
                 half2 uv = input.uv;
-                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, 0.0 / 16.0);
+                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, shade * 16.0);
                 half3 color = texColor.rgb;
                 half alpha = texColor.a;
 
@@ -284,7 +277,9 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
+            #include "Input.hlsl"
+
+            //#include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
@@ -316,7 +311,9 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
+            #include "Input.hlsl"
+
+            //#include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"
             ENDHLSL
         }
@@ -337,7 +334,9 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             #pragma fragment UniversalFragmentMetaUnlit
             #pragma shader_feature EDITOR_VISUALIZATION
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
+            #include "Input.hlsl"
+
+            //#include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitMetaPass.hlsl"
             ENDHLSL
         }

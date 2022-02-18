@@ -27,6 +27,9 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
+      RequireSingletonForUpdate<Map>();
+      RequireSingletonForUpdate<LevelInfo>();
+
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(ViewPart),
         typeof(Parent),
@@ -42,7 +45,7 @@ namespace SS.System {
           ComponentType.ReadOnly<TileLocation>(),
           ComponentType.ReadOnly<MapElement>(),
           ComponentType.ReadWrite<LocalToWorld>(),
-          ComponentType.ReadOnly<NeedsRebuildTag>()
+          ComponentType.ReadOnly<ViewPartRebuildTag>()
         }
       });
 
@@ -58,10 +61,10 @@ namespace SS.System {
       var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      var entityCount = this.mapElementQuery.CalculateEntityCount();
+      var entityCount = mapElementQuery.CalculateEntityCount();
       if (entityCount == 0) return;
 
-      var entities = this.mapElementQuery.ToEntityArray(Allocator.TempJob);
+      var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
       var map = GetSingleton<Map>();
       var levelInfo = GetSingleton<LevelInfo>();
@@ -93,7 +96,6 @@ namespace SS.System {
         map = GetSingleton<Map>(),
 
         levelInfo = levelInfo,
-        CommandBuffer = commandBuffer.AsParallelWriter(),
         meshDataArray = meshDataArray,
         submeshTextureIndex = submeshTextureIndex
       };
@@ -149,6 +151,8 @@ namespace SS.System {
         }
       }
 
+      EntityManager.RemoveComponent<ViewPartRebuildTag>(mapElementQuery);
+
       submeshTextureIndex.Dispose();
       entities.Dispose();
     }
@@ -188,7 +192,6 @@ namespace SS.System {
     [ReadOnly] public Map map;
 
     [ReadOnly] public LevelInfo levelInfo;
-    [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
     public Mesh.MeshDataArray meshDataArray;
     [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> submeshTextureIndex;
 
@@ -214,14 +217,12 @@ namespace SS.System {
 
         localToWorld[i] = new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(float3(tileLocation.X, 0f, tileLocation.Y)) };
 
-        BuildMesh(ref tileLocation, ref mapElement, ref meshData, ref textureIndices);
-
-        CommandBuffer.RemoveComponent<NeedsRebuildTag>(batchIndex, entity);
+        BuildMesh(tileLocation, mapElement, ref meshData, ref textureIndices);
       }
     }
 
     [BurstCompile]
-    private bool2 IsWallTextureFlipped (ref TileLocation tileLocation, ref MapElement texturing) {
+    private bool2 IsWallTextureFlipped (in TileLocation tileLocation, in MapElement texturing) {
       bool2 flip = default;
   
       if (texturing.TextureAlternate) {
@@ -241,13 +242,21 @@ namespace SS.System {
     private const int IndicesPerViewPart = 12;
 
     [BurstCompile]
-    private unsafe void ClearIndexArray (ref Mesh.MeshData mesh) {
+    private unsafe void ClearIndexArray (in Mesh.MeshData mesh) {
       var index = mesh.GetIndexData<ushort>();
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
     }
 
+    private struct Vertex {
+      public float3 pos;
+      public float3 normal;
+      public float3 tangent;
+      public half2 uv;
+      public float light;
+    }
+
     [BurstCompile]
-    private void BuildMesh (ref TileLocation tileLocation, ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
+    private void BuildMesh (in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
       if (tile.TileType == TileType.Solid) {
         mesh.subMeshCount = 0;
         return;
@@ -257,33 +266,34 @@ namespace SS.System {
 
       mesh.SetVertexBufferParams(
         VerticesPerViewPart * mesh.subMeshCount,
-        new VertexAttributeDescriptor(VertexAttribute.Position, stream: 0),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2, 1),
-        new VertexAttributeDescriptor(VertexAttribute.Normal, stream: 2),
-        new VertexAttributeDescriptor(VertexAttribute.Tangent, stream: 3)
+        new VertexAttributeDescriptor(VertexAttribute.Position),
+        new VertexAttributeDescriptor(VertexAttribute.Normal),
+        new VertexAttributeDescriptor(VertexAttribute.Tangent),
+        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+        new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
       );
       mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
-      ClearIndexArray(ref mesh);
+      ClearIndexArray(mesh);
 
       var subMeshAccumulator = 0;
 
-      subMeshAccumulator += this.CreatePlane(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, false);
-      subMeshAccumulator += this.CreatePlane(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, true);
+      subMeshAccumulator += this.CreatePlane(tile, mesh, ref textureIndices, subMeshAccumulator, false);
+      subMeshAccumulator += this.CreatePlane(tile, mesh, ref textureIndices, subMeshAccumulator, true);
 
       #region North Wall
       {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y + 1) * levelInfo.Width + tileLocation.X];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).y;
+        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).y;
 
         if (tile.TileType == TileType.OpenDiagonalSE)
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip);
         else if (tile.TileType == TileType.OpenDiagonalSW)
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 1, 3, ref adjacentTile, 1, 3, flip);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 1, 3, ref adjacentTile, 1, 3, flip);
         else
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 1, 2, ref adjacentTile, 0, 3, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalNW);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 1, 2, ref adjacentTile, 0, 3, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalNW);
       }
       #endregion
 
@@ -292,8 +302,8 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X + 1];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).x;
-        subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalSE);
+        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).x;
+        subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalSE);
       }
       #endregion
 
@@ -302,14 +312,14 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y - 1) * levelInfo.Width + tileLocation.X];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).y;
+        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).y;
 
         if (tile.TileType == TileType.OpenDiagonalNE)
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip);
         else if (tile.TileType == TileType.OpenDiagonalNW)
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 2, 0, ref adjacentTile, 2, 0, flip);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 2, 0, ref adjacentTile, 2, 0, flip);
         else
-          subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 3, 0, ref adjacentTile, 2, 1, flip, TileType.OpenDiagonalSE, TileType.OpenDiagonalSW);
+          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 3, 0, ref adjacentTile, 2, 1, flip, TileType.OpenDiagonalSE, TileType.OpenDiagonalSW);
       }
       #endregion
 
@@ -318,34 +328,39 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X - 1];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(ref tileLocation, ref adjacentTile).x;
-        subMeshAccumulator += CreateWall(ref tile, ref mesh, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, TileType.OpenDiagonalNW, TileType.OpenDiagonalSW);
+        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).x;
+        subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, TileType.OpenDiagonalNW, TileType.OpenDiagonalSW);
       }
       #endregion
     }
 
     [BurstCompile]
-    private int CreatePlane (ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, bool isCeiling) {
-      var pos = mesh.GetVertexData<float3>(0);
-      var uv = mesh.GetVertexData<half2>(1);
-      var index = mesh.GetIndexData<ushort>();
+    private int CreatePlane (in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, bool isCeiling) {
+      var vertices = mesh.GetVertexData<Vertex>();
+      var indices = mesh.GetIndexData<ushort>();
 
       var vertexStart = subMeshIndex * VerticesPerViewPart;
       var indexStart = subMeshIndex * IndicesPerViewPart;
 
+      var uvs = MapUtils.UVTemplate.RotateRight(isCeiling ? tile.CeilingRotation : tile.FloorRotation);
+
       for (int corner = 0; corner < 4; ++corner) {
         int cornerHeight = isCeiling ? tile.CeilingCornerHeight(corner) : tile.FloorCornerHeight(corner);
-        pos[vertexStart + corner] = MapUtils.VerticeTemplate[corner] + float3(0f, (float)cornerHeight / (float)levelInfo.HeightDivisor, 0f);
+        vertices[vertexStart + corner] = new Vertex {
+          pos = MapUtils.VerticeTemplate[corner] + float3(0f, (float)cornerHeight / (float)levelInfo.HeightDivisor, 0f),
+          uv = uvs[corner],
+          light = isCeiling ? 1f : 0f
+        };
       }
 
-      var uvs = MapUtils.UVTemplate.RotateRight(isCeiling ? tile.CeilingRotation : tile.FloorRotation);
-      NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+      for (int corner = 4; corner < VerticesPerViewPart; ++corner)
+        vertices[vertexStart + corner] = default;
 
       ushort[] indicesTemplate = MapUtils.faceIndices[(int)tile.TileType];
       if (isCeiling) // Reverses index order in ceiling
-        for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[indicesTemplate.Length - 1 - i] + vertexStart);
+        for (int i = 0; i < indicesTemplate.Length; ++i) indices[indexStart + i] = (ushort)(indicesTemplate[indicesTemplate.Length - 1 - i] + vertexStart);
       else
-        for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
+        for (int i = 0; i < indicesTemplate.Length; ++i) indices[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
 
       mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
       textureIndices[subMeshIndex] = isCeiling ? tile.CeilingTexture : tile.FloorTexture;
@@ -354,20 +369,26 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    private int CreateWall(ref MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, int leftCorner, int rightCorner, ref MapElement adjacent, int adjacentLeftCorner, int adjacentRightCorner, bool flip, params TileType[] ignoreTypes) {
-      var pos = mesh.GetVertexData<float3>(0);
-      var uv = mesh.GetVertexData<half2>(1);
+    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, int leftCorner, int rightCorner, ref MapElement adjacent, int adjacentLeftCorner, int adjacentRightCorner, bool flip, params TileType[] ignoreTypes) {
+      var vertices = mesh.GetVertexData<Vertex>();
       var index = mesh.GetIndexData<ushort>();
 
       var vertexStart = subMeshIndex * VerticesPerViewPart;
       var indexStart = subMeshIndex * IndicesPerViewPart;
       
       var indicesTemplate = MapUtils.faceIndices[1];
-      var vertices = new float3[] {
-        MapUtils.VerticeTemplate[leftCorner],
-        MapUtils.VerticeTemplate[leftCorner],
-        MapUtils.VerticeTemplate[rightCorner],
-        MapUtils.VerticeTemplate[rightCorner]
+      var wallVertices = new float3[] {
+        MapUtils.VerticeTemplate[leftCorner], // Lower
+        MapUtils.VerticeTemplate[leftCorner], // Upper
+        MapUtils.VerticeTemplate[rightCorner], // Upper
+        MapUtils.VerticeTemplate[rightCorner] // Lower
+      };
+
+      var lightblend = new float[] {
+        0f,
+        1f,
+        1f,
+        0f
       };
 
       var uvs = (half2[])(flip ? MapUtils.UVTemplateFlipped : MapUtils.UVTemplate).Clone();
@@ -389,18 +410,27 @@ namespace SS.System {
       float textureVerticalOffset = tile.TextureOffset * mapScale;
 
       if (isSolidWall) { // Add solid wall
-        vertices[0].y = (float)tile.FloorCornerHeight(leftCorner) * mapScale;
-        vertices[1].y = (float)tile.CeilingCornerHeight(leftCorner) * mapScale;
-        vertices[2].y = (float)tile.CeilingCornerHeight(rightCorner) * mapScale;
-        vertices[3].y = (float)tile.FloorCornerHeight(rightCorner) * mapScale;
+        wallVertices[0].y = (float)tile.FloorCornerHeight(leftCorner) * mapScale;
+        wallVertices[1].y = (float)tile.CeilingCornerHeight(leftCorner) * mapScale;
+        wallVertices[2].y = (float)tile.CeilingCornerHeight(rightCorner) * mapScale;
+        wallVertices[3].y = (float)tile.FloorCornerHeight(rightCorner) * mapScale;
 
-        uvs[0].y = (half)(vertices[0].y - textureVerticalOffset);
-        uvs[1].y = (half)(vertices[1].y - textureVerticalOffset);
-        uvs[2].y = (half)(vertices[2].y - textureVerticalOffset);
-        uvs[3].y = (half)(vertices[3].y - textureVerticalOffset);
+        uvs[0].y = (half)(wallVertices[0].y - textureVerticalOffset);
+        uvs[1].y = (half)(wallVertices[1].y - textureVerticalOffset);
+        uvs[2].y = (half)(wallVertices[2].y - textureVerticalOffset);
+        uvs[3].y = (half)(wallVertices[3].y - textureVerticalOffset);
 
-        NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
-        NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+        for (int vertex = 0; vertex < wallVertices.Length; ++vertex) {
+          vertices[vertexStart + vertex] = new Vertex {
+            pos = wallVertices[vertex],
+            uv = uvs[vertex],
+            light = lightblend[vertex]
+          };
+        }
+
+        for (int vertex = wallVertices.Length; vertex < VerticesPerViewPart; ++vertex)
+          vertices[vertexStart + vertex] = default;
+
         for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
         
         mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
@@ -421,44 +451,71 @@ namespace SS.System {
 
         // Upper portal border is below ceiling
         if (Mathf.Min(portalPoints[1], portalPoints[2]) < Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) {
-          vertices[0].y = (floorAboveCeiling ? portalPoints[1] : Mathf.Max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
-          vertices[1].y = tile.CeilingCornerHeight(leftCorner) * mapScale;
-          vertices[2].y = tile.CeilingCornerHeight(rightCorner) * mapScale;
-          vertices[3].y = (floorAboveCeiling ? portalPoints[2] : Mathf.Max(portalPoints[2], tile.FloorCornerHeight(leftCorner))) * mapScale;
+          wallVertices[0].y = (floorAboveCeiling ? portalPoints[1] : Mathf.Max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
+          wallVertices[1].y = tile.CeilingCornerHeight(leftCorner) * mapScale;
+          wallVertices[2].y = tile.CeilingCornerHeight(rightCorner) * mapScale;
+          wallVertices[3].y = (floorAboveCeiling ? portalPoints[2] : Mathf.Max(portalPoints[2], tile.FloorCornerHeight(leftCorner))) * mapScale;
 
-          uvs[0].y = (half)(vertices[0].y - textureVerticalOffset);
-          uvs[1].y = (half)(vertices[1].y - textureVerticalOffset);
-          uvs[2].y = (half)(vertices[2].y - textureVerticalOffset);
-          uvs[3].y = (half)(vertices[3].y - textureVerticalOffset);
+          lightblend[0] = wallVertices[0].y / wallVertices[1].y;
+          lightblend[1] = 1f;
+          lightblend[2] = 1f;
+          lightblend[3] = wallVertices[3].y / wallVertices[2].y;
 
-          NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
-          NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+          uvs[0].y = (half)(wallVertices[0].y - textureVerticalOffset);
+          uvs[1].y = (half)(wallVertices[1].y - textureVerticalOffset);
+          uvs[2].y = (half)(wallVertices[2].y - textureVerticalOffset);
+          uvs[3].y = (half)(wallVertices[3].y - textureVerticalOffset);
+
+          for (int vertex = 0; vertex < wallVertices.Length; ++vertex) {
+            vertices[vertexStart + vertex] = new Vertex {
+              pos = wallVertices[vertex],
+              uv = uvs[vertex],
+              light = lightblend[vertex]
+            };
+          }
+
           for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
 
           indiceCount += indicesTemplate.Length;
 
-          vertexStart += vertices.Length;
+          vertexStart += wallVertices.Length;
           indexStart += indicesTemplate.Length;
         }
 
         // Lower border is above floor
         if (Mathf.Max(portalPoints[0], portalPoints[3]) > Mathf.Min(tile.FloorCornerHeight(leftCorner), tile.FloorCornerHeight(rightCorner))) {
-          vertices[0].y = tile.FloorCornerHeight(leftCorner) * mapScale;
-          vertices[1].y = Mathf.Min(portalPoints[0], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
-          vertices[2].y = Mathf.Min(portalPoints[3], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
-          vertices[3].y = tile.FloorCornerHeight(rightCorner) * mapScale;
+          wallVertices[0].y = tile.FloorCornerHeight(leftCorner) * mapScale;
+          wallVertices[1].y = Mathf.Min(portalPoints[0], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          wallVertices[2].y = Mathf.Min(portalPoints[3], Mathf.Max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          wallVertices[3].y = tile.FloorCornerHeight(rightCorner) * mapScale;
 
-          uvs[0].y = (half)(vertices[0].y - textureVerticalOffset);
-          uvs[1].y = (half)(vertices[1].y - textureVerticalOffset);
-          uvs[2].y = (half)(vertices[2].y - textureVerticalOffset);
-          uvs[3].y = (half)(vertices[3].y - textureVerticalOffset);
+          lightblend[0] = 0f;
+          lightblend[1] = wallVertices[1].y / (tile.CeilingCornerHeight(leftCorner) * mapScale);
+          lightblend[2] = wallVertices[2].y / (tile.CeilingCornerHeight(rightCorner) * mapScale);
+          lightblend[3] = 0f;
 
-          NativeArray<float3>.Copy(vertices, 0, pos, vertexStart, vertices.Length);
-          NativeArray<half2>.Copy(uvs, 0, uv, vertexStart, uvs.Length);
+          uvs[0].y = (half)(wallVertices[0].y - textureVerticalOffset);
+          uvs[1].y = (half)(wallVertices[1].y - textureVerticalOffset);
+          uvs[2].y = (half)(wallVertices[2].y - textureVerticalOffset);
+          uvs[3].y = (half)(wallVertices[3].y - textureVerticalOffset);
+
+          for (int vertex = 0; vertex < wallVertices.Length; ++vertex) {
+            vertices[vertexStart + vertex] = new Vertex {
+              pos = wallVertices[vertex],
+              uv = uvs[vertex],
+              light = lightblend[vertex]
+            };
+          }
+
           for (int i = 0; i < indicesTemplate.Length; ++i) index[indexStart + i] = (ushort)(indicesTemplate[i] + vertexStart);
 
           indiceCount += indicesTemplate.Length;
+
+          vertexStart += wallVertices.Length;
         }
+
+        for (int vertex = vertexStart; vertex < VerticesPerViewPart; ++vertex)
+          vertices[vertexStart + vertex] = default;
 
         if (indiceCount > 0) {
           mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(originalIndexStart, indiceCount, MeshTopology.Triangles));
@@ -466,6 +523,9 @@ namespace SS.System {
           return 1;
         }
       }
+
+      for (int vertex = vertexStart; vertex < VerticesPerViewPart; ++vertex)
+          vertices[vertexStart + vertex] = default;
 
       return 0;
     }
