@@ -100,7 +100,7 @@ namespace SS.Resources {
 
         int structSize = Marshal.SizeOf(typeof(T));
 
-        if (ms.Length % structSize != 0)
+        if (structSize > ms.Length || ms.Length % structSize != 0)
           throw new ArgumentException($"Chunk length {ms.Length} is not divisible by struct {typeof(T)} size {structSize}.");
 
         T[] structs = new T[ms.Length / structSize];

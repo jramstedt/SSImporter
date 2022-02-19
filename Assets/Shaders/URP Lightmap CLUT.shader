@@ -1,10 +1,11 @@
-Shader "Universal Render Pipeline/System Shock/CLUT"
+Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
 {
     Properties
     {
         [MainTexture] _BaseMap("Texture", 2D) = "white" {}
         [MainColor] _BaseColor("Color", Color) = (1, 1, 1, 1)
         [NonModifiableTextureData] _CLUT("Color Lookup Table", 2D) = "white" {}
+        [NonModifiableTextureData] _LightGrid("Color Lookup Table", 2D) = "white" {}
         _Cutoff("AlphaCutout", Range(0.0, 1.0)) = 0.5
 
         // BlendMode
@@ -91,6 +92,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             struct Varyings
             {
                 float2 uv : TEXCOORD0;
+                float3 uvwLight : TEXCOORD1;
                 float fogCoord : TEXCOORD2;
                 float4 positionCS : SV_POSITION;
 
@@ -137,6 +139,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
                 output.positionCS = vertexInput.positionCS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.uvwLight = float3(vertexInput.positionWS.x * _LightGrid_TexelSize.x, vertexInput.positionWS.z * _LightGrid_TexelSize.y, input.lightblend);
                 #if defined(_FOG_FRAGMENT)
                 output.fogCoord = vertexInput.positionVS.z;
                 #else
@@ -205,8 +208,11 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
+                half2 lightmap = SAMPLE_TEXTURE2D(_LightGrid, sampler_LightGrid, input.uvwLight.xy + (_LightGrid_TexelSize.xy * 0.5)).rg;
+                half shade = lerp(lightmap.r, lightmap.g, input.uvwLight.z);
+
                 half2 uv = input.uv;
-                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, 0.0);
+                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, shade * 16.0);
                 half3 color = texColor.rgb;
                 half alpha = texColor.a;
 

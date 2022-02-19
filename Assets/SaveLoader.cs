@@ -1,24 +1,18 @@
 ﻿using UnityEngine;
 using System.Collections;
-using UnityEngine.ResourceManagement;
-using UnityEngine.SceneManagement;
 using System.IO;
 using System.Runtime.InteropServices;
 using System;
 using UnityEngine.ResourceManagement.ResourceLocations;
-using UnityEngine.ResourceManagement.ResourceProviders;
 using System.Collections.Generic;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.Util;
 using UnityEngine.AddressableAssets;
 using System.Threading.Tasks;
-using Unity.Rendering;
 using Unity.Entities;
 using Unity.Collections;
 using Unity.Transforms;
 using SS.System;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Mathematics;
+using Unity.Assertions;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -27,21 +21,23 @@ namespace SS.Resources {
 
     private static ushort ResourceIdFromLevel (byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
 
-    public static async Task<World> LoadMap(byte mapId, string saveGamePath, string shadeTablePath) {
-      var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", saveGamePath, typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
+    public static async Task<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
+      var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
       var paletteOp = Addressables.LoadAssetAsync<Palette>(0x02BC);
-      var shadetableOp = Addressables.LoadAssetAsync<ShadeTable>(new ResourceLocationBase("SHADTABL.DAT", shadeTablePath, typeof(RawDataProvider).FullName, typeof(ShadeTable)));
+      var shadetableOp = Addressables.LoadAssetAsync<ShadeTableData>(new ResourceLocationBase(@"SHADTABL.DAT", dataPath + @"\SHADTABL.DAT", typeof(RawDataProvider).FullName, typeof(ShadeTableData)));
+      var texturePropertiesOp = Addressables.LoadAssetAsync<TexturePropertiesData>(new ResourceLocationBase(@"TEXTPROP.DAT", dataPath + @"\TEXTPROP.DAT", typeof(RawDataProvider).FullName, typeof(TexturePropertiesData)));
 
       var saveData = await loadOp.Task;
-      var palette = await paletteOp.Task;
+      var palette = await paletteOp.Task; // TODO should be global.
       var shadetable = await shadetableOp.Task; // TODO should be global.
+      var allTextureProperties = await texturePropertiesOp.Task;
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
       var tileMap = ReadMapElements(saveData.GetResourceData((ushort)(0x0005 + resourceId), 0), levelInfo);
       var textureMap = saveData.GetResourceData<TextureMap>((ushort)(0x0007 + resourceId));
 
-/*
+      /*
       var instanceDatas = new object[][] {
           saveData.GetResourceDataArray<ObjectInstance.Weapon>((ushort)(0x000A + resourceId)),
           saveData.GetResourceDataArray<ObjectInstance.Ammunition>((ushort)(0x000B + resourceId)),
@@ -77,25 +73,35 @@ namespace SS.Resources {
           saveData.GetResourceDataArray<ObjectInstance.Container>((ushort)(0x0026 + resourceId)),
           saveData.GetResourceDataArray<ObjectInstance.Enemy>((ushort)(0x0027 + resourceId))
       };
-*/
+    */
+      var textureAnimation = saveData.GetResourceDataArray<TextureAnimationData>((ushort)(0x002A + resourceId));
+
+      // Initialize systems
       var defaultSystems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
 
       var world = World.DefaultGameObjectInjectionWorld;
       //var world = new World($"map{mapId:D}");
+      var entityManager = world.EntityManager;
+
       var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
       lightmapSystem.lightmap = CreateLightmap(in levelInfo);
 
-      var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
-
       var clutTexture = CreateColorLookupTable(palette, shadetable);
 
+      var textures = new BitmapSet[textureMap.blockIndex.Length];
+      var textureProperties = new TextureProperties[textureMap.blockIndex.Length];
       var materials = new Dictionary<ushort, Material>(textureMap.blockIndex.Length);
       for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
         if (materials.ContainsKey(i)) continue;
 
-        var bitmapSet = await CreateMipmapTexture(textureMap.blockIndex[i]); // TODO instead of await, run parallel
+        var textureIndex = textureMap.blockIndex[i];
 
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+        textureProperties[i] = allTextureProperties[textureIndex];
+
+        var bitmapSet = await CreateMipmapTexture(textureIndex); // TODO instead of await, run parallel
+        textures[i] = bitmapSet;
+
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
         material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
         material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmapSystem.lightmap);
@@ -115,22 +121,31 @@ namespace SS.Resources {
         materials.Add(i, material);
       }
 
+      var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
       mapSystem.mapMaterial = materials;
 
+      var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
+      var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent);
+      var animateTexturesSystem = world.GetOrCreateSystem<AnimateTexturesSystem>();
+      animateTexturesSystem.textures = textures;
+      animateTexturesSystem.textureProperties = textureProperties;
+      animateTexturesSystem.mapMaterial = materials;
+      animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
 
-      //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
-      //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
-
-      var entityManager = world.EntityManager;
+      // Create Entities
+      for (int i = 0; i < textureAnimation.Length; ++i) {
+        var entity = textureAnimationEntities[i];
+        entityManager.AddComponentData(entity, textureAnimation[i]);
+      }
       
-      var mapElemenArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalToWorld), typeof(MapElement));
-      var entityArray = entityManager.CreateEntity(mapElemenArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp);
+      var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalToWorld), typeof(MapElement));
+      var mapElementEntities = entityManager.CreateEntity(mapElementArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp);
 
       for (int x = 0; x < levelInfo.Width; ++x) {
         for (int y = 0; y < levelInfo.Height; ++y) {
           var rowIndex = y * levelInfo.Width;
 
-          var entity = entityArray[rowIndex + x];
+          var entity = mapElementEntities[rowIndex + x];
           entityManager.AddComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
           entityManager.AddComponentData(entity, default(LocalToWorld));
           entityManager.AddComponentData(entity, tileMap[x, y]);
@@ -142,7 +157,10 @@ namespace SS.Resources {
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Map));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       mapSystem.SetSingleton(levelInfo);
-      BuildBlob(mapSystem, mapId, in levelInfo, ref entityArray);
+      BuildBlob(mapSystem, mapId, in levelInfo, ref mapElementEntities);
+
+      //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
+      //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
 
       return world;
     }
@@ -172,7 +190,7 @@ namespace SS.Resources {
       }
     }
 
-    private static Texture2D CreateColorLookupTable(Palette palette, ShadeTable shadeTable) {
+    private static Texture2D CreateColorLookupTable(Palette palette, ShadeTableData shadeTable) {
       Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, false);
       clut.filterMode = FilterMode.Point;
       clut.wrapMode = TextureWrapMode.Clamp;
@@ -243,13 +261,28 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct ShadeTable {
+  public struct ShadeTableData {
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 16)]
     private readonly byte[] paletteIndex;
 
     public byte this[int index] {
       get => paletteIndex[index];
       set => paletteIndex[index] = value;
+    }
+  }
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct TexturePropertiesData {
+    public const int Version = 9;
+
+    private readonly int version;
+
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 396)] // 400 / Marshal.SizeOf<TextureProperties>()
+    private readonly TextureProperties[] textureProperties;
+
+    public TextureProperties this[int index] {
+      get => textureProperties[index];
+      set => textureProperties[index] = value;
     }
   }
 
@@ -443,10 +476,36 @@ namespace SS.Resources {
     public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
     public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
   }
-}
 
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct TextureMap {
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 54)]
-  public readonly ushort[] blockIndex;
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct TextureMap {
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 54)]
+    public readonly ushort[] blockIndex;
+  }
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct TextureProperties {
+    [Flags]
+    public enum StartfieldControlMask : byte {
+        Stars = 0x01,
+        StarsOnEmpty = 0x02
+    }
+
+    public byte Family;
+    public byte Texture;
+    /// <summary>Unused</summary>
+    public short Resilience;
+    /// <summary>LOD Bias</summary>
+    public short DistanceModifier;
+    public byte FrictionClimb;
+    public byte FrictionWalk;
+    public byte StarfieldControl;
+    public byte AnimationGroup;
+
+    /// <summary>Offset from texture to start of the group.</summary>
+    public byte GroupPosition;
+
+    public ushort BaseTextureId (int textureId) => (ushort)(textureId - GroupPosition);
+  }
 }

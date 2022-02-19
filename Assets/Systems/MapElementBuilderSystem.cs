@@ -19,8 +19,6 @@ namespace SS.System {
     public Dictionary<ushort, Material> mapMaterial;
 
     private EntityArchetype viewPartArchetype;
-
-    // private EndSimulationEntityCommandBufferSystem ecbSystem;
     private EntityQuery mapElementQuery;
     private EntityQuery viewPartQuery;
 
@@ -245,14 +243,6 @@ namespace SS.System {
     private unsafe void ClearIndexArray (in Mesh.MeshData mesh) {
       var index = mesh.GetIndexData<ushort>();
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
-    }
-
-    private struct Vertex {
-      public float3 pos;
-      public float3 normal;
-      public float3 tangent;
-      public half2 uv;
-      public float light;
     }
 
     [BurstCompile]
@@ -529,6 +519,14 @@ namespace SS.System {
 
       return 0;
     }
+  }
+
+  internal struct Vertex {
+    public float3 pos;
+    public float3 normal;
+    public float3 tangent;
+    public half2 uv;
+    public float light;
   }
 
   internal static class MapUtils {

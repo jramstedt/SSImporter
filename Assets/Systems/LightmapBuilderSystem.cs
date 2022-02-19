@@ -49,7 +49,7 @@ namespace SS.System {
     }
   }
 
-  struct UpdateLightmapJob : IJobEntityBatchWithIndex {
+  struct UpdateLightmapJob : IJobEntityBatch {
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
     [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> lightmap;
@@ -57,7 +57,7 @@ namespace SS.System {
     [ReadOnly] public LevelInfo levelInfo;
 
     [BurstCompile]
-    public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int indexOfFirstEntityInQuery) {
+    public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
       var tileLocations = batchInChunk.GetNativeArray(tileLocationTypeHandle);
       var mapElements = batchInChunk.GetNativeArray(mapElementTypeHandle);
 

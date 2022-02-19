@@ -116,7 +116,7 @@ namespace SS.Resources {
 
       #region Load archive.dat
       resourceLocatorBuild.Completed += op => {
-        SaveLoader.LoadMap(1, rootPath + @"\DATA\ARCHIVE.DAT", rootPath + @"\DATA\SHADTABL.DAT");
+        SaveLoader.LoadMap(2, rootPath + @"\DATA", @"ARCHIVE.DAT");
       };
       #endregion
     }

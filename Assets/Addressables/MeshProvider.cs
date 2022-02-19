@@ -18,7 +18,7 @@ namespace SS.Resources {
     
     public byte[] _vcolor_tab = new byte[32];
 
-    public ShadeTable shadeTable; // TODO this should be global
+    public ShadeTableData shadeTable; // TODO this should be global
 
     public override Type GetDefaultType(IResourceLocation location) => typeof(MeshInfo);
 
