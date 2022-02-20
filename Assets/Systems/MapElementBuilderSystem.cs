@@ -276,7 +276,7 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y + 1) * levelInfo.Width + tileLocation.X];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).y;
+        var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
         if (tile.TileType == TileType.OpenDiagonalSE)
           subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip);
@@ -292,7 +292,7 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X + 1];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).x;
+        var flip = IsWallTextureFlipped(tileLocation, tile).x;
         subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, TileType.OpenDiagonalNE, TileType.OpenDiagonalSE);
       }
       #endregion
@@ -302,7 +302,7 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y - 1) * levelInfo.Width + tileLocation.X];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).y;
+        var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
         if (tile.TileType == TileType.OpenDiagonalNE)
           subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip);
@@ -318,7 +318,7 @@ namespace SS.System {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X - 1];
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
-        var flip = IsWallTextureFlipped(tileLocation, adjacentTile).x;
+        var flip = IsWallTextureFlipped(tileLocation, tile).x;
         subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, TileType.OpenDiagonalNW, TileType.OpenDiagonalSW);
       }
       #endregion
