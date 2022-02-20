@@ -85,7 +85,7 @@ namespace SS.Resources {
 
       var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
       lightmapSystem.lightmap = CreateLightmap(in levelInfo);
-
+      
       var clutTexture = CreateColorLookupTable(palette, shadetable);
 
       var textures = new BitmapSet[textureMap.blockIndex.Length];
@@ -132,7 +132,21 @@ namespace SS.Resources {
       animateTexturesSystem.mapMaterial = materials;
       animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
 
+      var paletteEffectSystem = world.GetOrCreateSystem<PaletteEffectSystem>();
+      paletteEffectSystem.clut = clutTexture;
+      paletteEffectSystem.shadeTable = shadetable;
+      paletteEffectSystem.palette = palette.ToNativeArray();
+
       // Create Entities
+      var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
+      var paletteEffects = entityManager.CreateEntity(paletteEffectArchetype, 6, Allocator.Temp);
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[0], new PaletteEffect { First = 0x03, Last = 0x07, FrameTime = 68, TimeRemaining = 0 });
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[1], new PaletteEffect { First = 0x0B, Last = 0x0F, FrameTime = 40, TimeRemaining = 0 });
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[2], new PaletteEffect { First = 0x10, Last = 0x14, FrameTime = 20, TimeRemaining = 0 });
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[3], new PaletteEffect { First = 0x15, Last = 0x17, FrameTime = 108, TimeRemaining = 0 });
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
+      entityManager.AddComponentData<PaletteEffect>(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
+
       for (int i = 0; i < textureAnimation.Length; ++i) {
         var entity = textureAnimationEntities[i];
         entityManager.AddComponentData(entity, textureAnimation[i]);
@@ -200,7 +214,7 @@ namespace SS.Resources {
       for (int i = 0; i < textureData.Length; ++i)
         textureData[i] = palette[shadeTable[i]];
 
-      clut.Apply(false, true);
+      clut.Apply(false, false);
       return clut;
     }
 

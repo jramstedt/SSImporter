@@ -5,6 +5,7 @@ using System;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using System.Runtime.InteropServices;
 using System.IO;
+using Unity.Collections;
 
 namespace SS.Resources {
   public class PaletteProvider : ResourceProviderBase {
@@ -42,36 +43,36 @@ namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Palette {
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 3)]
-    private readonly byte[] palette; // RGBRGB...
+    private readonly byte[] rgb; // RGBRGB...
 
     public Palette(Palette copy) {
-      palette = new byte[256 * 3];
-      for (int i = 0; i < palette.Length; ++i)
-        palette[i] = copy.palette[i];
+      rgb = new byte[256 * 3];
+      for (int i = 0; i < rgb.Length; ++i)
+        rgb[i] = copy.rgb[i];
     }
 
     public Color32 this[int index] {
       get {
         index *= 3;
 
-        if (index > palette.Length)
+        if (index > rgb.Length)
           throw new IndexOutOfRangeException();
 
-        byte r = palette[index];
-        byte g = palette[++index];
-        byte b = palette[++index];
+        byte r = rgb[index];
+        byte g = rgb[++index];
+        byte b = rgb[++index];
 
         return new Color32(r, g, b, 0xFF);
       }
       set {
         index *= 3;
 
-        if (index > palette.Length)
+        if (index > rgb.Length)
           throw new IndexOutOfRangeException();
 
-        palette[index] = value.r;
-        palette[++index] = value.g;
-        palette[++index] = value.b;
+        rgb[index] = value.r;
+        rgb[++index] = value.g;
+        rgb[++index] = value.b;
       }
     }
 
@@ -80,39 +81,23 @@ namespace SS.Resources {
 
       index *= 3;
 
-      if (index > palette.Length)
+      if (index > rgb.Length)
         throw new IndexOutOfRangeException();
 
-      byte r = palette[index];
-      byte g = palette[++index];
-      byte b = palette[++index];
+      byte r = rgb[index];
+      byte g = rgb[++index];
+      byte b = rgb[++index];
 
       return new Color32(r, g, b, opaque ? (byte)0xFF : (byte)0x00);
     }
 
-    // TODO PALFX system
-    public Palette RotateSlots(int steps) {
-      short[] rotatingSlots = new short[] {
-        0x0304,
-        0x0B04,
-        0x1004,
-        0x1502,
-        0x1802,
-        0x1B04,
-      };
-
-      Palette ret = new Palette(this);
-      for (int slotIndex = 0; slotIndex < rotatingSlots.Length; ++slotIndex) {
-        int count = rotatingSlots[slotIndex] & 0xFF;
-        int startIndex = rotatingSlots[slotIndex] >> 8;
-
-        for (int i = 0; i < count; ++i) {
-          int newIndex = (i + steps) % count;
-          ret[startIndex + i] = this[startIndex + newIndex];
-        }
+    public NativeArray<Color32> ToNativeArray() {
+      var palette = new NativeArray<Color32>(256, Allocator.Persistent);
+      for (int i = 0; i < palette.Length; ++i) {
+        var index = i * 3;
+        palette[i] = new Color32(rgb[index], rgb[++index], rgb[++index], 0xFF);
       }
-
-      return ret;
+      return palette;
     }
   }
 }
