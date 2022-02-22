@@ -51,6 +51,8 @@ namespace SS.Resources {
 
     public void Dispose() { }
 
+    // TODO needs to be structs for burst
+
     public static ObjectDeclaration[][] ObjectDeclarations = new ObjectDeclaration[][] {
       new ObjectDeclaration[] { // 00 Weapons
         new ObjectDeclaration<Weapon, Weapon.SemiAutomatic>(5),

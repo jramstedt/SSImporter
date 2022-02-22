@@ -4,13 +4,13 @@ using SS;
 using Unity.Entities;   
 
 namespace SS {
-  [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct ObjectInstance : IComponentData {
     [MarshalAs(UnmanagedType.U1)] public bool Active;
     public ObjectClass Class;
     public byte SubClass;
-    public ushort Type;
+    /// <summary>Index to object specific data.</summary>
+    public ushort SpecIndex;
     public ushort CrossReferenceTableIndex;
     public ushort Next;
     public ushort Prev;
@@ -20,7 +20,6 @@ namespace SS {
     public ushort HeadUsed => CrossReferenceTableIndex;
     public ushort HeadFree => Next;
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Weapon : IComponentData {
       public Link Link;
@@ -32,13 +31,11 @@ namespace SS {
       public byte Temperature => AmmoCount;
     }
     
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Ammunition : IComponentData {
         public Link Link;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Projectile : IComponentData {
       public Link Link;
@@ -51,7 +48,6 @@ namespace SS {
       public Location p3;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Explosive : IComponentData {
       public Link Link;
@@ -69,13 +65,11 @@ namespace SS {
       }
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct DermalPatch : IComponentData {
       public Link Link;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Hardware : IComponentData {
       public Link Link;
@@ -83,7 +77,6 @@ namespace SS {
       public byte Version;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct SoftwareAndLog : IComponentData {
       public Link Link;
@@ -104,7 +97,6 @@ namespace SS {
       public int DataIndex => Data & 0xFF;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Decoration : IComponentData {
       public Link Link;
@@ -117,7 +109,6 @@ namespace SS {
       public uint SoftwareSubclass => Data1;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Item : IComponentData {
       public Link Link;
@@ -127,7 +118,6 @@ namespace SS {
       public uint Data2;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Interface : IComponentData {
       public Link Link;
@@ -142,7 +132,6 @@ namespace SS {
       public ushort AccessLevel;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct DoorAndGrating : IComponentData {
       public Link Link;
@@ -156,16 +145,15 @@ namespace SS {
       public ushort OtherHalf;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Animated : IComponentData {
       public Link Link;
 
       public byte StartFrame;
       public byte EndFrame;
+      public ushort Owner;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Trigger : IComponentData {
       public Link Link;
@@ -179,7 +167,6 @@ namespace SS {
       public uint ActionParam4;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Container : IComponentData {
       public Link Link;
@@ -196,7 +183,6 @@ namespace SS {
       public uint SideTexture => Data & 0xFF;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Enemy : IComponentData {
       public Link Link;
@@ -252,7 +238,6 @@ namespace SS {
       AutoClose2 = ClassSpecific2
   }
 
-  [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Location {
     /// <summary>8.8</summary>
@@ -271,7 +256,6 @@ namespace SS {
     public int FineY => Y & 0xFF;
   }
 
-  [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Info {
     public byte AIIndex;
@@ -283,7 +267,6 @@ namespace SS {
     public InstanceFlags Flags;
   }
 
-  [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Link {
       public ushort ObjectIndex;
@@ -293,32 +276,52 @@ namespace SS {
       public ushort HeadUsed => ObjectIndex;
       public ushort HeadFree => Next;
   }
-  
+
   public enum ActionType : byte {
     NoOp = 0x00,
     TeleportPlayer = 0x01,
-    ChangePlayerVitality = 0x02,
-    CloneOrMove = 0x03,
-    SetVariable = 0x04,
+    Damage = 0x02,
+    Create = 0x03,
+    SetQuestVariable = 0x04,
     Cutscene = 0x05,
     Propagate = 0x06,
     Lighting = 0x07,
-    Effect = 0x08,
-    MovePlatform = 0x09,
+    SoundEffect = 0x08,
+    ChangeTileHeight = 0x09,
     ChangeTerrain = 0x0A,
-    PropagateRepeat = 0x0B,
-    PropagateCycle = 0x0C,
+    Scheduler = 0x0B,
+    PropagateAlternating = 0x0C,
     Destroy = 0x0D,
     PlotClock = 0x0E,
     EmailPlayer = 0x0F,
     ChangeContamination = 0x10,
     ChangeClassData = 0x11,
-    ChangeFrameLoop = 0x12,
-    ChangeInstance = 0x13,
+    ChangeAnimation = 0x12,
+    Hacks = 0x13, // Check Hacks enum 
     Texture = 0x14,
-    Awaken = 0x15,
+    AI = 0x15,
     Message = 0x16,
     Spawn = 0x17,
     ChangeType = 0x18
+  }
+
+  public enum Hacks : uint {
+    NoOp = 0x00,
+    RepulsorToggle = 0x01,
+    ReactorDigit,
+    ReactorKeypad,
+    FixtureFrame,
+    Door,
+    GameOver,
+    TurnObject,
+    Armageddon,
+    ShodanConquer,
+    Comparator,
+    PlotWare,
+    AreaSpew,
+    Diego,
+    Panel,
+    EarthDestroyed,
+    MultiTransmog
   }
 }

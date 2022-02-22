@@ -29,7 +29,6 @@ namespace SS.Resources {
       fileStream.Position = DIRECTORY_POINTER_OFFSET;
       fileStream.Position = (long)binaryReader.ReadInt32(); // file offset to resource directory
 
-
       #region Resource directory
       ushort resourceCount = binaryReader.ReadUInt16(); // number of resources in directory
       long dataOffset = binaryReader.ReadUInt32(); // file offset to beginning of first resource data

@@ -6,6 +6,7 @@ using Unity.Entities;
 using UnityEngine;
 
 namespace SS.System {
+  [UpdateInGroup(typeof(PresentationSystemGroup))]
   public sealed class PaletteEffectSystem : SystemBase {
     public Texture2D clut;
     public ShadeTableData shadeTable;
@@ -34,7 +35,6 @@ namespace SS.System {
       effect.Complete();
 
       var textureData = clut.GetRawTextureData<Color32>();
-
       for (int i = 0; i < textureData.Length; ++i)
         textureData[i] = palette[shadeTable[i]];
 
@@ -54,27 +54,25 @@ namespace SS.System {
 
         var deltaTime = (ushort)(timeData.DeltaTime * 1000f);
 
-        var tmpPal = new NativeArray<Color32>(256, Allocator.Temp);
+        using (var tmpPal = new NativeArray<Color32>(256, Allocator.Temp)) {
+          for (int i = 0; i < batchInChunk.Count; ++i) {
+            var paletteEffect = paletteEffects[i];
 
-        for (int i = 0; i < batchInChunk.Count; ++i) {
-          var paletteEffect = paletteEffects[i];
+            var colors = paletteEffect.Last - paletteEffect.First + 1;
 
-          var colors = paletteEffect.Last - paletteEffect.First + 1;
+            var frameDeltaTime = deltaTime + paletteEffect.TimeRemaining;
+            var addToColor = (frameDeltaTime / paletteEffect.FrameTime) % colors;
+            paletteEffect.TimeRemaining = (ushort)(frameDeltaTime % paletteEffect.FrameTime);
 
-          var frameDeltaTime = deltaTime + paletteEffect.TimeRemaining;
-          var addToColor = (frameDeltaTime / paletteEffect.FrameTime) % colors;
-          paletteEffect.TimeRemaining = (ushort)(frameDeltaTime % paletteEffect.FrameTime);
+            if (addToColor > 0) {
+              NativeArray<Color32>.Copy(palette, paletteEffect.First + addToColor, tmpPal, paletteEffect.First, colors - addToColor);
+              NativeArray<Color32>.Copy(palette, paletteEffect.First, tmpPal, paletteEffect.First + colors - addToColor, addToColor);
+              NativeArray<Color32>.Copy(tmpPal, paletteEffect.First, palette, paletteEffect.First, colors);
+            }
 
-          if (addToColor > 0) {
-            NativeArray<Color32>.Copy(palette, paletteEffect.First + addToColor, tmpPal, paletteEffect.First, colors - addToColor);
-            NativeArray<Color32>.Copy(palette, paletteEffect.First, tmpPal, paletteEffect.First + colors - addToColor, addToColor);
-            NativeArray<Color32>.Copy(tmpPal, paletteEffect.First, palette, paletteEffect.First, colors);
+            paletteEffects[i] = paletteEffect;
           }
-
-          paletteEffects[i] = paletteEffect;
         }
-
-        
       }
     }
   }

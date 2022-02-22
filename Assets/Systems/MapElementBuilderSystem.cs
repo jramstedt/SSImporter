@@ -25,7 +25,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      RequireSingletonForUpdate<Map>();
+      RequireSingletonForUpdate<Level>();
       RequireSingletonForUpdate<LevelInfo>();
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -64,7 +64,7 @@ namespace SS.System {
 
       var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
-      var map = GetSingleton<Map>();
+      var level = GetSingleton<Level>();
       var levelInfo = GetSingleton<LevelInfo>();
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
@@ -91,7 +91,7 @@ namespace SS.System {
         mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
         localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(false),
         allMapElements = GetComponentDataFromEntity<MapElement>(true),
-        map = GetSingleton<Map>(),
+        map = GetSingleton<Level>(),
 
         levelInfo = levelInfo,
         meshDataArray = meshDataArray,
@@ -104,7 +104,7 @@ namespace SS.System {
       buildMapElements.Complete();
       #endregion
 
-      // TODO reuse meshes from removed viewpart entities.
+      // TODO we should reuse meshes from removed viewpart entities.
 
       var meshes = new Mesh[entityCount];
       for (var i = 0; i < entityCount; ++i)
@@ -123,7 +123,7 @@ namespace SS.System {
         mesh.UploadMeshData(true);
 
         var sceneTileTag = new FrozenRenderSceneTag {
-          SceneGUID = new Unity.Entities.Hash128 { Value = map.Id },
+          SceneGUID = new Unity.Entities.Hash128 { Value = level.Id },
           SectionIndex = i
         };
 
@@ -187,7 +187,7 @@ namespace SS.System {
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
     public ComponentTypeHandle<LocalToWorld> localToWorldTypeHandle;
     [ReadOnly] public ComponentDataFromEntity<MapElement> allMapElements;
-    [ReadOnly] public Map map;
+    [ReadOnly] public Level map;
 
     [ReadOnly] public LevelInfo levelInfo;
     public Mesh.MeshDataArray meshDataArray;
@@ -520,6 +520,14 @@ namespace SS.System {
       return 0;
     }
   }
+
+  public struct TileLocation : IComponentData {
+    public byte X;
+    public byte Y;
+  }
+
+  public struct ViewPart : IComponentData { }
+  public struct ViewPartRebuildTag : IComponentData { }
 
   internal struct Vertex {
     public float3 pos;

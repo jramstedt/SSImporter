@@ -11,12 +11,13 @@ using Unity.Rendering;
 using UnityEngine;
 
 namespace SS.System {
+  [UpdateInGroup(typeof(PresentationSystemGroup))]
   public sealed class AnimateTexturesSystem : SystemBase {
     public BitmapSet[] textures;
     public TextureProperties[] textureProperties;
     public Dictionary<ushort, Material> mapMaterial;
     public NativeArray<Entity> textureAnimationEntities; // Ugly
-    
+
     private EntityQuery textureAnimationQuery;
 
     protected override void OnCreate() {
@@ -39,7 +40,7 @@ namespace SS.System {
       Dependency = animateTextures;
 
       animateTextures.Complete();
-      
+
       foreach (var (textureIndex, material) in mapMaterial) {
         var textureAnimationEntity = textureAnimationEntities[textureProperties[textureIndex].AnimationGroup];
         var textureAnimation = GetComponent<TextureAnimationData>(textureAnimationEntity);
@@ -47,7 +48,7 @@ namespace SS.System {
         if (textureAnimation.TotalFrames == 0) continue;
 
         var newTextureOffset = (textureAnimation.CurrentFrame + textureProperties[textureIndex].GroupPosition) % textureAnimation.TotalFrames;
-        var newBitmapSet = textures[textureIndex + newTextureOffset];
+        var newBitmapSet = textures[Mathf.Min(textureIndex + newTextureOffset, textures.Length - 1)]; // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
 
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), newBitmapSet.Texture);
         if (newBitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");

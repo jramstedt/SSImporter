@@ -5,7 +5,7 @@ using Unity.Entities;
 using UnityEngine;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(InitializationSystemGroup))]
+  [UpdateInGroup(typeof(PresentationSystemGroup))]
   public sealed class LightmapBuilderSystem : SystemBase {
     private EntityQuery mapElementQuery;
 
@@ -72,4 +72,6 @@ namespace SS.System {
       }
     }
   }
+
+  public struct LightmapRebuildTag : IComponentData { }
 }
