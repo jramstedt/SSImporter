@@ -14,11 +14,10 @@ namespace SS.Resources {
   public class AudioClipProvider : ResourceProviderBase {
     public override Type GetDefaultType(IResourceLocation location) => typeof(AudioClip);
 
-    [BurstCompile]
+    [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
     public struct ParallelConvert : IJobParallelFor {
-      [ReadOnly]
-      public NativeArray<byte> wavData;
-      public NativeArray<float> result;
+      [ReadOnly] public NativeArray<byte> wavData;
+      [WriteOnly] public NativeArray<float> result;
 
       public void Execute(int index) {
         result[index] = (0x80 - wavData[index]) / 128.0f;
@@ -67,22 +66,25 @@ namespace SS.Resources {
 
         AudioClip audioClip = AudioClip.Create(location.InternalId, (int)ams.Length, sfx.ChannelCount, (int)sfx.SampleRate, false);
 
-        /*
-        ParallelConvert convertJob = new ParallelConvert();
-        convertJob.wavData = new NativeArray<byte>(ams.ToArray(), Allocator.TempJob);
-        convertJob.result = new NativeArray<float>(convertJob.wavData.Length, Allocator.TempJob);
+        using var wavData = new NativeArray<byte>(ams.ToArray(), Allocator.TempJob);
+        using var result = new NativeArray<float>(wavData.Length, Allocator.TempJob);
+        ParallelConvert convertJob = new ParallelConvert {
+          wavData = wavData,
+          result = result,
+        };
         var jobHandle = convertJob.Schedule(convertJob.result.Length, 1);
         jobHandle.Complete();
 
-        audioClip.SetData(convertJob.result.ToArray(), 0);
-        */
+        audioClip.SetData(result.ToArray(), 0);
 
+/*
         ams.Position = 0;
         float[] wavData = new float[ams.Length];
         for (int i = 0; i < ams.Length; ++i)
           wavData[i] = (0x80 - ams.ReadByte()) / 128.0f;
 
         audioClip.SetData(wavData, 0);
+*/
 
         provideHandle.Complete(audioClip, true, null);
       }

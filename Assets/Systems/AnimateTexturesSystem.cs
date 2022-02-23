@@ -56,12 +56,12 @@ namespace SS.System {
       }
     }
 
+    [BurstCompile]
     struct AnimateTexturesJob : IJobEntityBatch {
       public ComponentTypeHandle<TextureAnimationData> textureAnimationTypeHandle;
 
       [ReadOnly] public TimeData timeData;
-
-      [BurstCompile]
+      
       public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
         var textureAnimations = batchInChunk.GetNativeArray(textureAnimationTypeHandle);
 
@@ -85,7 +85,7 @@ namespace SS.System {
             } else {
               ++textureAnimation.CurrentFrame;
               if (textureAnimation.CurrentFrame >= textureAnimation.TotalFrames) {
-                if (textureAnimation.Flags.HasFlag(TextureAnimationData.FlagMask.Cyclic)) {
+                if (textureAnimation.IsCyclic) {
                   textureAnimation.Flags |= TextureAnimationData.FlagMask.Reversing;
                   textureAnimation.CurrentFrame = (sbyte)(textureAnimation.TotalFrames - 1);
                 } else {
@@ -115,7 +115,7 @@ namespace SS.System {
     public readonly byte TotalFrames;
     public FlagMask Flags;
 
-    public bool IsCyclic => Flags.HasFlag(FlagMask.Cyclic);
-    public bool IsReversing => Flags.HasFlag(FlagMask.Reversing);
+    public bool IsCyclic => (Flags & FlagMask.Cyclic) == FlagMask.Cyclic;
+    public bool IsReversing => (Flags & FlagMask.Reversing) == FlagMask.Reversing;
   }
 }

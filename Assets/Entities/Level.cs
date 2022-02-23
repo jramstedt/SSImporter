@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using SS.Resources;
 using SS.System;
 using Unity.Entities;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 namespace SS {
   /**
@@ -23,7 +25,6 @@ namespace SS {
     private uint InternalPointer;
     public LevelType Type;
 
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
     private fixed byte Unused[12]; // x_scale, y_scale, z_scale
 
     public SchedulerInfo SchedulerInfo;
@@ -178,8 +179,33 @@ namespace SS {
     // Flag 4
     public byte ShadeCeiling => (byte)((uint)(Flags & FlagMask.ShadeCeiling) >> 24);
 
-    public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
-    public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && MapUtils.slopeAffectsCorner[(byte)TileType, cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
+    public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
+    public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
+
+    public static readonly bool4[] slopeAffectsCorner = new bool4[] {
+      bool4( false, false, false, false ),
+      bool4( false, false, false, false ),
+
+      bool4( false, false, false, false ),
+      bool4( false, false, false, false ),
+      bool4( false, false, false, false ),
+      bool4( false, false, false, false ),
+
+      bool4( false,  true,  true, false ),
+      bool4( false, false,  true,  true ),
+      bool4(  true, false, false,  true ),
+      bool4(  true,  true, false, false ),
+
+      bool4(  true,  true,  true, false ),
+      bool4( false,  true,  true,  true ),
+      bool4(  true, false,  true,  true ),
+      bool4(  true,  true, false,  true ),
+
+      bool4( false, false, false,  true ),
+      bool4(  true, false, false, false ),
+      bool4( false,  true, false, false ),
+      bool4( false, false,  true, false )
+    };
   }
 
 

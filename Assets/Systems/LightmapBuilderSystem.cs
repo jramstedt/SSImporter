@@ -49,6 +49,7 @@ namespace SS.System {
     }
   }
 
+  [BurstCompile]
   struct UpdateLightmapJob : IJobEntityBatch {
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
@@ -56,7 +57,6 @@ namespace SS.System {
     [ReadOnly] public int stride;
     [ReadOnly] public LevelInfo levelInfo;
 
-    [BurstCompile]
     public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
       var tileLocations = batchInChunk.GetNativeArray(tileLocationTypeHandle);
       var mapElements = batchInChunk.GetNativeArray(mapElementTypeHandle);

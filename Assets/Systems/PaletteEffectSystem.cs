@@ -41,6 +41,7 @@ namespace SS.System {
       clut.Apply(false, false);
     }
 
+    [BurstCompile]
     struct EffectJob : IJobEntityBatch {
       public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandle;
 
@@ -48,7 +49,6 @@ namespace SS.System {
 
       [ReadOnly] public TimeData timeData;
 
-      [BurstCompile]
       public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
         var paletteEffects = batchInChunk.GetNativeArray(paletteEffectTypeHandle);
 
