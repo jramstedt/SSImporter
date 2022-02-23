@@ -1,9 +1,13 @@
+using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
+using static SS.ObjectInstance;
 
 namespace SS.System {
+  [UpdateInGroup (typeof(SimulationSystemGroup))]
   public sealed class TriggerSystem : SystemBase {
     private const double NextContinuousSeconds = 5.0;
 
@@ -22,10 +26,15 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
+      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
+      var commandBuffer = ecbSystem.CreateCommandBuffer();
+
       var triggerJob = new TriggerJob {
         entityTypeHandle = GetEntityTypeHandle(),
         instanceTypeHandle = GetComponentTypeHandle<ObjectInstance>(),
-        triggerTypeHandle = GetComponentTypeHandle<ObjectInstance.Trigger>()
+        triggerTypeHandle = GetComponentTypeHandle<ObjectInstance.Trigger>(),
+        CommandBuffer = commandBuffer.AsParallelWriter(),
+        map = GetSingleton<Level>()
       };
 
       var trigger = triggerJob.ScheduleParallel(triggerQuery, dependsOn: Dependency);
@@ -33,12 +42,17 @@ namespace SS.System {
       trigger.Complete();
     }
 
+    [BurstCompile]
     struct TriggerJob : IJobEntityBatch {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      [ReadOnly] public Level map;
 
-      [BurstCompile]
+      [NativeDisableContainerSafetyRestriction]
+      public ComponentDataFromEntity<ObjectInstance.Trigger> TriggerFromEntity;
+      
       public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
         var entities = batchInChunk.GetNativeArray(entityTypeHandle);
         var instances = batchInChunk.GetNativeArray(instanceTypeHandle);
@@ -50,13 +64,29 @@ namespace SS.System {
           var trigger = triggers[i];
 
           // Activate(entity, )
+
+          CommandBuffer.RemoveComponent<TriggerActivateTag>(batchIndex, entity);
         }
       }
 
-      private bool Activate(Entity entity, out bool message) {
+      private bool Activate(in Entity entity, int batchIndex, out bool message) {
         message = false;
 
+        
+
         return false;
+      }
+
+      private void processTrigger(in Entity entity, int batchIndex) {
+        var trigger = TriggerFromEntity[entity];
+
+        
+        if (trigger.DestroyCount > 0) {
+          if (--trigger.DestroyCount == 0)
+            CommandBuffer.DestroyEntity(batchIndex, entity);
+        }
+
+        TriggerFromEntity[entity] = trigger;
       }
     }
   }

@@ -123,7 +123,7 @@ namespace SS {
       public Link Link;
 
       public ActionType ActionType; // ?? trap_type
-      public byte DestroyCount; // ?? destroy_count
+      public byte DestroyCount;
       public uint Comparator; // ?? comparator
       public uint ActionParam1;
       public uint ActionParam2;
@@ -159,7 +159,7 @@ namespace SS {
       public Link Link;
 
       public ActionType ActionType; // ?? trap_type
-      public byte DestroyCount; // ?? destroy_count
+      public byte DestroyCount;
       public uint Comparator; // ?? comparator
       public uint ActionParam1;
       public uint ActionParam2;

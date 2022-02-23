@@ -11,6 +11,7 @@ namespace SS.System {
     private EntityQuery triggerQuery;
 
     private double NextContinuousTrigger = 0.0;
+    private bool LevelEnterProcessed = false;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -23,27 +24,42 @@ namespace SS.System {
       });
     }
 
+    protected override void OnStartRunning() {
+      base.OnStartRunning();
+    }
+
+    protected override void OnStopRunning() {
+      base.OnStopRunning();
+
+      LevelEnterProcessed = false;
+    }
+
     protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      // TODO player gametime
+      // TODO player gametime 
 
-      if (World.Time.ElapsedTime > NextContinuousTrigger) {
-        var triggerJob = new ContinuousTriggerJob {
-          entityTypeHandle = GetEntityTypeHandle(),
-          instanceTypeHandle = GetComponentTypeHandle<ObjectInstance>(),
-          triggerTypeHandle = GetComponentTypeHandle<ObjectInstance.Trigger>(),
-          CommandBuffer = commandBuffer.AsParallelWriter()
-        };
+      var triggerContinuous = World.Time.ElapsedTime > NextContinuousTrigger;
+      var triggerLevelEnter = !LevelEnterProcessed;
 
-        var trigger = triggerJob.ScheduleParallel(triggerQuery, dependsOn: Dependency);
-        Dependency = trigger;
-        ecbSystem.AddJobHandleForProducer(trigger);
-        trigger.Complete();
-        
-        NextContinuousTrigger = World.Time.ElapsedTime + NextContinuousSeconds;
-      }
+      var triggerJob = new ContinuousTriggerJob {
+        entityTypeHandle = GetEntityTypeHandle(),
+        instanceTypeHandle = GetComponentTypeHandle<ObjectInstance>(),
+        triggerTypeHandle = GetComponentTypeHandle<ObjectInstance.Trigger>(),
+        CommandBuffer = commandBuffer.AsParallelWriter(),
+
+        TrggerContinuous = triggerContinuous,
+        TriggerLevelEnter = triggerLevelEnter
+      };
+
+      var trigger = triggerJob.ScheduleParallel(triggerQuery, dependsOn: Dependency);
+      Dependency = trigger;
+      ecbSystem.AddJobHandleForProducer(trigger);
+      trigger.Complete();
+
+      if (triggerLevelEnter) LevelEnterProcessed = true;
+      if (triggerContinuous) NextContinuousTrigger = World.Time.ElapsedTime + NextContinuousSeconds;
     }
 
     struct ContinuousTriggerJob : IJobEntityBatch {
@@ -51,6 +67,8 @@ namespace SS.System {
       [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      public bool TrggerContinuous;
+      public bool TriggerLevelEnter;
 
       [BurstCompile]
       public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
@@ -65,17 +83,11 @@ namespace SS.System {
 
           if (trigger.Link.ObjectIndex == 0) continue;
 
-          if (instance.SubClass == 0 && instance.Info.Type == 9) // Continuous
+          if (TriggerLevelEnter && instance.SubClass == 0 && instance.Info.Type == 8) // Level Entry
+            CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, entity);
+          else if (TrggerContinuous && instance.SubClass == 0 && instance.Info.Type == 9) // Continuous
             CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, entity);
         }
-      }
-
-      private bool Activate(Entity entity, out bool message) {
-        message = false;
-
-
-
-        return false;
       }
     }
   }
