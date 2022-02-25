@@ -20,9 +20,10 @@ namespace SS {
   public unsafe struct ScheduleEvent : IComponentData {
     public ushort Timestamp;
     public EventType Type;
-
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
     public fixed byte Data[4];
+
+    public static ushort TicksToTimestamp(int ticks) => (ushort)((ticks >> 4) & 0xFFFF);
+    public static int TimestampToTicks(ushort timestamp) => timestamp << 4;
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]

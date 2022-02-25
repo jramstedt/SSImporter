@@ -160,11 +160,11 @@ namespace SS {
 
       public ActionType ActionType; // ?? trap_type
       public byte DestroyCount;
-      public uint Comparator; // ?? comparator
-      public uint ActionParam1;
-      public uint ActionParam2;
-      public uint ActionParam3;
-      public uint ActionParam4;
+      public int Comparator; // ?? comparator
+      public int ActionParam1;
+      public int ActionParam2;
+      public int ActionParam3;
+      public int ActionParam4;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

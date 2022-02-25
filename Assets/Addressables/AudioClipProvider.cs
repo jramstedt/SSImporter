@@ -15,12 +15,14 @@ namespace SS.Resources {
     public override Type GetDefaultType(IResourceLocation location) => typeof(AudioClip);
 
     [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
-    public struct ParallelConvert : IJobParallelFor {
+    public struct ParallelConvert : IJobParallelForBatch {
       [ReadOnly] public NativeArray<byte> wavData;
       [WriteOnly] public NativeArray<float> result;
 
-      public void Execute(int index) {
-        result[index] = (0x80 - wavData[index]) / 128.0f;
+      public void Execute(int startIndex, int count) {
+        int lastIndex = startIndex+count;
+        for (int index = startIndex; index < lastIndex; ++index)
+          result[index] = (0x80 - wavData[index]) / 128.0f;
       }
     }
 
@@ -72,7 +74,7 @@ namespace SS.Resources {
           wavData = wavData,
           result = result,
         };
-        var jobHandle = convertJob.Schedule(convertJob.result.Length, 1);
+        var jobHandle = convertJob.ScheduleBatch(convertJob.result.Length, 64);
         jobHandle.Complete();
 
         audioClip.SetData(result.ToArray(), 0);
