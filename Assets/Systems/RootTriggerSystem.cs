@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
+using UnityEngine;
 
 namespace SS.System {
   [UpdateInGroup (typeof(InitializationSystemGroup)), UpdateAfter(typeof(UpdateWorldTimeSystem))]
@@ -40,7 +41,7 @@ namespace SS.System {
 
       // TODO player gametime 
 
-      var triggerContinuous = World.Time.ElapsedTime > NextContinuousTrigger;
+      var triggerContinuous = Time.ElapsedTime > NextContinuousTrigger;
       var triggerLevelEnter = !LevelEnterProcessed;
 
       var triggerJob = new ContinuousTriggerJob {
@@ -59,7 +60,7 @@ namespace SS.System {
       trigger.Complete();
 
       if (triggerLevelEnter) LevelEnterProcessed = true;
-      if (triggerContinuous) NextContinuousTrigger = World.Time.ElapsedTime + NextContinuousSeconds;
+      if (triggerContinuous) NextContinuousTrigger = Time.ElapsedTime + NextContinuousSeconds;
     }
 
     struct ContinuousTriggerJob : IJobEntityBatch {
@@ -83,10 +84,13 @@ namespace SS.System {
 
           if (trigger.Link.ObjectIndex == 0) continue;
 
-          if (TriggerLevelEnter && instance.SubClass == 0 && instance.Info.Type == 8) // Level Entry
+          if (TriggerLevelEnter && instance.SubClass == 0 && instance.Info.Type == 8) { // Level Entry
+            Debug.Log($"RootTriggerSystem Level Entry e:{entity.Index}");
             CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, entity);
-          else if (TrggerContinuous && instance.SubClass == 0 && instance.Info.Type == 9) // Continuous
+          } else if (TrggerContinuous && instance.SubClass == 0 && instance.Info.Type == 9) { // Continuous
+            Debug.Log($"RootTriggerSystem Continuous e:{entity.Index}");
             CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, entity);
+          }
         }
       }
     }

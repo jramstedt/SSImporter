@@ -131,6 +131,8 @@ namespace SS.System {
         var textureIndices = new NativeSlice<byte>(submeshTextureIndex, i * 6, 6);
 
         for (int subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
+          if (mesh.GetIndexCount(subMesh) == 0) continue;
+
           var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
           commandBuffer.SetComponent(viewPart, default(ViewPart));
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
@@ -335,14 +337,14 @@ namespace SS.System {
       var vertexStart = subMeshIndex * VerticesPerViewPart;
       var indexStart = subMeshIndex * IndicesPerViewPart;
 
-      Span<half2> UVTemplate = stackalloc half2[] {
+      ReadOnlySpan<half2> UVTemplate = stackalloc half2[] {
         half2(half(0f), half(0f)),
         half2(half(0f), half(1f)),
         half2(half(1f), half(1f)),
         half2(half(1f), half(0f))
       };
 
-      Span<ushort> faceIndices = stackalloc ushort[] {
+      ReadOnlySpan<ushort> faceIndices = stackalloc ushort[] {
         0, 1, 2, 2, 3, 0,
 
         2, 3, 0,
@@ -366,8 +368,8 @@ namespace SS.System {
         0, 1, 2, 2, 3, 0
       };
 
-      Span<int> faceIndicesOffset = stackalloc int[] { 0, 0, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 94 };
-      Span<int> faceIndicesLength = stackalloc int[] { 0, 6, 3, 3, 3, 3, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 };
+      ReadOnlySpan<int> faceIndicesOffset = stackalloc int[] { 0, 0, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 94 };
+      ReadOnlySpan<int> faceIndicesLength = stackalloc int[] { 0, 6, 3, 3, 3, 3, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 };
 
       int tileType = (int)tile.TileType;
       var indicesTemplate = faceIndices.Slice(faceIndicesOffset[tileType], faceIndicesLength[tileType]);
@@ -380,6 +382,7 @@ namespace SS.System {
 
         // Reverses index order in ceiling
         int lastIndex = indicesTemplate.Length - 1;
+
         for (int i = 0; i < indicesTemplate.Length; ++i) indices[indexStart + i] = (ushort)(indicesTemplate[lastIndex - i] + vertexStart);
         textureIndices[subMeshIndex] = tile.CeilingTexture;
       } else {
@@ -409,9 +412,9 @@ namespace SS.System {
       var vertexStart = subMeshIndex * VerticesPerViewPart;
       var indexStart = subMeshIndex * IndicesPerViewPart;
       
-      Span<ushort> faceIndices = stackalloc ushort[] { 0, 1, 2, 2, 3, 0 };
+      ReadOnlySpan<ushort> faceIndices = stackalloc ushort[] { 0, 1, 2, 2, 3, 0 };
 
-      Span<float3> verticeTemplate = stackalloc float3[] {
+      ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
         float3(0f, 0f, 0f),
         float3(0f, 0f, 1f),
         float3(1f, 0f, 1f),
@@ -425,14 +428,14 @@ namespace SS.System {
         verticeTemplate[rightCorner] // Lower
       };
 
-      Span<half2> UVTemplate = stackalloc half2[] {
+      ReadOnlySpan<half2> UVTemplate = stackalloc half2[] {
         half2(half(0f), half(0f)),
         half2(half(0f), half(1f)),
         half2(half(1f), half(1f)),
         half2(half(1f), half(0f))
       };
 
-      Span<half2> UVTemplateFlipped = stackalloc half2[] {
+      ReadOnlySpan<half2> UVTemplateFlipped = stackalloc half2[] {
         half2(half(1f), half(0f)), 
         half2(half(1f), half(1f)),
         half2(half(0f), half(1f)),
@@ -470,7 +473,7 @@ namespace SS.System {
         textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
         return 1;
       } else { // Possibly two part wall
-        Span<int> portalPoints = stackalloc int[] {
+        ReadOnlySpan<int> portalPoints = stackalloc int[] {
           math.max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)),
           math.min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)),
           math.min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)),

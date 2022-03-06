@@ -33,7 +33,7 @@ namespace SS.System {
     protected override void OnUpdate() {
       var animateTexturesJob = new AnimateTexturesJob {
         textureAnimationTypeHandle = GetComponentTypeHandle<TextureAnimationData>(),
-        timeData = World.Time
+        timeData = Time
       };
 
       var animateTextures = animateTexturesJob.ScheduleParallel(textureAnimationQuery, dependsOn: Dependency);
@@ -54,6 +54,12 @@ namespace SS.System {
         if (newBitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
         else material.DisableKeyword(@"TRANSPARENCY_ON");
       }
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      textureAnimationEntities.Dispose();
     }
 
     [BurstCompile]

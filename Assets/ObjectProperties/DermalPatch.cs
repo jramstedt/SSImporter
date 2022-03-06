@@ -5,7 +5,9 @@ using Unity.Entities;
 namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct DermalPatch{
+  public struct DermalPatch {
+    public const int NUM_DRUGS = 7;
+
     private byte Intensity;
     private byte Delay;
     private byte Duration;

@@ -3,6 +3,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -67,8 +68,8 @@ namespace SS.System {
 
         var pixelIndex = (tileLocation.Y * levelInfo.Width + tileLocation.X) * stride;
 
-        lightmap[pixelIndex] = mapElement.ShadeFloor;
-        lightmap[pixelIndex+1] = mapElement.ShadeCeiling;
+        lightmap[pixelIndex] = (byte)(clamp(mapElement.ShadeFloor - mapElement.ShadeFloorModifier, 0, 0x0F));
+        lightmap[pixelIndex+1] = (byte)(clamp(mapElement.ShadeCeiling - mapElement.ShadeCeilingModifier, 0, 0x0F));
       }
     }
   }

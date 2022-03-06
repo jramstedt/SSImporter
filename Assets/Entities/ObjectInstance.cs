@@ -158,13 +158,13 @@ namespace SS {
     public struct Trigger : IComponentData {
       public Link Link;
 
-      public ActionType ActionType; // ?? trap_type
+      public ActionType ActionType;
       public byte DestroyCount;
       public int Comparator; // ?? comparator
-      public int ActionParam1;
-      public int ActionParam2;
-      public int ActionParam3;
-      public int ActionParam4;
+      public uint ActionParam1;
+      public uint ActionParam2;
+      public uint ActionParam3;
+      public uint ActionParam4;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

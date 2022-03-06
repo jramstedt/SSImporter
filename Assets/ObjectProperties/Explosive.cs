@@ -5,7 +5,10 @@ using Unity.Entities;
 namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct Explosive{
+  public struct Explosive {
+    public const int NUM_DIRECT_GRENADE = 5;
+    public const int NUM_TIMED_GRENADE = 3;
+
     public DamageInfo DamageInfo;
 
     public byte Touchiness;
@@ -26,13 +29,13 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Grenade{
+    public struct Grenade {
       private byte Dummy;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Bomb{
+    public struct Bomb {
       public byte MinTime;
       public byte MaxTime;
       public byte Deviation;

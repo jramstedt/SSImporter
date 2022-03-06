@@ -33,6 +33,7 @@ namespace SS.Resources {
       var allTextureProperties = await texturePropertiesOp.Task;
 
       ushort resourceId = ResourceIdFromLevel(mapId);
+      var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
       var tileMap = ReadMapElements(saveData.GetResourceData((ushort)(0x0005 + resourceId), 0), levelInfo);
       var schedules = saveData.GetResourceData<ScheduleEvent>((ushort)(0x0006 + resourceId));
@@ -145,6 +146,9 @@ namespace SS.Resources {
       animateTexturesSystem.mapMaterial = materials;
       animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
 
+      for (int i = 0; i < textureAnimation.Length; ++i)
+        entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
+
       var paletteEffectSystem = world.GetOrCreateSystem<PaletteEffectSystem>();
       paletteEffectSystem.clut = clutTexture;
       paletteEffectSystem.shadeTable = shadetable;
@@ -152,7 +156,7 @@ namespace SS.Resources {
 
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance));
-      var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
+      using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
         var instanceData = objectInstances[i];
         var instanceClass = instanceData.Class;
@@ -190,9 +194,6 @@ namespace SS.Resources {
         entityManager.AddComponentData<PaletteEffect>(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
         entityManager.AddComponentData<PaletteEffect>(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
       }
-
-      for (int i = 0; i < textureAnimation.Length; ++i)
-        entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
       
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
@@ -222,6 +223,17 @@ namespace SS.Resources {
       }
 
       mapSystem.SetSingleton(map);
+      
+      var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
+      var hackerEntity = entityManager.CreateEntity(hackerArchetype);
+      hackerState.Initialize(); // TODO FIXME only on new game
+      hackerState.currentLevel = mapId;
+      unsafe {
+        if (hackerState.initialShodanSecurityLevels[hackerState.currentLevel] == -1)
+          hackerState.initialShodanSecurityLevels[hackerState.currentLevel] = hackerState.GetQuestVar(Shodan.GetShodanQuestVar(hackerState.currentLevel));
+      }
+      
+      entityManager.SetComponentData(hackerEntity, hackerState);
 
       //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
       //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);

@@ -6,6 +6,15 @@ namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Weapon {
+    public const int NUM_PISTOL_GUN = 5;
+    public const int NUM_AUTO_GUN = 2;
+    public const int NUM_SPECIAL_GUN = 2;
+    public const int NUM_HANDTOHAND_GUN = 2;
+    public const int NUM_BEAM_GUN = 3;
+    public const int NUM_BEAMPROJ_GUN = 2;
+
+    public const int NUM_WEAPONS = NUM_PISTOL_GUN + NUM_AUTO_GUN + NUM_SPECIAL_GUN + NUM_HANDTOHAND_GUN + NUM_BEAM_GUN + NUM_BEAMPROJ_GUN;
+
     public byte FiringRate;
     public byte AmmoInfo;
 

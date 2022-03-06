@@ -10,9 +10,10 @@ namespace SS.System {
   public sealed class PaletteEffectSystem : SystemBase {
     public Texture2D clut;
     public ShadeTableData shadeTable;
-    public NativeArray<Color32> palette;
+    public NativeArray<Color32> palette; // Ugly
 
     private EntityQuery paletteEffectQuery;
+    private int lastTicks;
 
     protected override void OnCreate() {
       paletteEffectQuery = GetEntityQuery(new EntityQueryDesc {
@@ -20,13 +21,21 @@ namespace SS.System {
           ComponentType.ReadWrite<PaletteEffect>()
         }
       });
+
+      lastTicks = TimeUtils.SecondsToSlowTicks(Time.ElapsedTime);
     }
 
     protected override void OnUpdate() {
+      var ticks = TimeUtils.SecondsToSlowTicks(Time.ElapsedTime);
+      var delta = ticks - lastTicks;
+
+      if(delta <= 0) return;
+      lastTicks = ticks;
+
       var effectJob = new EffectJob {
         paletteEffectTypeHandle = GetComponentTypeHandle<PaletteEffect>(),
         palette = palette,
-        timeData = World.Time
+        deltaTicks = delta
       };
 
       var effect = effectJob.ScheduleParallel(paletteEffectQuery, dependsOn: Dependency);
@@ -41,18 +50,22 @@ namespace SS.System {
       clut.Apply(false, false);
     }
 
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      palette.Dispose();
+    }
+
     [BurstCompile]
     struct EffectJob : IJobEntityBatch {
       public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandle;
 
       [NativeDisableParallelForRestriction] public NativeArray<Color32> palette;
 
-      [ReadOnly] public TimeData timeData;
+      [ReadOnly] public int deltaTicks;
 
       public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
         var paletteEffects = batchInChunk.GetNativeArray(paletteEffectTypeHandle);
-
-        var deltaTime = (ushort)(timeData.DeltaTime * 1000f);
 
         using (var tmpPal = new NativeArray<Color32>(256, Allocator.Temp)) {
           for (int i = 0; i < batchInChunk.Count; ++i) {
@@ -60,7 +73,7 @@ namespace SS.System {
 
             var colors = paletteEffect.Last - paletteEffect.First + 1;
 
-            var frameDeltaTime = deltaTime + paletteEffect.TimeRemaining;
+            var frameDeltaTime = deltaTicks + paletteEffect.TimeRemaining;
             var addToColor = (frameDeltaTime / paletteEffect.FrameTime) % colors;
             paletteEffect.TimeRemaining = (ushort)(frameDeltaTime % paletteEffect.FrameTime);
 

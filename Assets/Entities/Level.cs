@@ -70,40 +70,49 @@ namespace SS {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct MapElement : IComponentData {
     [Flags]
-    public enum FlagMask : uint { // ok
+    public enum Flag1Mask : byte {
       // Flag 1
-      Offset = 0x0000001F,
-      Flip = 0x00000060, // FlipMask
-      Family = 0x00000080,
-
-      // Flag 2
-      UseAdjacentWallTexture = 0x00000100,
-      DeconstructedMusic = 0x00000200,
-      SlopeControl = 0x00000C00, // SlopeControl
-      Peril = 0x00001000,
-      Music = 0x0000E000,
-
-      // Flag 3
-      ShadeFloor = 0x000F0000,
-      Rend4 = 0x00F00000, // unused
-
-      // Flag 4
-      ShadeCeiling = 0x0F000000,
-      Rend3 = 0x70000000, // unused
-
-      TileVisited = 0x80000000,
+      Offset = 0x1F,
+      FlipParity = 0x20,
+      FlipAlternate = 0x40,
+      Family = 0x80,
 
       // Cyberspace
-      CyberspacePullFloorStrong = 0x01000000,
-      CyberspacePull = ShadeFloor,
-      CyberspaceGOL = Flip,
-    };
+      CyberspaceGOL = FlipParity | FlipAlternate,
+    }
 
-    public enum SlopeControl : uint {
-      Match = 0x00000000,       // 0
-      Mirror = 0x00000400,      // 1
-      FloorOnly = 0x00000800,   // 2
-      CeilingOnly = 0x00000C00  // 3
+    [Flags]
+    public enum Flag2Mask : byte {
+      // Flag 2
+      UseAdjacentWallTexture = 0x01,
+      DeconstructedMusic = 0x02,
+      SlopeMirror = 0x04,
+      SlopeFloorOnly = 0x08,
+      SlopeCeilingOnly = 0x0C,
+      Peril = 0x10,
+      Music = 0xE0,
+    }
+
+    [Flags]
+    public enum Flag3Mask : byte {
+      // Flag 3
+      ShadeFloor = 0x0F,
+      Rend4 = 0xF0, // unused,
+
+      // Cyberspace
+      CyberspacePull = ShadeFloor,
+    }
+
+    [Flags]
+    public enum Flag4Mask : byte {
+      // Flag 4
+      ShadeCeiling = 0x0F,
+      Rend3 = 0x70, // unused
+
+      TileVisited = 0x80,
+
+      // Cyberspace
+      CyberspacePullFloorStrong = 0x01,
     };
 
     [Flags]
@@ -123,12 +132,6 @@ namespace SS {
       Hazard = 0x80
     }
 
-    [Flags]
-    public enum FlipMask : byte { // ok
-      Parity = 0x01,
-      Alternate = 0x02
-    }
-
     public enum Orientation : byte {
       North = 0x00,
       East = 0x20,
@@ -142,8 +145,16 @@ namespace SS {
     public byte SlopeSteepnessFactor;
     public ushort IndexFirstObject;
     public TextureInfoMask TextureInfo;
-    public FlagMask Flags;
-    private uint RuntimeTemps;
+    
+    public Flag1Mask Flag1;
+    public Flag2Mask Flag2;
+    public Flag3Mask Flag3;
+    public Flag4Mask Flag4;
+
+    public byte SubClip;
+    public byte ClearSolid;
+    public byte FlickQclip;
+    public byte Templight;
 
     public const int MAX_HEIGHT = 32;
 
@@ -156,28 +167,35 @@ namespace SS {
     public int CeilingHeight => MAX_HEIGHT - (int)(CeilingInfo & InfoMask.Height);
     public Orientation CeilingOrientation => (Orientation)(CeilingInfo & InfoMask.Orientation);
     public int CeilingRotation => ((byte)CeilingOrientation >> 5) & 0x03;
-
     public bool CeilingHazard => (CeilingInfo & InfoMask.Hazard) == InfoMask.Hazard;
     public byte CeilingTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.CeilingTexture) >> 6);
 
     public byte WallTexture => (byte)(TextureInfo & TextureInfoMask.WallTexture);
 
     // Flag 1
-    public byte TextureOffset => (byte)(Flags & FlagMask.Offset);
-    public bool TextureParity => ((FlipMask)((byte)(Flags & FlagMask.Flip) >> 5) & FlipMask.Parity) == FlipMask.Parity;
-    public bool TextureAlternate => ((FlipMask)((byte)(Flags & FlagMask.Flip) >> 5) & FlipMask.Alternate) == FlipMask.Alternate;
+    public byte TextureOffset => (byte)(Flag1 & Flag1Mask.Offset);
+    public bool TextureParity => (Flag1 & Flag1Mask.FlipParity) == Flag1Mask.FlipParity;
+    public bool TextureAlternate => (Flag1 & Flag1Mask.FlipAlternate) == Flag1Mask.FlipAlternate;
 
     // Flag 2
-    public bool UseAdjacentTexture => (Flags & FlagMask.UseAdjacentWallTexture) == FlagMask.UseAdjacentWallTexture;
-    public bool IsCeilingMirrored => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.Mirror;
-    public bool IsCeilingOnly => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.CeilingOnly;
-    public bool IsFloorOnly => (SlopeControl)(Flags & FlagMask.SlopeControl) == SlopeControl.FloorOnly;
+    public bool UseAdjacentTexture => (Flag2 & Flag2Mask.UseAdjacentWallTexture) == Flag2Mask.UseAdjacentWallTexture;
+    public bool IsCeilingMirrored => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeMirror;
+    public bool IsFloorOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeFloorOnly;
+    public bool IsCeilingOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeCeilingOnly;
 
     // Flag 3
-    public byte ShadeFloor => (byte)((uint)(Flags & FlagMask.ShadeFloor) >> 16);
+    public byte ShadeFloor => (byte)(Flag3 & Flag3Mask.ShadeFloor);
+    public byte ShadeFloorModifier { 
+      get => (byte)(Templight & 0x0F);
+      set => Templight = (byte)((Templight & 0xF0) | value);
+    }
 
     // Flag 4
-    public byte ShadeCeiling => (byte)((uint)(Flags & FlagMask.ShadeCeiling) >> 24);
+    public byte ShadeCeiling => (byte)(Flag4 & Flag4Mask.ShadeCeiling);
+    public byte ShadeCeilingModifier {
+      get => (byte)((Templight & 0xF0) >> 4);
+      set => Templight = (byte)((Templight & 0x0F) | (value << 4));
+    }
 
     public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
     public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
