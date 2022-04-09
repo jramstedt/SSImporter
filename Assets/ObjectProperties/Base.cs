@@ -5,10 +5,12 @@ namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Base {
+    public const int NUM_OBJECT = Weapon.NUM_GUN + Ammunition.NUM_AMMO + Projectile.NUM_PHYSICS + Explosive.NUM_GRENADE + DermalPatch.NUM_DRUG + Hardware.NUM_HARDWARE + Software.NUM_SOFTWARE + Decoration.NUM_BIGSTUFF + Item.NUM_SMALLSTUFF + Fixture.NUM_FIXTURE + DoorAndGrating.NUM_DOOR + Animating.NUM_ANIMATING + Trap.NUM_TRAP + Container.NUM_CONTAINER + Enemy.NUM_CRITTER;
+
     public int Mass;
     public short Hitpoints;
     public byte Armour;
-    public DrawType DrawType; // ?? render_type
+    public DrawType DrawType;
     public byte PhysicsModel;  // ?? physics_model
     public byte Hardness; // ?? hardness
     public byte Pep; // ?? ubyte pep; 
@@ -27,7 +29,19 @@ namespace SS.ObjectProperties {
   }
 
   public enum DrawType : byte {
-    // ?? render_type
+    Unknown,
+    TexturedPolygon,
+    Bitmap,
+    TextPolygon,
+    DirectionalEnemySprite,
+    AnimatedPolygon,
+    Voxel,
+    NoObj,
+    FlatTexture,
+    FlatPolygon,
+    DirectionalSprite,
+    Special,
+    TranslucentPolygon
   }
 
   [Flags]

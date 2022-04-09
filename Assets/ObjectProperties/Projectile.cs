@@ -10,6 +10,8 @@ namespace SS.ObjectProperties {
     public const int NUM_SLOW_PHYSICS = 16;
     public const int NUM_CAMERA_PHYSICS = 2;
 
+    public const int NUM_PHYSICS = NUM_TRACER_PHYSICS + NUM_SLOW_PHYSICS + NUM_CAMERA_PHYSICS;
+
     [Flags]
     public enum FeatureFlag : byte {
       Light = 0x01,
@@ -22,22 +24,16 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Tracer {
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-      public short[] XCoords;
-
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-      public short[] YCoords;
-
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-      public byte[] ZCoords;
+    public unsafe struct Tracer {
+      public fixed short XCoords[4];
+      public fixed short YCoords[4];
+      public fixed byte ZCoords[4];
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Slow {
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
-      public byte[] Colors;
+    public unsafe struct Slow {
+      public fixed byte Colors[6];
     }
 
     [Serializable]

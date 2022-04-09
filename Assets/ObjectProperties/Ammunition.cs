@@ -14,7 +14,7 @@ namespace SS.ObjectProperties {
     public const int NUM_AUTO_AMMO = 2;
     public const int NUM_PROJ_AMMO = 2;
 
-    public const int NUM_AMMUNITION = NUM_PISTOL_AMMO + NUM_NEEDLE_AMMO + NUM_MAGNUM_AMMO + NUM_RIFLE_AMMO + NUM_FLECHETTE_AMMO + NUM_AUTO_AMMO + NUM_PROJ_AMMO;
+    public const int NUM_AMMO = NUM_PISTOL_AMMO + NUM_NEEDLE_AMMO + NUM_MAGNUM_AMMO + NUM_RIFLE_AMMO + NUM_FLECHETTE_AMMO + NUM_AUTO_AMMO + NUM_PROJ_AMMO;
 
     public DamageInfo DamageInfo;
 

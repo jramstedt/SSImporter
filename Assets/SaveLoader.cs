@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.IO;
-using System.Runtime.InteropServices;
 using System;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using System.Collections.Generic;
@@ -13,24 +12,26 @@ using Unity.Transforms;
 using SS.System;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Assertions;
+using SS.ObjectProperties;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using Unity.Mathematics;
 
 namespace SS.Resources {
   public static class SaveLoader {
     private const ushort SaveGameResourceIdBase = 4000;
+    private const ushort ModelResourceIdBase = 2300;
     private const ushort NumResourceIdsPerLevel = 100;
 
     private static ushort ResourceIdFromLevel (byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
 
     public static async Task<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
       var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
-      var paletteOp = Addressables.LoadAssetAsync<Palette>(0x02BC);
-      var shadetableOp = Addressables.LoadAssetAsync<ShadeTableData>(new ResourceLocationBase(@"SHADTABL.DAT", dataPath + @"\SHADTABL.DAT", typeof(RawDataProvider).FullName, typeof(ShadeTableData)));
-      var texturePropertiesOp = Addressables.LoadAssetAsync<TexturePropertiesData>(new ResourceLocationBase(@"TEXTPROP.DAT", dataPath + @"\TEXTPROP.DAT", typeof(RawDataProvider).FullName, typeof(TexturePropertiesData)));
-
       var saveData = await loadOp.Task;
-      var palette = await paletteOp.Task; // TODO should be global.
-      var shadetable = await shadetableOp.Task; // TODO should be global.
-      var allTextureProperties = await texturePropertiesOp.Task;
+
+      var palette = await Services.Palette;
+      var shadetable = await Services.ShadeTable;
+      var allTextureProperties = await Services.TextureProperties;
+      var objectProperties = await Services.ObjectProperties;
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
@@ -97,10 +98,14 @@ namespace SS.Resources {
       //var world = new World($"map{mapId:D}");
       var entityManager = world.EntityManager;
 
+      world.GetOrCreateSystem<PaletteEffectSystem>();
+
+      var clutTexture = await Services.ColorLookupTableTexture;
+
       var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
       lightmapSystem.lightmap = CreateLightmap(in levelInfo);
-      
-      var clutTexture = CreateColorLookupTable(palette, shadetable);
+
+      var meshInterpeterSystem = world.GetOrCreateSystem<MeshInterpeterSystem>();
 
       var textures = new BitmapSet[textureMap.blockIndex.Length];
       var textureProperties = new TextureProperties[textureMap.blockIndex.Length];
@@ -149,40 +154,58 @@ namespace SS.Resources {
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
-      var paletteEffectSystem = world.GetOrCreateSystem<PaletteEffectSystem>();
-      paletteEffectSystem.clut = clutTexture;
-      paletteEffectSystem.shadeTable = shadetable;
-      paletteEffectSystem.palette = palette.ToNativeArray();
-
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance));
       using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
+        var entity = objectInstanceEntities[i];
         var instanceData = objectInstances[i];
         var instanceClass = instanceData.Class;
-        
-        entityManager.AddComponentData(objectInstanceEntities[i], objectInstances[i]);
+        var location = instanceData.Location;
+
+        var translation = math.float3(
+          Mathf.Round(128f * location.X / 256f) / 128f,
+          Mathf.Round(128f * (location.Z * levelInfo.HeightFactor) / 256f) / 128f,
+          Mathf.Round(128f * location.Y / 256f) / 128f
+        );
+
+        var rotation = quaternion.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
+
+        entityManager.AddComponentData(entity, new LocalToWorld { Value = new Unity.Mathematics.float4x4(rotation, translation) }); // TODO update in job if instance data changes...
+        entityManager.AddComponentData(entity, instanceData);
 
         if (!instanceData.Active || instanceData.SpecIndex == 0) continue;
 
         _ = instanceClass switch {
-          ObjectClass.Weapon => entityManager.AddComponentData(objectInstanceEntities[i], weaponInstances[instanceData.SpecIndex]),
-          ObjectClass.Ammunition => entityManager.AddComponentData(objectInstanceEntities[i], ammunitionInstances[instanceData.SpecIndex]),
-          ObjectClass.Projectile => entityManager.AddComponentData(objectInstanceEntities[i], projectileInstances[instanceData.SpecIndex]),
-          ObjectClass.Explosive => entityManager.AddComponentData(objectInstanceEntities[i], explosiveInstances[instanceData.SpecIndex]),
-          ObjectClass.DermalPatch => entityManager.AddComponentData(objectInstanceEntities[i], dermalInstances[instanceData.SpecIndex]),
-          ObjectClass.Hardware => entityManager.AddComponentData(objectInstanceEntities[i], hardwareInstances[instanceData.SpecIndex]),
-          ObjectClass.SoftwareAndLog => entityManager.AddComponentData(objectInstanceEntities[i], softwareLogInstances[instanceData.SpecIndex]),
-          ObjectClass.Decoration => entityManager.AddComponentData(objectInstanceEntities[i], decorationInstances[instanceData.SpecIndex]),
-          ObjectClass.Item => entityManager.AddComponentData(objectInstanceEntities[i], itemInstances[instanceData.SpecIndex]),
-          ObjectClass.Interface => entityManager.AddComponentData(objectInstanceEntities[i], interfaceInstances[instanceData.SpecIndex]),
-          ObjectClass.DoorAndGrating => entityManager.AddComponentData(objectInstanceEntities[i], doorGratingInstances[instanceData.SpecIndex]),
-          ObjectClass.Animated => entityManager.AddComponentData(objectInstanceEntities[i], animatedInstances[instanceData.SpecIndex]),
-          ObjectClass.Trigger => entityManager.AddComponentData(objectInstanceEntities[i], triggerInstances[instanceData.SpecIndex]),
-          ObjectClass.Container => entityManager.AddComponentData(objectInstanceEntities[i], containerInstances[instanceData.SpecIndex]),
-          ObjectClass.Enemy => entityManager.AddComponentData(objectInstanceEntities[i], enemyInstances[instanceData.SpecIndex]),
+          ObjectClass.Weapon => entityManager.AddComponentData(entity, weaponInstances[instanceData.SpecIndex]),
+          ObjectClass.Ammunition => entityManager.AddComponentData(entity, ammunitionInstances[instanceData.SpecIndex]),
+          ObjectClass.Projectile => entityManager.AddComponentData(entity, projectileInstances[instanceData.SpecIndex]),
+          ObjectClass.Explosive => entityManager.AddComponentData(entity, explosiveInstances[instanceData.SpecIndex]),
+          ObjectClass.DermalPatch => entityManager.AddComponentData(entity, dermalInstances[instanceData.SpecIndex]),
+          ObjectClass.Hardware => entityManager.AddComponentData(entity, hardwareInstances[instanceData.SpecIndex]),
+          ObjectClass.SoftwareAndLog => entityManager.AddComponentData(entity, softwareLogInstances[instanceData.SpecIndex]),
+          ObjectClass.Decoration => entityManager.AddComponentData(entity, decorationInstances[instanceData.SpecIndex]),
+          ObjectClass.Item => entityManager.AddComponentData(entity, itemInstances[instanceData.SpecIndex]),
+          ObjectClass.Interface => entityManager.AddComponentData(entity, interfaceInstances[instanceData.SpecIndex]),
+          ObjectClass.DoorAndGrating => entityManager.AddComponentData(entity, doorGratingInstances[instanceData.SpecIndex]),
+          ObjectClass.Animated => entityManager.AddComponentData(entity, animatedInstances[instanceData.SpecIndex]),
+          ObjectClass.Trigger => entityManager.AddComponentData(entity, triggerInstances[instanceData.SpecIndex]),
+          ObjectClass.Container => entityManager.AddComponentData(entity, containerInstances[instanceData.SpecIndex]),
+          ObjectClass.Enemy => entityManager.AddComponentData(entity, enemyInstances[instanceData.SpecIndex]),
           _ => false,
         };
+
+        if (!instanceData.Active) continue;
+        if (instanceData.CrossReferenceTableIndex == 0) continue;
+
+        var baseData = objectProperties.BasePropertyData(instanceData);
+        if (baseData.DrawType == DrawType.TexturedPolygon) {
+          var modelOp = Addressables.LoadAssetAsync<MeshInfo>($"{ModelResourceIdBase + baseData.MfdId}");
+          modelOp.Completed += op => {
+            if (op.Status == AsyncOperationStatus.Succeeded)
+              entityManager.AddComponentData(entity, op.Result);
+          };
+        }
       }
 
       var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
@@ -212,9 +235,9 @@ namespace SS.Resources {
 
             var entity = mapElementEntities[rowIndex + x];
             entityManager.AddComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
-            entityManager.AddComponentData(entity, default(LocalToWorld));
+            entityManager.AddComponentData(entity, new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(math.float3(x, 0f, y)) });
             entityManager.AddComponentData(entity, tileMap[x, y]);
-            entityManager.AddComponentData(entity, default(ViewPartRebuildTag));
+            entityManager.AddComponentData(entity, default(LevelViewPartRebuildTag));
             entityManager.AddComponentData(entity, default(LightmapRebuildTag));
           }
         }
@@ -262,20 +285,6 @@ namespace SS.Resources {
 
           return mapElements;
       }
-    }
-
-    private static Texture2D CreateColorLookupTable(Palette palette, ShadeTableData shadeTable) {
-      Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, false);
-      clut.filterMode = FilterMode.Point;
-      clut.wrapMode = TextureWrapMode.Clamp;
-
-      var textureData = clut.GetRawTextureData<Color32>();
-
-      for (int i = 0; i < textureData.Length; ++i)
-        textureData[i] = palette[shadeTable[i]];
-
-      clut.Apply(false, false);
-      return clut;
     }
 
     private static Texture2D CreateLightmap(in LevelInfo levelInfo) {
@@ -331,32 +340,6 @@ namespace SS.Resources {
       Addressables.Release(tex16x16);
 
       return result;
-    }
-  }
-
-  [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct ShadeTableData {
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 16)]
-    private readonly byte[] paletteIndex;
-
-    public byte this[int index] {
-      get => paletteIndex[index];
-      set => paletteIndex[index] = value;
-    }
-  }
-
-  [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct TexturePropertiesData {
-    public const int Version = 9;
-
-    private readonly int version;
-
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 396)] // 400 / Marshal.SizeOf<TextureProperties>()
-    private readonly TextureProperties[] textureProperties;
-
-    public TextureProperties this[int index] {
-      get => textureProperties[index];
-      set => textureProperties[index] = value;
     }
   }
 

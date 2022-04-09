@@ -6,6 +6,17 @@ namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Item {
+    public const int NUM_USELESS_SMALLSTUFF = 8;
+    public const int NUM_BROKEN_SMALLSTUFF = 10;
+    public const int NUM_CORPSELIKE_SMALLSTUFF = 15;
+    public const int NUM_GEAR_SMALLSTUFF = 6;
+    public const int NUM_CARDS_SMALLSTUFF = 12;
+    public const int NUM_CYBER_SMALLSTUFF = 12;
+    public const int NUM_ONTHEWALL_SMALLSTUFF = 9;
+    public const int NUM_PLOT_SMALLSTUFF = 8;
+
+    public const int NUM_SMALLSTUFF = NUM_USELESS_SMALLSTUFF + NUM_BROKEN_SMALLSTUFF + NUM_CORPSELIKE_SMALLSTUFF + NUM_GEAR_SMALLSTUFF + NUM_CARDS_SMALLSTUFF + NUM_CYBER_SMALLSTUFF + NUM_ONTHEWALL_SMALLSTUFF + NUM_PLOT_SMALLSTUFF;
+
     private short UsesFlags;
 
     [Serializable]
@@ -38,11 +49,9 @@ namespace SS.ObjectProperties {
       private byte Zero;
     }
 
-    [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Cyberspace {
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
-      public byte[] Colors;
+    public unsafe struct Cyberspace {
+      public fixed byte Colors[6];
     }
 
     [Serializable]

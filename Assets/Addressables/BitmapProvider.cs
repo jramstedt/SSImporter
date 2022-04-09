@@ -18,19 +18,19 @@ namespace SS.Resources {
 
       var resFile = provideHandle.GetDependency<ResourceFile>(0);
       if (resFile == null) {
-        provideHandle.Complete<AudioClip>(null, false, new Exception($"Resource file failed to load for location {location.PrimaryKey}."));
+        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource file failed to load for location {location.PrimaryKey}."));
         return;
       }
 
       var key = provideHandle.ResourceManager.TransformInternalId(location);
       ushort resId, block;
       if (!Utils.ExtractResourceIdAndBlock(key, out resId, out block)) {
-        provideHandle.Complete<AudioClip>(null, false, new Exception($"Resource {location.InternalId} with key {key} is not valid."));
+        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} with key {key} is not valid."));
         return;
       }
 
       if (resFile.GetResourceInfo(resId).info.ContentType != ResourceFile.ContentType.Image) {
-        provideHandle.Complete<AudioClip>(null, false, new Exception($"Resource {location.InternalId} is not {nameof(ResourceFile.ContentType.Image)}."));
+        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} is not {nameof(ResourceFile.ContentType.Image)}."));
         return;
       }
 

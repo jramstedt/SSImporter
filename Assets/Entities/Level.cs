@@ -32,6 +32,7 @@ namespace SS {
     public bool IsCyberspace => Type == LevelType.Cyberspace;
 
     public int HeightDivisor => 1 << ZShift;
+    public int HeightFactor => MapElement.MAX_HEIGHT >> ZShift;
 
     public override string ToString() => $"Width = {Width}, Height = {Height}, XShift = {XShift}, YShift = {YShift}, ZShift = {ZShift}, Type = {Type}";
   }

@@ -53,14 +53,17 @@ namespace SS {
       Unavailable
     }
 
+    // Static Game Data
     public fixed byte name[20];
-    public byte realspaceLevel;
+    public byte realspace_level;  // this is the last realspace level we were in
 
+    // Difficulty related stuff
     public fixed sbyte difficulty[4];
     private fixed byte Unused[(NUM_LEVELS >> 3) + 1];
 
+    // system stuff
     public uint gameTime;
-    public uint lastSecondUpdate;
+    public uint lastSecondUpdate; // when was last do_stuff_every_second
     public uint lastDrugUpdate;
     public uint lastWareUpdate;
     public uint lastAnimCheck;
@@ -68,112 +71,132 @@ namespace SS {
     public int deltaTime;
     public sbyte detailLevel;
 
+    // World stuff
     public byte currentLevel;
     public fixed short initialShodanSecurityLevels[NUM_LEVELS];
     // public Span<short> InitialShodanSecurityLevels { get { fixed (short* a = initialShodanSecurityLevels) { return new Span<short>(a, UnsafeUtility.SizeOf<short>() * NUM_LEVELS); } } }
 
     public fixed sbyte controls[DEGREES_OF_FREEDOM];
     public short playerObjectId;
-    public Location realspaceLocation;
+    public Location realspaceLocation;            // This is where the player will come back out of cspace into
     public int versionNumber;
-    public fixed short inventory[NUM_GENERAL_SLOTS];
+    public fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
 
-    public byte posture;
-    [MarshalAs(UnmanagedType.U1)] public bool footPlanted;
-    public sbyte leanX;                  // -100-+100
+    // Random physics state.
+    public byte posture;                   // current posture (standing/stooped/prone)
+    [MarshalAs(UnmanagedType.U1)] public bool footPlanted;              // Player's foot is planted
+    public sbyte leanX;                  // leaning, -100-+100
     public sbyte leanY;               
 
-    private ushort eye;
+    private ushort eye;                      // eye position 
 
-    public byte hitPoints;
-    public byte cyperspaceHitPoints;
-    public ushort hitPointsRegenRate;
-    public fixed byte hitPointsLost[NUM_DAMAGE_TYPES];
-    public ushort bioPostExpose;
-    public ushort radPostExpose;
-    public byte energy;
-    public byte energySpend;
-    public byte energyRegen;
-    [MarshalAs(UnmanagedType.U1)] public bool energyOut;
+    // Gamesys stuff
+    public byte hitPoints;                // I bet we will want these.
+    public byte cyperspaceHitPoints;                 // after hit_points so we can array ref this stuff
+    public ushort hitPointsRegenRate;         // Rate at which hit points regenerate, per minute
+    public fixed byte hitPointsLost[NUM_DAMAGE_TYPES];  // Rate at which damage is taken, per minute
+    public ushort bioPostExpose;          // expose damage from bio squares long past.
+    public ushort radPostExpose;          // expose damage from rad squares long past.
+    public byte energy;                    // suit power charge
+    public byte energySpend;              // rate of energy burn
+    public byte energyRegen;              // Rate at which suit recharges
+    [MarshalAs(UnmanagedType.U1)] public bool energyOut;                // out of energy last check
     public short cyberspaceTrips;
     public int cyberspaceTimeBase;
 
-    private fixed byte questBits[NUM_QUESTBITS >> 3];
+    private fixed byte questBits[NUM_QUESTBITS >> 3];       // Mask of which "quests" you have completed
     private fixed short questVars[NUM_QUESTVARS];
 
-    public uint hudModes;
-    [MarshalAs(UnmanagedType.U1)] private bool experience;
-    public int fatigue;
-    public ushort fatigueSpend;
-    public ushort fatigueRegen;
-    public ushort fatigueRegenBase;
-    public ushort fatigueRegenMax;
+    public uint hudModes;                 // What hud functions are currently active?
+    [MarshalAs(UnmanagedType.U1)] public bool experience;                // Are you experienced?
+    public int fatigue;                   // how fatigued are you
+    public ushort fatigueSpend;          // Current rate of fatigue expenditure in pts/sec
+    public ushort fatigueRegen;          // Current rate of fatigue regeneration
+    public ushort fatigueRegenBase;     // base fatigue regen rate
+    public ushort fatigueRegenMax;      // max fatigue regen rate 
     public sbyte accuracy;
-    public byte shieldAbsorbRate;
-    public byte shieldThreshold;
-    public byte lightValue;
+    public byte shieldAbsorbRate;       // % of damage shields absorb
+    public byte shieldThreshold;        // Level where shields turn off
+    public byte lightValue;               // current lamp setting
 
-    public fixed byte mfdVirtualSlots[NUM_MFDS * MFD_NUM_VIRTUAL_SLOTS];
+    // MFD State
+    public fixed byte mfdVirtualSlots[NUM_MFDS * MFD_NUM_VIRTUAL_SLOTS]; // ptrs to mfd_slot id's
     public fixed /*MFDStatus*/ byte mfdSlotStatus[MFD_NUM_REAL_SLOTS];
-    public fixed byte mfdAllSlots[MFD_NUM_REAL_SLOTS];
-    public fixed byte mfdFuncStatus[MFD_NUM_FUNCS];
+    public fixed byte mfdAllSlots[MFD_NUM_REAL_SLOTS];          // ptrs to mfd_func id's
+    public fixed byte mfdFuncStatus[MFD_NUM_FUNCS];             // ptrs to mfd_func flags
     public fixed byte mfdFuncData[MFD_NUM_FUNCS * 8];
-    public fixed byte mfdCurrentSlots[NUM_MFDS];
-    public fixed byte mfdEmptyFuncs[NUM_MFDS];
-    public fixed byte mfdAccessPuzzles[64];
+    public fixed byte mfdCurrentSlots[NUM_MFDS];                // ptrs to mfd's curr slots
+    public fixed byte mfdEmptyFuncs[NUM_MFDS];                  // ptrs to mfd's empty func
+    public fixed byte mfdAccessPuzzles[64];             // this is 4 times as much as that hardcoded 8 up there
+                                              // who knows how much we really need, hopefully in soon
+                                              // KLC - changed to 64
     public fixed sbyte mfdSaveSlot[NUM_MFDS];
 
-    public fixed byte hardware[Hardware.NUM_HARDWARE];
+    // Inventory stuff, in general, a value of zero will indicate an empty slot
+    // indices are drug/grenade/ware "types" 
+    public fixed byte hardware[Hardware.NUM_HARDWARE];  // Which warez do we have? (level of each type?)
 
     public fixed byte softwareCombat[Software.NUM_COMBAT_SOFTS];
     public fixed byte softwareDefense[Software.NUM_DEFENSE_SOFTS];
     public fixed byte softwareMisc[Software.NUM_MISC_SOFTS];
 
-    public fixed byte cartridges[Ammunition.NUM_AMMUNITION];
-    public fixed byte partialClip[Ammunition.NUM_AMMUNITION];
+    public fixed byte cartridges[Ammunition.NUM_AMMO]; // Cartridges for each ammo type.
+    public fixed byte partialClip[Ammunition.NUM_AMMO];
 
-    public fixed byte drugs[DermalPatch.NUM_DRUGS];
-    public fixed byte grenades[NUM_GRENADES];
+    public fixed byte drugs[DermalPatch.NUM_DRUG];          // Quantity of each drug
+    public fixed byte grenades[NUM_GRENADES];    // Quantity of each grenade.
 
-    public fixed byte email[NUM_EMAIL];
-    public fixed byte logs[NUM_LOG_LEVELS];
+    public fixed byte email[NUM_EMAIL];  // Which email messages do you have.
+    public fixed byte logs[NUM_LOG_LEVELS]; // on which levels do we have logs. 
 
-    public fixed /*WeaponSlot*/ byte weapons[5 * NUM_WEAPON_SLOTS];
+    // Weapons are arranged into "slots" 
+    public fixed /*WeaponSlot*/ byte weapons[5 * NUM_WEAPON_SLOTS]; // Which weapons do you have?
 
-    public fixed byte hardwareStatus[Hardware.NUM_HARDWARE];
+    // Inventory status
+    public fixed byte hardwareStatus[Hardware.NUM_HARDWARE];    // Status of active wares (on/off, activation time, recharge time?)
 
     public fixed byte softwareCombatStatus[Software.NUM_COMBAT_SOFTS];
     public fixed byte softwareDefenseStatus[Software.NUM_DEFENSE_SOFTS];
     public fixed byte softwareMiscStatus[Software.NUM_MISC_SOFTS];
 
-    public byte jumpjetEnergyFraction;
-    public fixed byte emailSenderCounts[32];
-    public fixed sbyte drugStatus[DermalPatch.NUM_DRUGS];
-    public fixed byte drugIntensity[DermalPatch.NUM_DRUGS];
-    public fixed ushort grenadesTimeSetting[NUM_GRENADES];
+    public byte jumpjetEnergyFraction;  // fractional units of energy spent on jumpjets.
+    public fixed byte emailSenderCounts[32];  // who has sent how many emails 
+    public fixed sbyte drugStatus[DermalPatch.NUM_DRUG];     // Time left on active drugs, 0 if inactive
+    public fixed byte drugIntensity[DermalPatch.NUM_DRUG];  // Intensity of active drugs, 0 if inactive
+    public fixed ushort grenadesTimeSetting[NUM_GRENADES];      // Time setting for each grenade
 
-    public ushort time2dest;
-    public ushort time2comp;
+    // PLOT STUFF
+    public ushort time2dest;  // Time to destination (seconds)
+    public ushort time2comp;  // time to completion of current program (seconds)
 
-    public short currentTargetObjectId;
-    public uint lastFire;
-    public ushort fireRate;
+    // Combat shtuff <tm>
+    public short currentTargetObjectId;                   // creature currently "targeted"
+    public uint lastFire;                 // last gametime the weapon fired.
+    public ushort fireRate;                 // game time required between weapon fires.
 
+    // Selectied items
     public fixed byte actives[NUM_ACTIVES];
 
-    public short saveObjCursorObjectId;
-    public short panelRefObjectId;
+    // Other transitory state
+    public short saveObjCursorObjectId;            // saving object cursor when you change to cyberspace
+    public short panelRefObjectId;                 // Last panel utilized.  stuffed here for reference
 
+    // Stats...
     public int numVictories;
     public int timeInCyberspace;
     public int roundsFired;
     public int numHits;
+
+    // Playtesting data
     public int numDeaths;
 
-    public long eyePosition;
+    // from this point on - data is taking the time_to_level space
+    public long eyePosition;       // physics eye position
 
+    // let's hope State stays at 12 fixes
     public fixed int edmsState[12];
 
+    // the player's actively selected inventory category.  
     public byte currentActiveCategory;
     public byte activeBioTracks;
 
@@ -219,9 +242,9 @@ namespace SS {
       };
 
       ReadOnlySpan<(ushort index, short value)> initQuestVars = stackalloc (ushort, short)[] {
-        (0x3, 2), // initial engine state
-        (0xC, 3), // number of groves
-        (0x33, 256),
+        (0x3, 2), // engine state
+        (0xC, 3), // num groves
+        (0x33, 256), // joystick sensitivity
       };
 
       currentLevel = 1;

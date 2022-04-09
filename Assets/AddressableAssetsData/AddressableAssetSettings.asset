@@ -87,7 +87,8 @@ MonoBehaviour:
   m_SchemaTemplates: []
   m_GroupTemplateObjects:
   - {fileID: 11400000, guid: 6be2048ba2ef5d7478998f4fba9d6a8f, type: 2}
-  m_InitializationObjects: []
+  m_InitializationObjects:
+  - {fileID: 11400000, guid: 8798786a3ee57ca4b88bb8a7b008be59, type: 2}
   m_CertificateHandlerType:
     m_AssemblyName: 
     m_ClassName: 

@@ -8,14 +8,21 @@ using UnityEngine;
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
   public sealed class PaletteEffectSystem : SystemBase {
-    public Texture2D clut;
-    public ShadeTableData shadeTable;
-    public NativeArray<Color32> palette; // Ugly
+    private Texture2D clut;
+    private ShadeTableData shadeTable;
+    private NativeArray<Color32> palette;
 
     private EntityQuery paletteEffectQuery;
     private int lastTicks;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
+      base.OnCreate();
+      
+      var rawPalette = await Services.Palette;
+      palette = rawPalette.ToNativeArray();
+      shadeTable = await Services.ShadeTable;
+      clut = await Services.ColorLookupTableTexture;
+
       paletteEffectQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadWrite<PaletteEffect>()

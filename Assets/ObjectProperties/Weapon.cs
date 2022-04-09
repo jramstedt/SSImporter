@@ -13,7 +13,7 @@ namespace SS.ObjectProperties {
     public const int NUM_BEAM_GUN = 3;
     public const int NUM_BEAMPROJ_GUN = 2;
 
-    public const int NUM_WEAPONS = NUM_PISTOL_GUN + NUM_AUTO_GUN + NUM_SPECIAL_GUN + NUM_HANDTOHAND_GUN + NUM_BEAM_GUN + NUM_BEAMPROJ_GUN;
+    public const int NUM_GUN = NUM_PISTOL_GUN + NUM_AUTO_GUN + NUM_SPECIAL_GUN + NUM_HANDTOHAND_GUN + NUM_BEAM_GUN + NUM_BEAMPROJ_GUN;
 
     public byte FiringRate;
     public byte AmmoInfo;
@@ -23,13 +23,13 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct SemiAutomatic {
+    public struct Pistol {
       private byte Dummy;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct FullAutomatic {
+    public struct Automatic {
       private byte Dummy;
     }
 

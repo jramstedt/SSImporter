@@ -9,6 +9,8 @@ namespace SS.ObjectProperties {
     public const int NUM_DIRECT_GRENADE = 5;
     public const int NUM_TIMED_GRENADE = 3;
 
+    public const int NUM_GRENADE = NUM_DIRECT_GRENADE + NUM_TIMED_GRENADE;
+
     public DamageInfo DamageInfo;
 
     public byte Touchiness;
@@ -29,13 +31,13 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Grenade {
+    public struct Direct {
       private byte Dummy;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Bomb {
+    public struct Timed {
       public byte MinTime;
       public byte MaxTime;
       public byte Deviation;

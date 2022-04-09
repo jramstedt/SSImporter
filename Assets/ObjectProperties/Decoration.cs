@@ -6,6 +6,17 @@ namespace SS.ObjectProperties {
   [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Decoration {
+    public const int NUM_ELECTRONIC_BIGSTUFF = 9;
+    public const int NUM_FURNISHING_BIGSTUFF = 10;
+    public const int NUM_ONTHEWALL_BIGSTUFF = 11;
+    public const int NUM_LIGHT_BIGSTUFF = 4;
+    public const int NUM_LABGEAR_BIGSTUFF = 9;
+    public const int NUM_TECHNO_BIGSTUFF = 8;
+    public const int NUM_DECOR_BIGSTUFF = 16;
+    public const int NUM_TERRAIN_BIGSTUFF = 10;
+
+    public const int NUM_BIGSTUFF = NUM_ELECTRONIC_BIGSTUFF + NUM_FURNISHING_BIGSTUFF + NUM_ONTHEWALL_BIGSTUFF + NUM_LIGHT_BIGSTUFF + NUM_LABGEAR_BIGSTUFF + NUM_TECHNO_BIGSTUFF + NUM_DECOR_BIGSTUFF + NUM_TERRAIN_BIGSTUFF;
+
     private int Data;
 
     [Serializable]

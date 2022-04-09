@@ -78,7 +78,6 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
-                half lightblend : BLENDWEIGHTS;
 
                 #if defined(DEBUG_DISPLAY)
                 float3 normalOS : NORMAL;

@@ -3,21 +3,26 @@ using System.Runtime.InteropServices;
 using Unity.Entities;
 
 namespace SS.ObjectProperties {
-  [Serializable]
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct Enemy{
+  public unsafe struct Enemy {
+    public const int NUM_MUTANT_CRITTER = 9;
+    public const int NUM_ROBOT_CRITTER = 12;
+    public const int NUM_CYBORG_CRITTER = 7;
+    public const int NUM_CYBER_CRITTER = 7;
+    public const int NUM_ROBOBABE_CRITTER = 2;
+
+    public const int NUM_CRITTER = NUM_MUTANT_CRITTER + NUM_ROBOT_CRITTER + NUM_CYBORG_CRITTER + NUM_CYBER_CRITTER + NUM_ROBOBABE_CRITTER;
+
     public byte Intelligence;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-    public WeaponInfo[] Attacks;
+    public WeaponInfo MainAttack;
+    public WeaponInfo AlternativeAttack;
     public byte Perception;
     public DefenceFlags Defence;
     public byte ProjectileOffset;
     public int Flags;
-    [MarshalAs(UnmanagedType.U1)]
-    public bool Mirror;
+    [MarshalAs(UnmanagedType.U1)] public bool Mirror;
     
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-    public byte[] Frames;
+    public fixed byte Frames[8];
     public byte AnimSpeed;
 
     public byte AttackSound;
@@ -37,35 +42,32 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Mutant{
+    public struct Mutant {
       private byte Dummy;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Robot{
+    public struct Robot {
       public byte BackupWeapon;
       public byte MetalThickness;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Cyborg{
-      public byte ShieldEnergy;
+    public struct Cyborg {
+      public short ShieldEnergy;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public unsafe struct Cyberspace {
+      public fixed byte Colors[3];
+      public fixed byte AlternativeColors[3];
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Cyberspace{
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-      public byte[] Colors;
-      [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-      public byte[] AlternativeColors;
-    }
-
-    [Serializable]
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Boss{
+    public struct Boss {
       private byte Dummy;
     }
     

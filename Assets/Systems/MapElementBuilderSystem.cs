@@ -30,7 +30,7 @@ namespace SS.System {
       RequireSingletonForUpdate<LevelInfo>();
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(ViewPart),
+        typeof(LevelViewPart),
         typeof(Parent),
         typeof(LocalToWorld),
         typeof(LocalToParent),
@@ -44,13 +44,13 @@ namespace SS.System {
           ComponentType.ReadOnly<TileLocation>(),
           ComponentType.ReadOnly<MapElement>(),
           ComponentType.ReadWrite<LocalToWorld>(),
-          ComponentType.ReadOnly<ViewPartRebuildTag>()
+          ComponentType.ReadOnly<LevelViewPartRebuildTag>()
         }
       });
 
       viewPartQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
-          ComponentType.ReadOnly<ViewPart>(),
+          ComponentType.ReadOnly<LevelViewPart>(),
           ComponentType.ReadOnly<Parent>()
         }
       });
@@ -63,13 +63,13 @@ namespace SS.System {
       var entityCount = mapElementQuery.CalculateEntityCount();
       if (entityCount == 0) return;
 
-      var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
+      using var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
       var level = GetSingleton<Level>();
       var levelInfo = GetSingleton<LevelInfo>();
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
-      var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
+      using var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
 
       #region Clean up old view parts that are going to be replaced
       var cleanJob = new DestroyOldViewPartsJob {
@@ -90,9 +90,9 @@ namespace SS.System {
         entityTypeHandle = GetEntityTypeHandle(),
         tileLocationTypeHandle = GetComponentTypeHandle<TileLocation>(true),
         mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
-        localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(false),
+        localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(true),
         allMapElements = GetComponentDataFromEntity<MapElement>(true),
-        map = GetSingleton<Level>(),
+        map = level,
 
         levelInfo = levelInfo,
         meshDataArray = meshDataArray,
@@ -134,7 +134,7 @@ namespace SS.System {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 
           var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-          commandBuffer.SetComponent(viewPart, default(ViewPart));
+          commandBuffer.SetComponent(viewPart, default(LevelViewPart));
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
           commandBuffer.SetComponent(viewPart, default(LocalToWorld));
           commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(float3(0f, 0f, 0f)) });
@@ -152,10 +152,7 @@ namespace SS.System {
         }
       }
 
-      EntityManager.RemoveComponent<ViewPartRebuildTag>(mapElementQuery);
-
-      submeshTextureIndex.Dispose();
-      entities.Dispose();
+      EntityManager.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery);
     }
   }
 
@@ -189,7 +186,7 @@ namespace SS.System {
 
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
-    public ComponentTypeHandle<LocalToWorld> localToWorldTypeHandle;
+    [ReadOnly] public ComponentTypeHandle<LocalToWorld> localToWorldTypeHandle;
     [ReadOnly] public ComponentDataFromEntity<MapElement> allMapElements;
     [ReadOnly] public Level map;
 
@@ -215,8 +212,6 @@ namespace SS.System {
         var mapElement = mapElements[i];
 
         var textureIndices = new NativeSlice<byte>(submeshTextureIndex, realIndex * 6, 6);
-
-        localToWorld[i] = new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(float3(tileLocation.X, 0f, tileLocation.Y)) };
 
         BuildMesh(tileLocation, mapElement, ref meshData, ref textureIndices);
       }
@@ -254,7 +249,7 @@ namespace SS.System {
 
       mesh.subMeshCount = 6; // TODO precalculate how many submeshes really is needed.
 
-      var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(5, Allocator.Temp) {
+      using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(5, Allocator.Temp) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -266,7 +261,6 @@ namespace SS.System {
         VerticesPerViewPart * mesh.subMeshCount,
         vertexAttributes
       );
-      vertexAttributes.Dispose();
 
       mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
@@ -382,7 +376,7 @@ namespace SS.System {
 
         // Reverses index order in ceiling
         int lastIndex = indicesTemplate.Length - 1;
-
+        
         for (int i = 0; i < indicesTemplate.Length; ++i) indices[indexStart + i] = (ushort)(indicesTemplate[lastIndex - i] + vertexStart);
         textureIndices[subMeshIndex] = tile.CeilingTexture;
       } else {
@@ -544,8 +538,8 @@ namespace SS.System {
     public byte Y;
   }
 
-  public struct ViewPart : IComponentData { }
-  public struct ViewPartRebuildTag : IComponentData { }
+  public struct LevelViewPart : IComponentData { }
+  public struct LevelViewPartRebuildTag : IComponentData { }
 
   internal struct Vertex {
     public float3 pos;
