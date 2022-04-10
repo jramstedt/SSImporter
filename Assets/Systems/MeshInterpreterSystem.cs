@@ -158,7 +158,7 @@ namespace SS.System {
       Dependency = addMeshToCacheJobHandle;
       ecbSystem.AddJobHandleForProducer(addMeshToCacheJobHandle);
       */
-      var a = entityMeshes;
+
       Entities
         .WithAll<MeshInfo>()
         .WithNone<MeshCachedTag>()
