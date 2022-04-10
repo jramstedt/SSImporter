@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using SS.Resources;
@@ -19,12 +20,16 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace SS.System {
   [UpdateInGroup(typeof(LateSimulationSystemGroup))]
   public sealed class MeshInterpeterSystem : SystemBase {
-    private EntityArchetype dynamicMeshArchetype;
-    private EntityQuery dynamicMeshQuery;
+    private EntityQuery newMeshQuery;
+    private EntityQuery activeMeshQuery;
+    private EntityQuery removedMeshQuery;
 
     private EntityArchetype viewPartArchetype;
     private EntityQuery viewPartQuery;
 
+    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new ConcurrentDictionary<Entity, Mesh>();
+
+    #region Dynamic mesh job variables
     private VertexState[] vertexBuffer = new VertexState[1000];
 
     private byte[] vertexColor = new byte[32];
@@ -37,21 +42,28 @@ namespace SS.System {
     private DrawState drawState;
     private NativeList<Vertex> subMeshVertices;
     private NativeMultiHashMap<ushort, ushort> subMeshIndices;
+    #endregion
 
     private Texture clutTexture;
 
     protected override async void OnCreate() {
       base.OnCreate();
 
-      dynamicMeshArchetype = World.EntityManager.CreateArchetype(
-        typeof(MeshInfo),
-        typeof(LocalToWorld)
-      );
+      newMeshQuery = GetEntityQuery(new EntityQueryDesc {
+        All = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
+        None = new ComponentType[] { ComponentType.ReadOnly<MeshCachedTag>() },
+      });
 
-      dynamicMeshQuery = GetEntityQuery(new EntityQueryDesc {
+      activeMeshQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
-          ComponentType.ReadOnly<MeshInfo>()
+          ComponentType.ReadOnly<MeshInfo>(),
+          ComponentType.ReadOnly<MeshCachedTag>()
         }
+      });
+
+      removedMeshQuery = GetEntityQuery(new EntityQueryDesc {
+        All = new ComponentType[] { ComponentType.ReadOnly<MeshCachedTag>() },
+        None = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
       });
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -134,14 +146,42 @@ namespace SS.System {
       var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      var entityCount = dynamicMeshQuery.CalculateEntityCount();
+      #region Cache mesh of new entities
+      /*
+      var addMeshToCacheJob = new AddMeshToCacheJob() {
+        EntityTypeHandle = GetEntityTypeHandle(),
+        CommandBuffer = commandBuffer.AsParallelWriter(),
+        EntityMeshes = entityMeshes
+      };
+
+      var addMeshToCacheJobHandle = addMeshToCacheJob.ScheduleParallel(newMeshQuery, dependsOn: Dependency);
+      Dependency = addMeshToCacheJobHandle;
+      ecbSystem.AddJobHandleForProducer(addMeshToCacheJobHandle);
+      */
+      var a = entityMeshes;
+      Entities
+        .WithAll<MeshInfo>()
+        .WithNone<MeshCachedTag>()
+        .ForEach((Entity entity) => {
+          var mesh = new Mesh();
+          mesh.MarkDynamic();
+          entityMeshes.TryAdd(entity, mesh);
+          commandBuffer.AddComponent<MeshCachedTag>(entity);
+        })
+        .WithoutBurst()
+        .Run();
+
+      ecbSystem.AddJobHandleForProducer(Dependency);
+      #endregion
+
+      var entityCount = activeMeshQuery.CalculateEntityCount();
       if (entityCount == 0) return;
 
-      using var entities = dynamicMeshQuery.ToEntityArray(Allocator.Temp);
+      // TODO Jobify
 
-      // World.EntityManager.DestroyEntity(viewPartQuery); // TODO FIXME reuse parts
+      using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
 
-      using var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
+      var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
       
       using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
@@ -153,10 +193,15 @@ namespace SS.System {
       drawState = default;
 
       var textureIds = new NativeArray<ushort>(entityCount * 10, Allocator.Temp);
+      var meshes = new Mesh[entityCount];
 
       var textureIdAccumulator = 0;
       for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
         var entity = entities[entityIndex];
+
+        if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
+          throw new Exception(@"No mesh in cache.");
+
         var meshInfo = GetComponent<MeshInfo>(entity);
 
         using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp))
@@ -207,14 +252,9 @@ namespace SS.System {
         }
       }
 
-      // TODO reuse previous meshes!
-      var meshes = new Mesh[entityCount];
-      for (var i = 0; i < entityCount; ++i) {
-        meshes[i] = new Mesh();
-        // meshes[i].MarkDynamic();
-      }
-
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
+
+      var entityChildren = GetBufferFromEntity<Child>(true);
 
       textureIdAccumulator = 0;
       for (int i = 0; i < entityCount; ++i) {
@@ -223,33 +263,74 @@ namespace SS.System {
         mesh.RecalculateNormals();
         // mesh.RecalculateTangents();
         mesh.RecalculateBounds();
-        mesh.UploadMeshData(true);
+        mesh.UploadMeshData(false);
 
-        for (int subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
+        var renderBounds = new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } };
+
+        var childCount = 0;
+        DynamicBuffer<Child> children = default;
+
+        if (entityChildren.HasComponent(entity)) {
+          children = entityChildren[entity];
+          childCount = children.Length;
+        }
+
+        var submeshCount = mesh.subMeshCount;
+        for (int subMesh = 0; subMesh < Mathf.Max(submeshCount, childCount); ++subMesh) {
           var textureId = textureIds[textureIdAccumulator++];
 
-          if (mesh.GetIndexCount(subMesh) == 0) continue;
+          if (subMesh < childCount) {
+            var modelPart = children[subMesh].Value;
 
-          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-          commandBuffer.SetComponent(viewPart, default(ModelPart));
-          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, default(LocalToWorld));
-          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(new float3(0f, 0f, 0f)) });
-          commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
-          commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-            mesh = mesh,
-            material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
-            subMesh = subMesh,
-            layer = 0,
-            castShadows = ShadowCastingMode.On,
-            receiveShadows = true,
-            needMotionVectorPass = false
-          });
+            if (subMesh > submeshCount || mesh.GetIndexCount(subMesh) == 0) {
+              commandBuffer.DestroyEntity(modelPart);
+            } else {
+              commandBuffer.SetComponent(modelPart, renderBounds);
+              commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
+                mesh = mesh,
+                material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
+                subMesh = subMesh,
+                layer = 0,
+                castShadows = ShadowCastingMode.On,
+                receiveShadows = true,
+                needMotionVectorPass = false
+              });
+            }
+          } else {
+            var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
+            commandBuffer.SetComponent(viewPart, default(ModelPart));
+            commandBuffer.SetComponent(viewPart, default(LocalToWorld));
+            commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+            commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(new float3(0f, 0f, 0f)) });
+            commandBuffer.SetComponent(viewPart, renderBounds);
+            commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
+              mesh = mesh,
+              material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
+              subMesh = subMesh,
+              layer = 0,
+              castShadows = ShadowCastingMode.On,
+              receiveShadows = true,
+              needMotionVectorPass = false
+            });
+          }
+          
           // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
+
+
       }
 
       textureIds.Dispose();
+
+      var removeMeshToCacheJob = new RemoveMeshFromCacheJob() {
+        EntityTypeHandle = GetEntityTypeHandle(),
+        CommandBuffer = commandBuffer.AsParallelWriter(),
+        EntityMeshes = entityMeshes
+      };
+
+      var removeMeshToCacheJobHandle = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, dependsOn: Dependency);
+      Dependency = removeMeshToCacheJobHandle;
+      ecbSystem.AddJobHandleForProducer(removeMeshToCacheJobHandle);
     }
 
     private unsafe void intepreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
@@ -583,6 +664,42 @@ namespace SS.System {
       }
     }
 
+    private struct AddMeshToCacheJob : IJobEntityBatch {
+      [ReadOnly] public EntityTypeHandle EntityTypeHandle;
+      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      public ConcurrentDictionary<Entity, Mesh> EntityMeshes;
+
+      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
+        var entities = batchInChunk.GetNativeArray(EntityTypeHandle);
+
+        for (int i = 0; i < batchInChunk.Count; ++i) {
+          var entity = entities[i];
+          var mesh = new Mesh();
+          mesh.MarkDynamic();
+          EntityMeshes.TryAdd(entity, mesh);
+          CommandBuffer.AddComponent<MeshCachedTag>(batchIndex, entity);
+        }
+      }
+    }
+
+    private struct RemoveMeshFromCacheJob : IJobEntityBatch {
+      [ReadOnly] public EntityTypeHandle EntityTypeHandle;
+      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      public ConcurrentDictionary<Entity, Mesh> EntityMeshes;
+
+      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
+        var entities = batchInChunk.GetNativeArray(EntityTypeHandle);
+
+        for (int i = 0; i < batchInChunk.Count; ++i) {
+          var entity = entities[i];
+          if (EntityMeshes.TryRemove(entity, out Mesh mesh)) {
+            CommandBuffer.RemoveComponent<MeshCachedTag>(batchIndex, entity);
+            UnityEngine.Object.Destroy(mesh);
+          }
+        }
+      }
+    }
+
     public struct ModelPart : IComponentData { }
 
     internal enum OpCode : ushort {
@@ -679,4 +796,6 @@ namespace SS.System {
       public half2 uv;
     }
   }
+
+  internal struct MeshCachedTag : ISystemStateComponentData { }
 }
