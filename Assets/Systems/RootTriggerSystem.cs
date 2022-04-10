@@ -57,7 +57,6 @@ namespace SS.System {
       var trigger = triggerJob.ScheduleParallel(triggerQuery, dependsOn: Dependency);
       Dependency = trigger;
       ecbSystem.AddJobHandleForProducer(trigger);
-      trigger.Complete();
 
       if (triggerLevelEnter) LevelEnterProcessed = true;
       if (triggerContinuous) NextContinuousTrigger = Time.ElapsedTime + NextContinuousSeconds;
