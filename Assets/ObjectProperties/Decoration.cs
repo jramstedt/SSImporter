@@ -21,49 +21,49 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Electronic{
+    public struct Electronic {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Furniture{
+    public struct Furniture {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct OnTheWall{
+    public struct OnTheWall {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Light{
+    public struct Light {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct LabGear{
+    public struct LabGear {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Techno{
+    public struct Techno {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Decor{
+    public struct Decor {
       private byte Zero;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Terrain{
+    public struct Terrain {
       private byte Zero;
     }
 

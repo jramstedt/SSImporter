@@ -7,7 +7,7 @@ using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
-  public sealed class LightmapBuilderSystem : SystemBase {
+  public partial class LightmapBuilderSystem : SystemBase {
     private EntityQuery mapElementQuery;
 
     public Texture2D lightmap;

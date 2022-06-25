@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace SS.System {
   [UpdateInGroup(typeof(SimulationSystemGroup))]
-  public sealed class SchedulerSystem : SystemBase {
+  public partial class SchedulerSystem : SystemBase {
     private EntityQuery eventQuery;
 
     protected override void OnCreate() {

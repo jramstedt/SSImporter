@@ -1,8 +1,10 @@
 using System.Threading.Tasks;
+using SS.ObjectProperties;
 using SS.Resources;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.ResourceLocations;
+using SpriteLibraryClass = SS.Resources.SpriteLibrary;
 
 namespace SS {
   public static class Services {
@@ -11,6 +13,7 @@ namespace SS {
     public static readonly Task<Texture2D> ColorLookupTableTexture;
     public static readonly Task<TexturePropertiesData> TextureProperties;
     public static readonly Task<Resources.ObjectProperties> ObjectProperties;
+    public static readonly Task<Resources.SpriteLibrary> SpriteLibrary;
 
     static Services() {
       Debug.Log(@"Services");
@@ -30,6 +33,8 @@ namespace SS {
 
       var objectPropertiesOp = Addressables.LoadAssetAsync<Resources.ObjectProperties>(new ResourceLocationBase(@"OBJPROP.DAT", dataPath + @"\OBJPROP.DAT", typeof(ObjectPropertiesProvider).FullName, typeof(Resources.ObjectProperties)));
       ObjectProperties = objectPropertiesOp.Task;
+
+      SpriteLibrary = SpriteLibraryClass.ConstructInstance();
     }
 
     private static async Task<Texture2D> CreateColorLookupTable() {

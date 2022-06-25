@@ -111,6 +111,7 @@ namespace SS.Resources {
       }
     }
 
+    public ushort GetResourceBlockCount(ushort resourceId) => GetResourceBlockCount(resourceEntries[resourceId]);
     public ushort GetResourceBlockCount(ResourceInfo resourceInfo) {
       DirectoryEntry directoryEntry = resourceInfo.info;
       if (directoryEntry.Flags.HasFlag(ResourceFlags.Compound)) {

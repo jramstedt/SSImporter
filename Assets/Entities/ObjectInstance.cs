@@ -19,6 +19,7 @@ namespace SS {
 
     public ushort HeadUsed => CrossReferenceTableIndex;
     public ushort HeadFree => Next;
+    public int Triple => ((byte)Class) << 16 | SubClass << 8 | Info.Type;
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Weapon : IComponentData {
@@ -143,6 +144,8 @@ namespace SS {
       /// <summary>0xFF never close</summary>
       public byte AutocloseTime;
       public ushort OtherHalf;
+
+      public const int DOOR_OPEN_FRAME = 3;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -199,7 +202,7 @@ namespace SS {
       public byte AiMode;
       public byte Mood;
       public byte Orders;
-      public byte Posture;
+      public byte ViewPosture;
       public byte X;
       public byte Y;
       public byte DestinationX;
@@ -211,6 +214,20 @@ namespace SS {
       public ushort Loot1;
       public ushort Loot2;
       public int Sidestep;
+
+      public PostureType Posture => (PostureType)(ViewPosture & 0xF); // TODO Setter
+      public int View => ViewPosture >> 8; // TODO Setter
+
+      public enum PostureType : byte {
+        Standing,
+        Moving,
+        Attacking,
+        AttackRest,
+        Knockback,
+        Death,
+        Disrupt,
+        Attacking2
+      }
     }
   }
 
@@ -232,10 +249,15 @@ namespace SS {
       // Enemies
       Loner = ClassSpecific,
       WantCloser = ClassSpecific2,
+      NoMove = Hud,
+      NoDoor = BlockRendering,
 
       // Doors
       AutoClose = ClassSpecific,
-      AutoClose2 = ClassSpecific2
+      AutoClose2 = ClassSpecific2,
+
+      // Decoration & Items
+      DataIsObjIdsToUse = Hud
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]

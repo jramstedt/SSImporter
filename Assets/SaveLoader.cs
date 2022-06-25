@@ -86,7 +86,7 @@ namespace SS.Resources {
       var pathfindingPaths = saveData.GetResourceDataArray<Path>((ushort)(0x0031 + resourceId));
       var pathfindingPathsUsed = saveData.GetResourceData<ushort>((ushort)(0x0032 + resourceId));
 
-      var animationLoops = saveData.GetResourceDataArray<AnimationLoop>((ushort)(0x0033 + resourceId));
+      var animationData = saveData.GetResourceDataArray<AnimationData>((ushort)(0x0033 + resourceId));
       var animationCounter = saveData.GetResourceData<ushort>((ushort)(0x0034 + resourceId));
 
       var heightSemaphores = saveData.GetResourceData<HeightSemaphore>((ushort)(0x0034 + resourceId));
@@ -107,13 +107,16 @@ namespace SS.Resources {
 
       var meshInterpeterSystem = world.GetOrCreateSystem<MeshInterpeterSystem>();
 
-      var textures = new BitmapSet[textureMap.blockIndex.Length];
-      var textureProperties = new TextureProperties[textureMap.blockIndex.Length];
-      var materials = new Dictionary<ushort, Material>(textureMap.blockIndex.Length);
-      for (ushort i = 0; i < textureMap.blockIndex.Length; ++i) {
+      var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
+      var textureProperties = new TextureProperties[TextureMap.NUM_LOADED_TEXTURES];
+      var materials = new Dictionary<ushort, Material>(TextureMap.NUM_LOADED_TEXTURES);
+      for (ushort i = 0; i < TextureMap.NUM_LOADED_TEXTURES; ++i) {
         if (materials.ContainsKey(i)) continue;
 
-        var textureIndex = textureMap.blockIndex[i];
+        ushort textureIndex = 0;
+        unsafe {
+          textureIndex = textureMap.blockIndex[i];
+        }
 
         textureProperties[i] = allTextureProperties[textureIndex];
 
@@ -154,6 +157,13 @@ namespace SS.Resources {
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
+      var animationArchetype = entityManager.CreateArchetype(typeof(AnimationData));
+      var animationEntities = entityManager.CreateEntity(animationArchetype, animationCounter, Allocator.Persistent);
+      var animateObjectSystem = world.GetOrCreateSystem<AnimateObjectSystem>();
+
+      for (int i = 0; i < animationCounter; ++i)
+        entityManager.AddComponentData(animationEntities[i], animationData[i]);
+
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance));
       using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
@@ -163,15 +173,17 @@ namespace SS.Resources {
         var instanceClass = instanceData.Class;
         var location = instanceData.Location;
 
+        var baseData = objectProperties.BasePropertyData(instanceData);
+
         var translation = math.float3(
-          Mathf.Round(128f * location.X / 256f) / 128f,
-          Mathf.Round(128f * (location.Z * levelInfo.HeightFactor) / 256f) / 128f,
-          Mathf.Round(128f * location.Y / 256f) / 128f
+          math.round(128f * location.X / 256f) / 128f,
+          math.round(128f * (location.Z * levelInfo.HeightFactor) / 256f) / 128f,
+          math.round(128f * location.Y / 256f) / 128f
         );
 
-        var rotation = quaternion.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
+        var rotation = float3x3.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
 
-        entityManager.AddComponentData(entity, new LocalToWorld { Value = new Unity.Mathematics.float4x4(rotation, translation) }); // TODO update in job if instance data changes...
+        entityManager.AddComponentData(entity, new LocalToWorld { Value = new Unity.Mathematics.float4x4(rotation, translation) });// TODO update in job if instance data changes...
         entityManager.AddComponentData(entity, instanceData);
 
         if (!instanceData.Active || instanceData.SpecIndex == 0) continue;
@@ -198,14 +210,57 @@ namespace SS.Resources {
         if (!instanceData.Active) continue;
         if (instanceData.CrossReferenceTableIndex == 0) continue;
 
-        var baseData = objectProperties.BasePropertyData(instanceData);
+        var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+
+        #region Physics
+        if (baseData.TerrainType != Base.TerrainTypes.Ignore) {
+          if (baseData.DrawType == DrawType.FlatPolygon ||
+              baseData.DrawType == DrawType.AnimatedPolygon ||
+              baseData.DrawType == DrawType.TexturedPolygon ||
+              baseData.DrawType == DrawType.Bitmap ||
+              baseData.DrawType == DrawType.NoObj) {
+            var r = radius / 2f;
+            var h = baseData.PhysicsZ != 0 ? (float)baseData.PhysicsZ / (float)MapElement.PHYSICS_RADIUS_UNIT : radius;
+
+            if (instanceData.Triple == 0xc000a) { } // TODO FIXME REPULSOR_TRIPLE
+            else if (instanceData.Triple == 0x70507) { // TODO FIXME ENERGY_MINE_TRIPLE
+              // TODO update rendering position only...
+              // y += h / 2f;
+              r = -r;
+            }
+
+            // TODO add cylinder collider
+          } else if (baseData.DrawType == DrawType.Special) {
+            // TODO add cube collider for special types
+          } else if (baseData.DrawType == DrawType.TranslucentPolygon ||
+                     baseData.DrawType == DrawType.FlatTexture ||
+                     baseData.DrawType == DrawType.TerrainPolygon) {
+            
+            // TODO add cube collider
+          }
+          
+        }
+        #endregion
+
+        #region Rendering
         if (baseData.DrawType == DrawType.TexturedPolygon) {
           var modelOp = Addressables.LoadAssetAsync<MeshInfo>($"{ModelResourceIdBase + baseData.MfdId}");
           modelOp.Completed += op => {
             if (op.Status == AsyncOperationStatus.Succeeded)
               entityManager.AddComponentData(entity, op.Result);
           };
+        } else if (baseData.DrawType == DrawType.Bitmap) {
+          entityManager.AddComponentData(entity, new SpriteInfo { });
+        } else if (baseData.DrawType == DrawType.FlatTexture) {
+          entityManager.AddComponentData(entity, new FlatTextureInfo { });
+        } else if (baseData.DrawType == DrawType.TerrainPolygon) {
+          entityManager.AddComponentData(entity, new FlatTextureInfo { });
+        } else if (baseData.DrawType == DrawType.NoObj) {
+          // NoOp
+        } else {
+          Debug.LogWarning($"Unsupported draw type {baseData.DrawType}.");
         }
+        #endregion
       }
 
       var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
@@ -224,6 +279,7 @@ namespace SS.Resources {
 
       var map = new Level {
         Id = mapId,
+        TextureMap = textureMap,
         ObjectInstances = BuildBlob(objectInstanceEntities)
       };
 
@@ -344,8 +400,9 @@ namespace SS.Resources {
   }
 
   public struct Level : IComponentData {
-      public byte Id;
-      public BlobAssetReference<BlobArray<Entity>> TileMap;
-      public BlobAssetReference<BlobArray<Entity>> ObjectInstances;
+    public byte Id;
+    public TextureMap TextureMap;
+    public BlobAssetReference<BlobArray<Entity>> TileMap;
+    public BlobAssetReference<BlobArray<Entity>> ObjectInstances;
   }
 }

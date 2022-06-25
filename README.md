@@ -1,8 +1,6 @@
 # SSImporter
 System Shock's assets importer for Unity.
 
-** Doesn't really do anything cool yet. **
-
 ## Features
 - Addressables
 - DOTS Hybrid Renderer

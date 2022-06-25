@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace SS.System {
   [UpdateInGroup (typeof(InitializationSystemGroup)), UpdateAfter(typeof(UpdateWorldTimeSystem))]
-  public sealed class RootTriggerSystem : SystemBase {
+  public partial class RootTriggerSystem : SystemBase {
     private const double NextContinuousSeconds = 5.0;
 
     private EntityQuery triggerQuery;

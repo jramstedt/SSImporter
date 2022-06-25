@@ -17,8 +17,6 @@ namespace SS.Resources {
     private const uint FILE_VERSION = 45;
 
     public readonly BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
-    private readonly NativeArray<ushort> ObjectBase;
-    private readonly NativeArray<ushort> ClassBase;
 
     public ObjectProperties(byte[] objPropData) {
       using var fileStream = new MemoryStream(objPropData, false);
@@ -134,24 +132,24 @@ namespace SS.Resources {
 
         ReadData(blobBuilder, binaryReader, ref objectDataBlob.BaseProps, Base.NUM_OBJECT);
 
-        ObjectDatasBlobAsset = blobBuilder.CreateBlobAssetReference<ObjectDatas>(Allocator.Persistent);
-      }
+        var ObjectBase = blobBuilder.Allocate(ref objectDataBlob.ObjectBase, 0x0F << 3);
+        var ClassBase = blobBuilder.Allocate(ref objectDataBlob.ClassBase, 0x0F << 3);
 
-      ObjectBase = new NativeArray<ushort>(0x0F << 3, Allocator.Persistent);
-      ClassBase = new NativeArray<ushort>(0x0F << 3, Allocator.Persistent);
+        ushort totalCount = 0;
+        for (var classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
+          var subclassDeclaration = ObjectDeclarations[classIndex];
 
-      ushort totalCount = 0;
-      for (var classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
-        var subclassDeclaration = ObjectDeclarations[classIndex];
+          ushort perClassCount = 0;
+          for (var subclassIndex = 0; subclassIndex < subclassDeclaration.Length; ++subclassIndex) {
+            ObjectBase[(classIndex << 3) + subclassIndex] = totalCount;
+            ClassBase[(classIndex << 3) + subclassIndex] = perClassCount;
 
-        ushort perClassCount = 0;
-        for (var subclassIndex = 0; subclassIndex < subclassDeclaration.Length; ++subclassIndex) {
-          ObjectBase[(classIndex << 3) + subclassIndex] = totalCount;
-          ClassBase[(classIndex << 3) + subclassIndex] = perClassCount;
-
-          totalCount += (byte)subclassDeclaration[subclassIndex].Count;
-          perClassCount += (byte)subclassDeclaration[subclassIndex].Count;
+            totalCount += (byte)subclassDeclaration[subclassIndex].Count;
+            perClassCount += (byte)subclassDeclaration[subclassIndex].Count;
+          }
         }
+
+        ObjectDatasBlobAsset = blobBuilder.CreateBlobAssetReference<ObjectDatas>(Allocator.Persistent);
       }
     }
     
@@ -168,15 +166,14 @@ namespace SS.Resources {
       // var bytes = binaryReader.Read(span);
     }
 
-    public int BasePropertyIndex(Triple triple) => ObjectBase[((byte)triple.Class << 3) + triple.SubClass] + triple.Type;
-    public int ClassPropertyIndex(Triple triple) => ClassBase[((byte)triple.Class << 3) + triple.SubClass] + triple.Type;
+    public int BasePropertyIndex(Triple triple) => ObjectDatasBlobAsset.Value.BasePropertyIndex(triple);
+    public int ClassPropertyIndex(Triple triple) => ObjectDatasBlobAsset.Value.ClassPropertyIndex(triple);
 
-    public Base BasePropertyData(Triple triple) => ObjectDatasBlobAsset.Value.BaseProps[BasePropertyIndex(triple)];
+    public Base BasePropertyData(Triple triple) => ObjectDatasBlobAsset.Value.BasePropertyData(triple);
+    public Base BasePropertyData(int index) => ObjectDatasBlobAsset.Value.BasePropertyData(index);
 
     public void Dispose() {
       ObjectDatasBlobAsset.Dispose();
-      ObjectBase.Dispose();
-      ClassBase.Dispose();
     }
 
     public static (int Count, Type Class, Type SubClass)[][] ObjectDeclarations = new []{
@@ -389,5 +386,14 @@ namespace SS.Resources {
     public BlobArray<Enemy.Boss> BossEnemyProps;
 
     public BlobArray<Base> BaseProps;
+
+    public BlobArray<ushort> ObjectBase;
+    public BlobArray<ushort> ClassBase;
+
+    public int BasePropertyIndex(Triple triple) => ObjectBase[((byte)triple.Class << 3) + triple.SubClass] + triple.Type;
+    public int ClassPropertyIndex(Triple triple) => ClassBase[((byte)triple.Class << 3) + triple.SubClass] + triple.Type;
+
+    public Base BasePropertyData(Triple triple) => BaseProps[BasePropertyIndex(triple)];
+    public Base BasePropertyData(int index) => BaseProps[index];
   }
 }

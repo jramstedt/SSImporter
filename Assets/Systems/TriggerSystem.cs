@@ -12,7 +12,7 @@ using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup (typeof(SimulationSystemGroup))]
-  public sealed class TriggerSystem : SystemBase {
+  public partial class TriggerSystem : SystemBase {
     private const double NextContinuousSeconds = 5.0;
 
     private EntityQuery triggerQuery;

@@ -158,6 +158,7 @@ namespace SS {
     public byte Templight;
 
     public const int MAX_HEIGHT = 32;
+    public const int PHYSICS_RADIUS_UNIT = 96;
 
     public int FloorHeight => (int)(FloorInfo & InfoMask.Height);
     public Orientation FloorOrientation => (Orientation)(FloorInfo & InfoMask.Orientation);
@@ -229,9 +230,10 @@ namespace SS {
 
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct TextureMap {
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 54)]
-    public readonly ushort[] blockIndex;
+  public unsafe struct TextureMap {
+    public const byte NUM_LOADED_TEXTURES = 54;
+
+    public fixed ushort blockIndex[NUM_LOADED_TEXTURES];
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -272,37 +274,6 @@ namespace SS {
     
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = NUM_PATH_STEPS/4)]
     public byte[] Moves;
-  }
-
-  [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct AnimationLoop {
-    public enum AnimationFlags : byte {
-        Repeat = 0x01,
-        Reverse,
-        Cycle
-    }
-
-    public enum AnimationCallbackType : ushort {
-      Remove = 0x01,
-      Repeat,
-      Cycle
-    }
-
-    public enum Callback : uint {
-      DiegoTeleport = 0x01,
-      DestroyScreen,
-      Unshodanize,
-      Unmulti,
-      Multi,
-      Animate
-    }
-
-    public ushort ObjectIndex;
-    public AnimationFlags Flags;
-    public AnimationCallbackType CallbackType;
-    public Callback CallbackIndex;
-    public uint UserDataPointer;
-    public ushort Speed;
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]

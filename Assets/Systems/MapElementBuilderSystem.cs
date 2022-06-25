@@ -16,7 +16,7 @@ using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup (typeof(InitializationSystemGroup))]
-  public sealed class MapElementBuilderSystem : SystemBase {
+  public partial class MapElementBuilderSystem : SystemBase {
     public Dictionary<ushort, Material> mapMaterial;
 
     private EntityArchetype viewPartArchetype;
@@ -114,14 +114,16 @@ namespace SS.System {
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
       for (int i = 0; i < entityCount; ++i) {
-        var entity = entities[i];
-        var tile = GetComponent<MapElement>(entity);
-
         var mesh = meshes[i];
+        if (mesh.subMeshCount == 0) continue;
+
         mesh.RecalculateNormals();
         // mesh.RecalculateTangents();
         mesh.RecalculateBounds();
         mesh.UploadMeshData(true);
+
+        var entity = entities[i];
+        var tile = GetComponent<MapElement>(entity);
 
         var sceneTileTag = new FrozenRenderSceneTag {
           SceneGUID = new Unity.Entities.Hash128 { Value = level.Id },
@@ -132,6 +134,17 @@ namespace SS.System {
 
         for (int subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
+
+          /*
+          var renderMeshDescription = new RenderMeshDescription(mesh, mapMaterial[textureIndices[subMesh]], subMeshIndex: subMesh);
+
+          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
+          RenderMeshUtility.AddComponents(viewPart, commandBuffer, renderMeshDescription);
+
+          commandBuffer.SetComponent(viewPart, default(LevelViewPart));
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
+          */
 
           var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
           commandBuffer.SetComponent(viewPart, default(LevelViewPart));
@@ -146,7 +159,8 @@ namespace SS.System {
             layer = 0,
             castShadows = ShadowCastingMode.On,
             receiveShadows = true,
-            needMotionVectorPass = false
+            needMotionVectorPass = false,
+            layerMask = uint.MaxValue
           });
           commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
@@ -241,6 +255,12 @@ namespace SS.System {
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
     }
 
+    private unsafe void ClearVertexArray(in Mesh.MeshData mesh) {
+      var vertices = mesh.GetVertexData<Vertex>();
+      for (int vertex = 0; vertex < vertices.Length; ++vertex)
+        vertices[vertex] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
+    }
+
     private void BuildMesh (in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
       if (tile.TileType == TileType.Solid) {
         mesh.subMeshCount = 0;
@@ -265,6 +285,7 @@ namespace SS.System {
       mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
       ClearIndexArray(mesh);
+      ClearVertexArray(mesh);
 
       var subMeshAccumulator = 0;
 

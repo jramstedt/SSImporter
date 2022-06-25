@@ -26,23 +26,23 @@ namespace SS.Resources {
 
     private static readonly ChunkResourceLocator resourceLocator = new ChunkResourceLocator();
 
-    private static Dictionary<ContentType, string> contentProviders = new Dictionary<ContentType, string> {
-        { ContentType.Palette, typeof(PaletteProvider).FullName },
-        { ContentType.String, @"String" },
-        { ContentType.Image, typeof(BitmapProvider).FullName },
-        { ContentType.Font, @"Font" },
-        { ContentType.Animation, @"Animation" },
-        { ContentType.Voc, typeof(AudioClipProvider).FullName },
-        { ContentType.Obj3D, typeof(MeshProvider).FullName },
-        { ContentType.Movie, @"Movie" },
-        { ContentType.Map, @"Map" }
+    private static Dictionary<Type, string> contentProviders = new Dictionary<Type, string> {
+        { typeof(Palette), typeof(PaletteProvider).FullName },
+        { typeof(BitmapSet), typeof(BitmapProvider).FullName },
+        { typeof(AudioClip), typeof(AudioClipProvider).FullName },
+        { typeof(MeshInfo), typeof(MeshProvider).FullName },
     };
 
-    private static Dictionary<ContentType, Type> contentTypes = new Dictionary<ContentType, Type> {
-      { ContentType.Palette, typeof(Palette) },
-      { ContentType.Image, typeof(BitmapSet) },
-      { ContentType.Voc, typeof(AudioClip) },
-      { ContentType.Obj3D, typeof(MeshInfo) },
+    private static Dictionary<ContentType, Type[]> contentTypes = new Dictionary<ContentType, Type[]> {
+      { ContentType.Palette, new[]{ typeof(Palette) }},
+      //{ ContentType.String, @"String" },
+      { ContentType.Image, new[]{ typeof(BitmapSet) }},
+      // { ContentType.Font, @"Font" },
+      // { ContentType.Animation, @"Animation" },
+      { ContentType.Voc, new[]{ typeof(AudioClip) }},
+      { ContentType.Obj3D, new[]{ typeof(MeshInfo) }},
+      // { ContentType.Movie, @"Movie" },
+      // { ContentType.Map, @"Map" }
     };
 
     public bool Initialize(string id, string data) {
@@ -91,10 +91,11 @@ namespace SS.Resources {
         var loadOp = rm.ProvideResource<ResourceFile>(resourceLocation);
         loadOp.Completed += op => {
           foreach (var (resId, resource) in op.Result.ResourceEntries) {
-            if (!contentTypes.TryGetValue(resource.info.ContentType, out Type resourceType))
-              resourceType = typeof(object);
+            if (!contentTypes.TryGetValue(resource.info.ContentType, out Type[] resourceTypes))
+              continue;
 
-            resourceLocator.Add(resId, new ResourceLocationBase($"{resId}", $"{resId}", contentProviders[resource.info.ContentType], resourceType, resourceLocation));
+            foreach (var resourceType in resourceTypes)
+              resourceLocator.Add(resId, new ResourceLocationBase($"{resId}", $"{resId}", contentProviders[resourceType], resourceType, resourceLocation));
           }
         };
 

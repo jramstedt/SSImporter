@@ -19,7 +19,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.System {
   [UpdateInGroup(typeof(LateSimulationSystemGroup))]
-  public sealed class MeshInterpeterSystem : SystemBase {
+  public partial class MeshInterpeterSystem : SystemBase {
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
     private EntityQuery removedMeshQuery;
@@ -41,7 +41,7 @@ namespace SS.System {
 
     private DrawState drawState;
     private NativeList<Vertex> subMeshVertices;
-    private NativeMultiHashMap<ushort, ushort> subMeshIndices;
+    private NativeParallelMultiHashMap<ushort, ushort> subMeshIndices;
     #endregion
 
     private Texture clutTexture;
@@ -205,7 +205,7 @@ namespace SS.System {
         var meshInfo = GetComponent<MeshInfo>(entity);
 
         using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp))
-        using (subMeshIndices = new NativeMultiHashMap<ushort, ushort>(300, Allocator.Temp))
+        using (subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(300, Allocator.Temp))
         {
           Array.Clear(vertexBuffer, 0, vertexBuffer.Length);
           
@@ -293,10 +293,13 @@ namespace SS.System {
                 layer = 0,
                 castShadows = ShadowCastingMode.On,
                 receiveShadows = true,
-                needMotionVectorPass = false
+                needMotionVectorPass = false,
+                layerMask = uint.MaxValue
               });
             }
           } else {
+            // TODO material 0 = bitmap_from_tpoly_data
+
             var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
             commandBuffer.SetComponent(viewPart, default(ModelPart));
             commandBuffer.SetComponent(viewPart, default(LocalToWorld));
@@ -310,7 +313,8 @@ namespace SS.System {
               layer = 0,
               castShadows = ShadowCastingMode.On,
               receiveShadows = true,
-              needMotionVectorPass = false
+              needMotionVectorPass = false,
+              layerMask = uint.MaxValue
             });
           }
           
@@ -702,6 +706,8 @@ namespace SS.System {
 
     public struct ModelPart : IComponentData { }
 
+    internal struct MeshCachedTag : ISystemStateComponentData { }
+
     internal enum OpCode : ushort {
       eof,
       jnorm,
@@ -796,6 +802,4 @@ namespace SS.System {
       public half2 uv;
     }
   }
-
-  internal struct MeshCachedTag : ISystemStateComponentData { }
 }

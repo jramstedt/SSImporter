@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
-  public sealed class AnimateTexturesSystem : SystemBase {
+  public partial class AnimateTexturesSystem : SystemBase {
     public BitmapSet[] textures;
     public TextureProperties[] textureProperties;
     public Dictionary<ushort, Material> mapMaterial;

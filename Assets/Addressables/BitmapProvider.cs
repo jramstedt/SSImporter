@@ -112,8 +112,8 @@ namespace SS.Resources {
         provideHandle.Complete(new BitmapSet {
           Texture = texture,
           Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
-          AnchorPoint = new Vector2(anchorPoint.x, anchorPoint.y),
-          AnchorRect = new Rect(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
+          AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),
+          AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
           Palette = palette
         }, true, null);
       }
@@ -266,8 +266,8 @@ namespace SS.Resources {
   public class BitmapSet : IDisposable {
     public Texture2D Texture;
     public bool Transparent;
-    public Vector2 AnchorPoint;
-    public Rect AnchorRect;
+    public Vector2Int AnchorPoint;
+    public RectInt AnchorRect;
     public PrivatePalette? Palette;
 
     public void Dispose() {
