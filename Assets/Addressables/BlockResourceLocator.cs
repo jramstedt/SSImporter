@@ -32,7 +32,7 @@ namespace SS.Resources {
             locations.Add(new ResourceLocationBase($"{location.PrimaryKey}", $"{location.InternalId}:{block}", location.ProviderId, type));
         }
         
-        return true;
+        return locations.Count > 0;
       }
 
       locations = null;

@@ -23,8 +23,11 @@ namespace SS.Resources {
         if (block != 0) return false;
 
         if (Locations.TryGetValue(resId, out locations)) {
-          locations = locations.Where(loc => loc.ResourceType.IsAssignableFrom(type)).ToList();
-          return true;
+          var locationsList = locations.Where(loc => loc.ResourceType.IsAssignableFrom(type)).ToList();
+          if (locationsList.Count > 0) {
+            locations = locationsList;
+            return true;
+          }
         }
       }
 
