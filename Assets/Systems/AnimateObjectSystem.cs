@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.InteropServices;
 using SS.Resources;
 using Unity.Burst;
@@ -5,28 +6,47 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace SS.System {
   public partial class AnimateObjectSystem : SystemBase {
+    private const ushort DoorResourceIdBase = 2400;
+
     private EntityQuery animationQuery;
 
-    protected override void OnCreate() {
+    private NativeParallelHashMap<ushort, ushort> blockCounts;
+
+    private bool Ready = false;
+
+    protected override async void OnCreate() {
       base.OnCreate();
 
-    animationQuery = GetEntityQuery(new EntityQueryDesc {
+      animationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadWrite<AnimationData>()
         }
       });
+
+      // TODO Make better somehow. Don't load specific file and scan trough.
+      var artResources = await Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res").Task;
+      this.blockCounts = new (artResources.ResourceEntries.Count, Allocator.Persistent);
+      foreach (var (id, resourceInfo) in artResources.ResourceEntries)
+        this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
+
+      Ready = true;
     }
 
     protected override void OnUpdate() {
+      if (!Ready) return;
+
       var level = GetSingleton<Level>();
 
       var animateJob = new AnimateAnimationJob {
         animationTypeHandle = GetComponentTypeHandle<AnimationData>(),
         ObjectInstancesBlobAsset = level.ObjectInstances,
         timeData = Time,
+        blockCounts = blockCounts,
         InstanceFromEntity = GetComponentDataFromEntity<ObjectInstance>(),
         DecorationFromEntity = GetComponentDataFromEntity<ObjectInstance.Decoration>(),
         ItemFromEntity = GetComponentDataFromEntity<ObjectInstance.Item>(),
@@ -35,6 +55,12 @@ namespace SS.System {
 
       var animate = animateJob.ScheduleParallel(animationQuery, dependsOn: Dependency);
       Dependency = animate;
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      this.blockCounts.Dispose();
     }
 
     [BurstCompile]
@@ -46,6 +72,8 @@ namespace SS.System {
 
       [ReadOnly] public TimeData timeData;
       [ReadOnly] public byte Level;
+
+      [ReadOnly] public NativeParallelHashMap<ushort, ushort> blockCounts;
 
       [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<ObjectInstance> InstanceFromEntity;
       [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<ObjectInstance.Decoration> DecorationFromEntity;
@@ -62,7 +90,8 @@ namespace SS.System {
 
           var frameCount = 1;
           if (instanceData.Class == ObjectClass.DoorAndGrating) {
-            // GetResourceBlockCount
+            var resourceId = DoorResourceIdBase + ObjectDatasBlobAsset.Value.ClassPropertyIndex(instanceData);
+            frameCount = blockCounts[(ushort)resourceId];
           } else if (instanceData.Class == ObjectClass.Decoration) {
             var decoration = DecorationFromEntity[entity];
             frameCount = decoration.Cosmetic;
@@ -80,7 +109,7 @@ namespace SS.System {
             if (instanceData.Triple == 0xe0401 && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && Level != DIEGO_DEATH_BATTLE_LEVEL) // DIEGO_TRIPLE
               frameCount = MAX_TELEPORT_FRAME;
           } else {
-            var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData.Triple);
+            var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
             frameCount = baseData.BitmapFrameCount;
           }
         }

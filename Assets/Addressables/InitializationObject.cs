@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
@@ -58,6 +59,8 @@ namespace SS.Resources {
       rm.ResourceProviders.Add(new MeshProvider());
       rm.ResourceProviders.Add(new RawDataProvider()); // Generic data loader
 
+      var resourceFileLocator = new ResourceLocationMap(@"ResourceFileLocator");
+      Addressables.AddResourceLocator(resourceFileLocator);
       Addressables.AddResourceLocator(resourceLocator);
       Addressables.AddResourceLocator(new BlockResourceLocator());
 
@@ -84,6 +87,9 @@ namespace SS.Resources {
 
         "vidmail.res",
       }.ConvertAll<IResourceLocation>(resFile => new ResourceLocationBase(resFile, dataPath + resFile, typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
+
+      foreach (var resourceLocation in resourceFiles)
+        resourceFileLocator.Add(resourceLocation.PrimaryKey, resourceLocation);
 
       var resourceLocationLoadOps = new List<AsyncOperationHandle>();
       foreach (var resourceLocation in resourceFiles) {
