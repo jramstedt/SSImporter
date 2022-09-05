@@ -57,6 +57,7 @@ namespace SS.System {
       activeMeshQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<MeshInfo>(),
+          ComponentType.ReadOnly<LocalToWorld>(),
           ComponentType.ReadOnly<MeshCachedTag>()
         }
       });
@@ -143,7 +144,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       #region Cache mesh of new entities
@@ -203,6 +204,7 @@ namespace SS.System {
           throw new Exception(@"No mesh in cache.");
 
         var meshInfo = GetComponent<MeshInfo>(entity);
+        var localToWorld = GetComponent<LocalToWorld>(entity);
 
         using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp))
         using (subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(300, Allocator.Temp))
@@ -211,7 +213,7 @@ namespace SS.System {
           
           using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
             BinaryReader msbr = new BinaryReader(ms);
-            intepreterLoop(ms, msbr, float4x4.identity);
+            intepreterLoop(ms, msbr, localToWorld.Value);
           }
 
           var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
@@ -241,9 +243,11 @@ namespace SS.System {
             }
 
             meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
-            submeshIndexStart = indexCount;
 
-            textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
+            if (indexCount > submeshIndexStart) // Skip empty sub mesh
+              textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
+
+            submeshIndexStart = indexCount;
           }
 
           // Debug.Log($"{entityIndex} Indice count allocated {indexCount} vc {vertexCount}");
@@ -257,9 +261,9 @@ namespace SS.System {
       var entityChildren = GetBufferFromEntity<Child>(true);
 
       textureIdAccumulator = 0;
-      for (int i = 0; i < entityCount; ++i) {
-        var entity = entities[i];
-        var mesh = meshes[i];
+      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        var entity = entities[entityIndex];
+        var mesh = meshes[entityIndex];
         mesh.RecalculateNormals();
         // mesh.RecalculateTangents();
         mesh.RecalculateBounds();
@@ -277,51 +281,40 @@ namespace SS.System {
 
         var submeshCount = mesh.subMeshCount;
         for (int subMesh = 0; subMesh < Mathf.Max(submeshCount, childCount); ++subMesh) {
-          var textureId = textureIds[textureIdAccumulator++];
-
+          Entity modelPart;
           if (subMesh < childCount) {
-            var modelPart = children[subMesh].Value;
+            modelPart = children[subMesh].Value;
 
-            if (subMesh > submeshCount || mesh.GetIndexCount(subMesh) == 0) {
+            if (subMesh >= submeshCount || mesh.GetIndexCount(subMesh) == 0) { // Skip unneeded or empty sub mesh
               commandBuffer.DestroyEntity(modelPart);
-            } else {
-              commandBuffer.SetComponent(modelPart, renderBounds);
-              commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
-                mesh = mesh,
-                material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
-                subMesh = subMesh,
-                layer = 0,
-                castShadows = ShadowCastingMode.On,
-                receiveShadows = true,
-                needMotionVectorPass = false,
-                layerMask = uint.MaxValue
-              });
+              continue;
             }
           } else {
             // TODO material 0 = bitmap_from_tpoly_data
 
-            var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-            commandBuffer.SetComponent(viewPart, default(ModelPart));
-            commandBuffer.SetComponent(viewPart, default(LocalToWorld));
-            commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(new float3(0f, 0f, 0f)) });
-            commandBuffer.SetComponent(viewPart, renderBounds);
-            commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-              mesh = mesh,
-              material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
-              subMesh = subMesh,
-              layer = 0,
-              castShadows = ShadowCastingMode.On,
-              receiveShadows = true,
-              needMotionVectorPass = false,
-              layerMask = uint.MaxValue
-            });
+            modelPart = commandBuffer.CreateEntity(viewPartArchetype);
+            commandBuffer.SetComponent(modelPart, default(ModelPart));
+            commandBuffer.SetComponent(modelPart, default(LocalToWorld));
+            commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
+            commandBuffer.SetComponent(modelPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(new float3(0f, 0f, 0f)) });
           }
+
+          var textureId = textureIds[textureIdAccumulator++];
+
+          commandBuffer.SetComponent(modelPart, renderBounds);
+          commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
+            mesh = mesh,
+            material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
+            subMesh = subMesh,
+            layer = 0,
+            castShadows = ShadowCastingMode.On,
+            receiveShadows = true,
+            needMotionVectorPass = false,
+            layerMask = uint.MaxValue
+          });
           
           // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
-
-
       }
 
       textureIds.Dispose();
@@ -357,8 +350,8 @@ namespace SS.System {
           var viewVec = point - eyePositionLocal;
 
           // is normal pointin towards camera?
-          //if (math.dot(viewVec, normal) >= 0f) // Not facing.
-          //  ms.Position = dataPos + skipBytes;
+          if (math.dot(viewVec, normal) >= 0f) // Not facing.
+            ms.Position = dataPos + skipBytes;
         } else if (command == OpCode.lnres) {
           ushort vertexA = msbr.ReadUInt16();
           ushort vertexB = msbr.ReadUInt16();
