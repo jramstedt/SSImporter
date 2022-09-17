@@ -22,21 +22,21 @@ namespace SS {
   }
 
   public enum ObjectClass : byte {
-    Weapon,
-    Ammunition,
-    Projectile,
-    Explosive,
-    DermalPatch,
-    Hardware,
-    SoftwareAndLog,
-    Decoration,
-    Item,
-    Interface,
-    DoorAndGrating,
-    Animated,
-    Trigger,
-    Container,
-    Enemy,
+    Weapon,         // CLASS_GUN
+    Ammunition,     // CLASS_AMMO
+    Projectile,     // CLASS_PHYSICS
+    Explosive,      // CLASS_GRENADE
+    DermalPatch,    // CLASS_DRUG
+    Hardware,       // CLASS_HARDWARE
+    SoftwareAndLog, // CLASS_SOFTWARE
+    Decoration,     // CLASS_BIGSTUFF
+    Item,           // CLASS_SMALLSTUFF
+    Interface,      // CLASS_FIXTURE
+    DoorAndGrating, // CLASS_DOOR
+    Animated,       // CLASS_ANIMATING
+    Trigger,        // CLASS_TRAP
+    Container,      // CLASS_CONTAINER
+    Enemy,          // CLASS_CRITTER
 
     NumClasses,
     ClassFirst = Weapon

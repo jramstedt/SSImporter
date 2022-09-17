@@ -108,6 +108,14 @@ namespace SS {
 
       public uint SoftwareVersion => Cosmetic;
       public uint SoftwareSubclass => Data1;
+
+      #region Mesh data
+      public uint SizeX => Data1 & 0x0F;
+      public uint SizeY => (Data1 & 0xF0) >> 4;
+      public uint SizeZ => (Data1 & 0xFF00) >> 8;
+      public uint SideTexture => (Data1 & 0xFF0000) >> 16;
+      public uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      #endregion
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -117,6 +125,14 @@ namespace SS {
       public ushort Cosmetic;
       public uint Data1;
       public uint Data2;
+
+      #region Mesh data
+      public uint SizeX => Data1 & 0x0F;
+      public uint SizeY => (Data1 & 0xF0) >> 4;
+      public uint SizeZ => (Data1 & 0xFF00) >> 8;
+      public uint SideTexture => (Data1 & 0xFF0000) >> 16;
+      public uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      #endregion
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -182,8 +198,8 @@ namespace SS {
 
       public uint Data;
 
-      public uint TopBottomTexture => (Data & 0xFF00) >> 8;
       public uint SideTexture => Data & 0xFF;
+      public uint TopBottomTexture => (Data & 0xFF00) >> 8;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

@@ -22,6 +22,7 @@ namespace SS.System {
     private EntityArchetype viewPartArchetype;
     private EntityQuery mapElementQuery;
     private EntityQuery viewPartQuery;
+    private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -54,6 +55,20 @@ namespace SS.System {
           ComponentType.ReadOnly<Parent>()
         }
       });
+
+      this.vertexAttributes = new (5, Allocator.Persistent) {
+        [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
+        [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
+        [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
+        [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+        [4] = new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+      };
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      this.vertexAttributes.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -96,7 +111,8 @@ namespace SS.System {
 
         levelInfo = levelInfo,
         meshDataArray = meshDataArray,
-        submeshTextureIndex = submeshTextureIndex
+        submeshTextureIndex = submeshTextureIndex,
+        vertexAttributes = vertexAttributes
       };
 
       var buildMapElements = buildJob.ScheduleParallel(mapElementQuery, dependsOn: Dependency);
@@ -208,6 +224,8 @@ namespace SS.System {
     public Mesh.MeshDataArray meshDataArray;
     [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> submeshTextureIndex;
 
+    [ReadOnly] public NativeArray<VertexAttributeDescriptor> vertexAttributes;
+
     public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int indexOfFirstEntityInQuery) {
       var entities = batchInChunk.GetNativeArray(entityTypeHandle);
       var tileLocations = batchInChunk.GetNativeArray(tileLocationTypeHandle);
@@ -256,9 +274,16 @@ namespace SS.System {
     }
 
     private unsafe void ClearVertexArray(in Mesh.MeshData mesh) {
+      Vertex* nullVertex = stackalloc Vertex[] {
+        new Vertex { pos = float3(0f), uv = half2(0f), light = 0f }
+      };
+      
       var vertices = mesh.GetVertexData<Vertex>();
-      for (int vertex = 0; vertex < vertices.Length; ++vertex)
-        vertices[vertex] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
+      
+      UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
+
+      //for (int vertex = 0; vertex < vertices.Length; ++vertex)
+      //  vertices[vertex] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
     }
 
     private void BuildMesh (in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
@@ -268,14 +293,6 @@ namespace SS.System {
       }
 
       mesh.subMeshCount = 6; // TODO precalculate how many submeshes really is needed.
-
-      using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(5, Allocator.Temp) {
-        [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
-        [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
-        [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
-        [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        [4] = new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
-      };
 
       mesh.SetVertexBufferParams(
         VerticesPerViewPart * mesh.subMeshCount,

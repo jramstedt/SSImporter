@@ -101,9 +101,13 @@ namespace SS.Resources {
       world.GetOrCreateSystem<PaletteEffectSystem>();
 
       var clutTexture = await Services.ColorLookupTableTexture;
+      var lightmap = CreateLightmap(in levelInfo);
 
       var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
-      lightmapSystem.lightmap = CreateLightmap(in levelInfo);
+      lightmapSystem.lightmap = lightmap;
+
+      var flatTextureSystem = world.GetOrCreateSystem<FlatTextureSystem>();
+      flatTextureSystem.lightmap = lightmap;
 
       var meshInterpeterSystem = world.GetOrCreateSystem<MeshInterpeterSystem>();
 
@@ -144,21 +148,24 @@ namespace SS.Resources {
       }
 
       var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
-      mapSystem.mapMaterial = materials;
+      mapSystem.mapMaterial = materials; // TODO FIXME Ugly
+
+      var specialMeshSystem = world.GetOrCreateSystem<SpecialMeshSystem>();
+      specialMeshSystem.mapMaterial = materials; // TODO FIXME Ugly
 
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
-      var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent);
+      var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent); // Don't dispose.
       var animateTexturesSystem = world.GetOrCreateSystem<AnimateTexturesSystem>();
       animateTexturesSystem.textures = textures;
       animateTexturesSystem.textureProperties = textureProperties;
-      animateTexturesSystem.mapMaterial = materials;
+      animateTexturesSystem.mapMaterial = materials; // TODO FIXME Ugly
       animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
 
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
       var animationArchetype = entityManager.CreateArchetype(typeof(AnimationData));
-      var animationEntities = entityManager.CreateEntity(animationArchetype, animationCounter, Allocator.Persistent);
+      using var animationEntities = entityManager.CreateEntity(animationArchetype, animationCounter, Allocator.Temp);
       var animateObjectSystem = world.GetOrCreateSystem<AnimateObjectSystem>();
 
       for (int i = 0; i < animationCounter; ++i)
@@ -166,7 +173,7 @@ namespace SS.Resources {
 
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance));
-      using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
+      using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Temp);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
         var entity = objectInstanceEntities[i];
         var instanceData = objectInstances[i];
@@ -251,12 +258,80 @@ namespace SS.Resources {
           };
         } else if (baseData.DrawType == DrawType.Bitmap) {
           entityManager.AddComponentData(entity, new SpriteInfo { });
-        } else if (baseData.DrawType == DrawType.FlatTexture) {
-          entityManager.AddComponentData(entity, new FlatTextureInfo { });
         } else if (baseData.DrawType == DrawType.TerrainPolygon) {
           entityManager.AddComponentData(entity, new FlatTextureInfo { });
         } else if (baseData.DrawType == DrawType.NoObj) {
           // NoOp
+        } else if (baseData.DrawType == DrawType.FlatTexture) {
+          entityManager.AddComponentData(entity, new FlatTextureInfo { });
+        } else if (baseData.DrawType == DrawType.Special) {
+          // TODO FIXME move outside somewhere out of the loop
+          using var defaults = new NativeParallelHashMap<int, (uint SizeX, uint SizeY, uint SizeZ, uint SideTexture, uint TopBottomTexture)>(8, Allocator.Persistent) {
+            [0x70700] = (0x04, 0x04, 0x01, 0x80, 0x80),
+            [0x70701] = (0x02, 0x04, 0x01, 0x80, 0x80),
+            [0x70706] = (0x02, 0x02, 0xB0, 0x80, 0x81),
+            [0x70707] = (0x02, 0x04, 0x01, 0x80, 0x80),
+            [0x70709] = (0x00, 0x00, 0x00, 0x00, 0x00), // ??
+            [0x80509] = (0x04, 0x01, 0x10, 0x00, 0x00),
+            [0xD0000] = (0x08, 0x08, 0x08, 0x0C, 0x0B),
+            [0xD0001] = (0x10, 0x10, 0x10, 0x0C, 0x0B),
+            [0xD0002] = (0x20, 0x20, 0x20, 0x0A, 0x0A),
+          };
+
+          var instanceDefault = defaults[instanceData.Triple];
+
+          if (instanceData.Triple == 0x80509 /* BARRICADE_TRIPLE */) {
+            var itemInstanceData = itemInstances[instanceData.SpecIndex];
+            var texture = itemInstanceData.Data2;
+            /*
+            if (tluc_val == 0)
+               tluc_val = me_cybcolor_flr(MAP_GET_XY(OBJ_LOC_BIN_X(_fr_cobj->loc), OBJ_LOC_BIN_Y(_fr_cobj->loc)));
+            */
+
+            var SizeX = (itemInstanceData.SizeX != 0 ? itemInstanceData.SizeX : instanceDefault.SizeX) << 13;
+            var SizeY = (itemInstanceData.SizeY != 0 ? itemInstanceData.SizeY : instanceDefault.SizeY) << 13;
+            var SizeZ = (itemInstanceData.SizeZ != 0 ? itemInstanceData.SizeZ : instanceDefault.SizeZ) << 10;
+            var SideTexture = (itemInstanceData.SideTexture != 0 ? itemInstanceData.SideTexture : instanceDefault.SideTexture);
+            var TopBottomTexture = (itemInstanceData.TopBottomTexture != 0 ? itemInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture);
+
+            // TODO FIXME handle current_frame animating in system (obj_model_hack)
+
+            // entityManager.AddComponentData(entity, new CyberCube { });
+          } else if (instanceData.Triple == 0x70707 /* FORCE_BRIJ_TRIPLE */ || instanceData.Triple == 0x70709 /* FORCE_BRIJ2_TRIPLE */) {
+            var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
+
+            entityManager.AddComponentData(entity, new TransparentCuboid {
+              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Color = decorationInstanceData.Data2,
+              Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT
+          });
+          } else if (instanceData.Triple == 0x70700 /* BRIDGE_TRIPLE */ || instanceData.Triple == 0x70701 /* CATWALK_TRIPLE */ || instanceData.Triple == 0x70706 /* PILLAR_TRIPLE */) {
+            var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
+
+            entityManager.AddComponentData(entity, new TexturedCuboid {
+              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Offset = 0,
+              SideTexture = (byte)(decorationInstanceData.SideTexture != 0 ? decorationInstanceData.SideTexture : instanceDefault.SideTexture),
+              TopBottomTexture = (byte)(decorationInstanceData.TopBottomTexture != 0 ? decorationInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture)
+            });
+          } else if (instanceData.Triple == 0xD0000 /* SML_CRT_TRIPLE */ || instanceData.Triple == 0xD0001 /* LG_CRT_TRIPLE */ || instanceData.Triple == 0xD0002 /* SECURE_CONTR_TRIPLE */) {
+            var containerInstanceData = containerInstances[instanceData.SpecIndex];
+
+            entityManager.AddComponentData(entity, new TexturedCuboid {
+              SizeX = ((containerInstanceData.SizeX != 0 ? containerInstanceData.SizeX : instanceDefault.SizeX) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeY = ((containerInstanceData.SizeY != 0 ? containerInstanceData.SizeY : instanceDefault.SizeY) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeZ = ((containerInstanceData.SizeZ != 0 ? containerInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT,
+              SideTexture = (byte)(containerInstanceData.SideTexture != 0 ? containerInstanceData.SideTexture : instanceDefault.SideTexture),
+              TopBottomTexture = (byte)(containerInstanceData.TopBottomTexture != 0 ? containerInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture)
+            });
+          } else {
+            Debug.LogWarning($"Unsupported special type {instanceData.Triple}.");
+          }
         } else {
           Debug.LogWarning($"Unsupported draw type {baseData.DrawType}.");
         }

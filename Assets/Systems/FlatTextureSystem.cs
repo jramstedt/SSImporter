@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup(typeof(LateSimulationSystemGroup))]
@@ -33,6 +34,8 @@ namespace SS.System {
     private SpriteLibrary spriteLibrary;
     private Texture2D clutTexture;
     private bool Ready = false;
+
+    public Texture2D lightmap;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -243,8 +246,17 @@ namespace SS.System {
           if (!loadOp.IsDone) return; // Retry on next OnUpdate
 
           var bitmapSet = loadOp.Result;
+
+          // TODO FIXME REUSE MATERIALS!!
+
+          Material material;
+          if (lightmapped) {
+            material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
+            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
+          } else {
+            material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+          }
           
-          var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
           material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
           material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
           material.DisableKeyword(@"_SPECGLOSSMAP");
@@ -275,7 +287,7 @@ namespace SS.System {
           commandBuffer.SetComponent(viewPart, new FlatTexturePart { CurrentFrame = 0 }); // TODO FIXME
           commandBuffer.SetComponent(viewPart, default(LocalToWorld));
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = float4x4.identity });
+          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
           commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
           commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
             mesh = mesh,
@@ -298,26 +310,33 @@ namespace SS.System {
 
     private Mesh BuildPlaneMesh (float2 extent, bool doubleSided) {
       Mesh mesh = new Mesh();
-      mesh.vertices = new Vector3[] {
-        new Vector3(-extent.x, extent.y, 0f),
-        new Vector3(-extent.x, -extent.y, 0f),
-        new Vector3(extent.x, -extent.y, 0f),
-        new Vector3(extent.x, extent.y, 0f)
-      };
-      mesh.uv = new Vector2[] {
-        new Vector2(0.0f, 1.0f),
-        new Vector2(0.0f, 0.0f),
-        new Vector2(1.0f, 0.0f),
-        new Vector2(1.0f, 1.0f)
-      };
+      mesh.SetVertexBufferParams(4, 
+        new VertexAttributeDescriptor(VertexAttribute.Position),
+        new VertexAttributeDescriptor(VertexAttribute.Normal),
+        new VertexAttributeDescriptor(VertexAttribute.Tangent),
+        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+        new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+      );
 
-      mesh.triangles = new int[] { 0, 1, 2, 2, 3, 0, 2, 1, 0, 0, 3, 2 };
+      mesh.SetVertexBufferData(new[] {
+        new Vertex { pos = float3(-extent.x, extent.y, 0f), uv = half2(half(0f), half(1f)), light = 1f },
+        new Vertex { pos = float3(-extent.x, -extent.y, 0f), uv = half2(half(0f), half(0f)), light = 0f },
+        new Vertex { pos = float3(extent.x, -extent.y, 0f), uv = half2(half(1f), half(0f)), light = 0f },
+        new Vertex { pos = float3(extent.x, extent.y, 0f), uv = half2(half(1f), half(1f)), light = 1f },
+      }, 0, 0, 4);
 
-      /*
-      mesh.triangles = doubleSided
-      ? new int[] { 0, 1, 2, 2, 3, 0, 2, 1, 0, 0, 3, 2 }
-      : new int[] { 2, 1, 0, 0, 3, 2 };
-      */
+      mesh.subMeshCount = 1;
+
+      if (doubleSided) {
+        mesh.SetIndexBufferParams(12, IndexFormat.UInt16);
+        mesh.SetIndexBufferData(new ushort[] { 0, 1, 2, 2, 3, 0, 2, 1, 0, 0, 3, 2 }, 0, 0, 12);
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 12, MeshTopology.Triangles));
+      } else {
+        mesh.SetIndexBufferParams(6, IndexFormat.UInt16);
+        mesh.SetIndexBufferData(new ushort[] { 2, 1, 0, 0, 3, 2 }, 0, 0, 6);
+        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 6, MeshTopology.Triangles));
+      }
+
 
       mesh.RecalculateNormals();
       // mesh.RecalculateTangents();

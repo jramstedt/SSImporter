@@ -20,6 +20,8 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace SS.System {
   [UpdateInGroup(typeof(LateSimulationSystemGroup))]
   public partial class MeshInterpeterSystem : SystemBase {
+    private const ushort MaterialIdBase = 475;
+
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
     private EntityQuery removedMeshQuery;
@@ -106,7 +108,7 @@ namespace SS.System {
       for (var i = 0; i < materials.Length; ++i) {
         var materialIndex = i;
 
-        var checkOp = Addressables.LoadResourceLocationsAsync($"{0x01DB + materialIndex}:{0}", typeof(BitmapSet));
+        var checkOp = Addressables.LoadResourceLocationsAsync($"{MaterialIdBase + materialIndex}:{0}", typeof(BitmapSet));
         checkOp.Completed += op => {
           if (op.Status == AsyncOperationStatus.Succeeded && op.Result.Count > 0) {
             var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>(op.Result[0]);
@@ -133,11 +135,11 @@ namespace SS.System {
 
                 materials[materialIndex] = material;
               } else {
-                Debug.LogError($"{0x01DB + materialIndex} failed.");
+                Debug.LogError($"{MaterialIdBase + materialIndex} failed.");
               }
             };
           } else {
-            Debug.LogWarning($"{0x01DB + materialIndex} not found.");
+            Debug.LogWarning($"{MaterialIdBase + materialIndex} not found.");
           }
         };
       }
@@ -348,6 +350,8 @@ namespace SS.System {
           float3 point = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
 
           var viewVec = point - eyePositionLocal;
+
+          // Debug.Log($"n {normal} p {point} view {viewVec} dot {math.dot(viewVec, normal)}");
 
           // is normal pointin towards camera?
           if (math.dot(viewVec, normal) >= 0f) // Not facing.
