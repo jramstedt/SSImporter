@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 
 namespace SS.System {
+  [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class AnimateObjectSystem : SystemBase {
     private const ushort DoorResourceIdBase = 2400;
 

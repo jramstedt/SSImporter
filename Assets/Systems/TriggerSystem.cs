@@ -11,7 +11,7 @@ using Random = Unity.Mathematics.Random;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
-  [UpdateInGroup (typeof(SimulationSystemGroup))]
+  [UpdateInGroup (typeof(FixedStepSimulationSystemGroup))]
   public partial class TriggerSystem : SystemBase {
     private const double NextContinuousSeconds = 5.0;
 
@@ -47,7 +47,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndFixedStepSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var level = GetSingleton<Level>();
@@ -166,9 +166,9 @@ namespace SS.System {
           short radius = questDataParse((ushort)(actionParam1 & 0xFFFF));
           rectMin = int2(instance.Location.TileX - radius, instance.Location.TileY - radius);
           rectMax = int2(instance.Location.TileX + radius, instance.Location.TileY + radius);
-
-          if (values[0] > 0x0F || values[1] > 0x0F || values[2] > 0x0F || values[3] > 0x0F) return;
         } else {
+          if (values[0] > 0x0F || values[1] > 0x0F || values[2] > 0x0F || values[3] > 0x0F) return;
+
           var firstObjID = questDataParse((ushort)(actionParam1 & 0xFFFF));
           var secondObjID = questDataParse((ushort)(actionParam1 >> 16));
           if (firstObjID == 0 || secondObjID == 0) return;
@@ -243,6 +243,11 @@ namespace SS.System {
 
               if (tempLight > MAX_LIGHT_VAL)
                 tempLight = MAX_LIGHT_VAL;
+            } else if (actionParam3 == 1) { // EW Smooth
+              if (x == rectMax.x-1) // end
+                tempLight = endShade;
+              else
+                tempLight += deltaShade;
             }
 
             // Debug.Log($"Setting x:{x} y:{y} f:{floor} l:{tempLight}");
@@ -255,6 +260,15 @@ namespace SS.System {
             MapElementFromEntity[mapEntity] = mapElement;
 
             CommandBuffer.AddComponent<LightmapRebuildTag>(batchIndex, mapEntity);
+          }
+
+          if (actionParam3 == 1) { // EW Smooth
+            tempLight = startShade;
+          } else if (actionParam3 == 2) { // NS Smooth
+            if (y == rectMax.y-1)
+              tempLight = endShade;
+            else
+              tempLight += deltaShade;
           }
         }
       }

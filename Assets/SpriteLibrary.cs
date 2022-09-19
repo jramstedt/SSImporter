@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using SS.ObjectProperties;
+using SS.System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static Unity.Mathematics.math;
 
 namespace SS.Resources {
   public class SpriteLibrary : IDisposable {
@@ -31,6 +34,7 @@ namespace SS.Resources {
     private async Task LoadSprites () {
       objectProperties = await Services.ObjectProperties;
       var clutTexture = await Services.ColorLookupTableTexture;
+      var lightmap = await Services.LightmapTexture;
 
       ushort bitmapIndex = 1;
       ushort artIndex = 1;
@@ -56,9 +60,10 @@ namespace SS.Resources {
             
             var bitmapSet = op.Result;
 
-            var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+            var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
             material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
             material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
+            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
             material.DisableKeyword(@"_SPECGLOSSMAP");
             material.DisableKeyword(@"_SPECULAR_COLOR");
             material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
@@ -101,22 +106,26 @@ namespace SS.Resources {
       }
 
       Mesh mesh = new Mesh();
-      mesh.vertices = new Vector3[] {
-        new Vector3(-pivot.x, pivot.y, 0f),
-        new Vector3(-pivot.x, -(texture.height-pivot.y), 0f),
-        new Vector3(texture.width-pivot.x, -(texture.height-pivot.y), 0f),
-        new Vector3(texture.width-pivot.x, pivot.y, 0f)
-      };
-      mesh.uv = new Vector2[] {
-        new Vector2(0.0f, 1.0f),
-        new Vector2(0.0f, 0.0f),
-        new Vector2(1.0f, 0.0f),
-        new Vector2(1.0f, 1.0f)
-      };
+      mesh.SetVertexBufferParams(4, 
+        new VertexAttributeDescriptor(VertexAttribute.Position),
+        new VertexAttributeDescriptor(VertexAttribute.Normal),
+        new VertexAttributeDescriptor(VertexAttribute.Tangent),
+        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+        new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+      );
+      
+      mesh.SetVertexBufferData(new[] {
+        new Vertex { pos = float3(-pivot.x, pivot.y, 0f),                                 uv = half2(half(0f), half(1f)), light = 1f },
+        new Vertex { pos = float3(-pivot.x, -(texture.height-pivot.y), 0f),               uv = half2(half(0f), half(0f)), light = 0f },
+        new Vertex { pos = float3(texture.width-pivot.x, -(texture.height-pivot.y), 0f),  uv = half2(half(1f), half(0f)), light = 0f },
+        new Vertex { pos = float3(texture.width-pivot.x, pivot.y, 0f),                    uv = half2(half(1f), half(1f)), light = 1f },
+      }, 0, 0, 4);
 
-      mesh.triangles = new int[] {
-          0, 1, 2, 2, 3, 0
-      };
+      mesh.subMeshCount = 1;
+
+      mesh.SetIndexBufferParams(6, IndexFormat.UInt16);
+      mesh.SetIndexBufferData(new ushort[] { 0, 1, 2, 2, 3, 0 }, 0, 0, 6);
+      mesh.SetSubMesh(0, new SubMeshDescriptor(0, 6, MeshTopology.Triangles));
 
       mesh.RecalculateNormals();
       // mesh.RecalculateTangents();

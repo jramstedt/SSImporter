@@ -6,7 +6,7 @@ using Unity.Entities;
 using UnityEngine;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(SimulationSystemGroup))]
+  [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
   public partial class SchedulerSystem : SystemBase {
     private EntityQuery eventQuery;
 
@@ -21,7 +21,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndFixedStepSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var level = GetSingleton<Level>();

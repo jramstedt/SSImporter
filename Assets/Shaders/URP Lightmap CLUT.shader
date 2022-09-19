@@ -5,7 +5,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         [MainTexture] _BaseMap("Texture", 2D) = "white" {}
         [MainColor] _BaseColor("Color", Color) = (1, 1, 1, 1)
         [NonModifiableTextureData] _CLUT("Color Lookup Table", 2D) = "white" {}
-        [NonModifiableTextureData] _LightGrid("Color Lookup Table", 2D) = "white" {}
+        [NonModifiableTextureData] _LightGrid("Map Light Grid", 2D) = "white" {}
         _Cutoff("AlphaCutout", Range(0.0, 1.0)) = 0.5
 
         // BlendMode

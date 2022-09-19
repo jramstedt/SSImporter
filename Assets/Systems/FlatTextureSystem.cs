@@ -12,7 +12,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(LateSimulationSystemGroup))]
+  [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class FlatTextureSystem : SystemBase {
     private const ushort ArtResourceIdBase = 1350;
     private const ushort DoorResourceIdBase = 2400;
@@ -33,9 +33,9 @@ namespace SS.System {
     private Resources.ObjectProperties objectProperties;
     private SpriteLibrary spriteLibrary;
     private Texture2D clutTexture;
-    private bool Ready = false;
+    private Texture2D lightmap;
 
-    public Texture2D lightmap;
+    private bool Ready = false;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -69,6 +69,7 @@ namespace SS.System {
       objectProperties = await Services.ObjectProperties;
       spriteLibrary = await Services.SpriteLibrary;
       clutTexture = await Services.ColorLookupTableTexture;
+      lightmap = await Services.LightmapTexture;
 
       Ready = true;
     }
@@ -145,7 +146,7 @@ namespace SS.System {
     protected override void OnUpdate() {
       if (!Ready) return;
 
-      var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       Entities
@@ -279,8 +280,10 @@ namespace SS.System {
           material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
           material.enableInstancing = true;
 
+          var isDoubleSided = instanceData.Class == ObjectClass.DoorAndGrating;
+
           var size = new float2(bitmapSet.Texture.width / refWidth, bitmapSet.Texture.height / refWidth);
-          var mesh = BuildPlaneMesh(size / 2f, instanceData.Class == ObjectClass.DoorAndGrating);
+          var mesh = BuildPlaneMesh(size / 2f, isDoubleSided);
 
           var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
           

@@ -10,12 +10,14 @@ namespace SS.System {
   public partial class LightmapBuilderSystem : SystemBase {
     private EntityQuery mapElementQuery;
 
-    public Texture2D lightmap;
+    private Texture2D lightmap;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireSingletonForUpdate<LevelInfo>();
+
+      lightmap = await Services.LightmapTexture;
 
       mapElementQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {

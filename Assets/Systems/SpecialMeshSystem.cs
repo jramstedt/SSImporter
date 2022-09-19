@@ -19,7 +19,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(LateSimulationSystemGroup))]
+  [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpecialMeshSystem : SystemBase {
     private const ushort CustomTextureIdBase = 2180;
     private const ushort SmallTextureIdBase = 321;
@@ -36,6 +36,7 @@ namespace SS.System {
     private Material colorMaterial;
 
     private Texture clutTexture;
+    private Texture2D lightmap;
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
@@ -73,6 +74,7 @@ namespace SS.System {
       );
 
       clutTexture = await Services.ColorLookupTableTexture;
+      lightmap = await Services.LightmapTexture;
 
       {
         var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
@@ -103,9 +105,10 @@ namespace SS.System {
               if (op.Status == AsyncOperationStatus.Succeeded) {
                 var bitmapSet = op.Result;
 
-                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
                 material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
                 material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
+                material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
                 material.DisableKeyword(@"_SPECGLOSSMAP");
                 material.DisableKeyword(@"_SPECULAR_COLOR");
                 material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
@@ -122,11 +125,11 @@ namespace SS.System {
 
                 materials[materialIndex] = material;
               } else {
-                Debug.LogError($"{0x01DB + materialIndex} failed.");
+                Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
               }
             };
           } else {
-            Debug.LogWarning($"{0x01DB + materialIndex} not found.");
+            Debug.LogWarning($"{CustomTextureIdBase + materialIndex} not found.");
           }
         };
       }
@@ -147,7 +150,7 @@ namespace SS.System {
     }
 
     protected override void  OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       Entities

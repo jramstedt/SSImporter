@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using SS.ObjectProperties;
 using SS.Resources;
@@ -11,6 +12,7 @@ namespace SS {
     public static readonly Task<Palette> Palette;
     public static readonly Task<ShadeTableData> ShadeTable;
     public static readonly Task<Texture2D> ColorLookupTableTexture;
+    public static readonly Task<Texture2D> LightmapTexture;
     public static readonly Task<TexturePropertiesData> TextureProperties;
     public static readonly Task<Resources.ObjectProperties> ObjectProperties;
     public static readonly Task<Resources.SpriteLibrary> SpriteLibrary;
@@ -27,6 +29,7 @@ namespace SS {
       ShadeTable = shadetableOp.Task;
 
       ColorLookupTableTexture = CreateColorLookupTable();
+      LightmapTexture = CreateLightmap();
 
       var texturePropertiesOp = Addressables.LoadAssetAsync<TexturePropertiesData>(new ResourceLocationBase(@"TEXTPROP.DAT", dataPath + @"\TEXTPROP.DAT", typeof(RawDataProvider).FullName, typeof(TexturePropertiesData)));
       TextureProperties = texturePropertiesOp.Task;
@@ -52,6 +55,20 @@ namespace SS {
 
       clut.Apply(false, false);
       return clut;
+    }
+
+    private static async Task<Texture2D> CreateLightmap() {
+      Texture2D lightmap;
+      if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16)) {
+        lightmap = new Texture2D(64, 64, TextureFormat.RG16, false, true);
+      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+        lightmap = new Texture2D(64, 64, TextureFormat.RGBA32, false, true);
+      } else {
+        throw new Exception("No supported TextureFormat found.");
+      }
+
+      lightmap.name = @"Lightmap";
+      return lightmap;
     }
   }
 }

@@ -101,14 +101,11 @@ namespace SS.Resources {
       world.GetOrCreateSystem<PaletteEffectSystem>();
 
       var clutTexture = await Services.ColorLookupTableTexture;
-      var lightmap = CreateLightmap(in levelInfo);
+      var lightmap = await Services.LightmapTexture;
+      lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
       var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
-      lightmapSystem.lightmap = lightmap;
-
       var flatTextureSystem = world.GetOrCreateSystem<FlatTextureSystem>();
-      flatTextureSystem.lightmap = lightmap;
-
       var meshInterpeterSystem = world.GetOrCreateSystem<MeshInterpeterSystem>();
 
       var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
@@ -130,7 +127,7 @@ namespace SS.Resources {
         var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
         material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-        material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmapSystem.lightmap);
+        material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
         material.DisableKeyword(@"_SPECGLOSSMAP");
         material.DisableKeyword(@"_SPECULAR_COLOR");
         material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
@@ -416,20 +413,6 @@ namespace SS.Resources {
 
           return mapElements;
       }
-    }
-
-    private static Texture2D CreateLightmap(in LevelInfo levelInfo) {
-      Texture2D lightmap;
-      if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16)) {
-        lightmap = new Texture2D(levelInfo.Width, levelInfo.Height, TextureFormat.RG16, false, true);
-      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
-        lightmap = new Texture2D(levelInfo.Width, levelInfo.Height, TextureFormat.RGBA32, false, true);
-      } else {
-        throw new Exception("No supported TextureFormat found.");
-      }
-
-      lightmap.name = @"Lightmap";
-      return lightmap;
     }
 
     private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {

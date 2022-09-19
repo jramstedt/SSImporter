@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(LateSimulationSystemGroup))]
+  [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpriteSystem : SystemBase {
     private EntityQuery newSpriteQuery;
     private EntityQuery activeSpriteQuery;
@@ -60,7 +60,7 @@ namespace SS.System {
     protected override void OnUpdate() {
       if (spriteLibrary == null || objectProperties == null) return;
 
-      var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       Entities

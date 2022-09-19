@@ -18,7 +18,7 @@ using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.System {
-  [UpdateInGroup(typeof(LateSimulationSystemGroup))]
+  [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class MeshInterpeterSystem : SystemBase {
     private const ushort MaterialIdBase = 475;
 
@@ -47,6 +47,7 @@ namespace SS.System {
     #endregion
 
     private Texture clutTexture;
+    private Texture2D lightmap;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -86,6 +87,7 @@ namespace SS.System {
       });
 
       clutTexture = await Services.ColorLookupTableTexture;
+      lightmap = await Services.LightmapTexture;
 
       {
         var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
@@ -116,9 +118,10 @@ namespace SS.System {
               if (op.Status == AsyncOperationStatus.Succeeded) {
                 var bitmapSet = op.Result;
 
-                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
                 material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
                 material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
+                material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
                 material.DisableKeyword(@"_SPECGLOSSMAP");
                 material.DisableKeyword(@"_SPECULAR_COLOR");
                 material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
@@ -146,7 +149,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       #region Cache mesh of new entities
@@ -178,148 +181,152 @@ namespace SS.System {
       #endregion
 
       var entityCount = activeMeshQuery.CalculateEntityCount();
-      if (entityCount == 0) return;
+      if (entityCount > 0) {
+        // TODO Jobify
 
-      // TODO Jobify
+        using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
 
-      using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
+        var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
+        
+        using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp) {
+          [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
+          [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
+          [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
+          [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+        };
 
-      var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
-      
-      using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp) {
-        [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
-        [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
-        [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
-        [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-      };
+        drawState = default;
 
-      drawState = default;
+        var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
+        var meshes = new Mesh[entityCount];
 
-      var textureIds = new NativeArray<ushort>(entityCount * 10, Allocator.Temp);
-      var meshes = new Mesh[entityCount];
+        var textureIdAccumulator = 0;
+        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+          var entity = entities[entityIndex];
 
-      var textureIdAccumulator = 0;
-      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
-        var entity = entities[entityIndex];
+          if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
+            throw new Exception(@"No mesh in cache.");
 
-        if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
-          throw new Exception(@"No mesh in cache.");
+          var meshInfo = GetComponent<MeshInfo>(entity);
+          var localToWorld = GetComponent<LocalToWorld>(entity);
 
-        var meshInfo = GetComponent<MeshInfo>(entity);
-        var localToWorld = GetComponent<LocalToWorld>(entity);
-
-        using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp))
-        using (subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(300, Allocator.Temp))
-        {
-          Array.Clear(vertexBuffer, 0, vertexBuffer.Length);
-          
-          using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
-            BinaryReader msbr = new BinaryReader(ms);
-            intepreterLoop(ms, msbr, localToWorld.Value);
-          }
-
-          var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
-          var totalVertexCount = subMeshVertices.Length;
-          var totalIndexCount = subMeshIndices.Count();
-
-          // Debug.Log($"totalVertexCount {submeshCount} {totalVertexCount}");
-
-          var meshData = meshDataArray[entityIndex];
-          meshData.subMeshCount = submeshCount;
-          meshData.SetVertexBufferParams(totalVertexCount, vertexAttributes);
-          meshData.SetIndexBufferParams(totalIndexCount, IndexFormat.UInt16);
-
-          // Debug.Log($"{entityIndex} Indice count requested {totalIndexCount} tvc {totalVertexCount}");
-
-          ushort submeshIndexStart = 0;
-          ushort indexCount = 0;
-          var indices = meshData.GetIndexData<ushort>();
-          var vertices = meshData.GetVertexData<Vertex>();
-          for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
-            vertices.CopyFrom(subMeshVertices);
-
-            if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
-              do {
-                indices[indexCount++] = index;
-              } while (subMeshIndices.TryGetNextValue(out index, ref indexIterator));
+          #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
+          using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp)) // TODO we dont need this. We could use meshData.GetVertexData<Vertex>() directly
+          using (subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(300, Allocator.Temp))
+          {
+            Array.Clear(vertexBuffer, 0, vertexBuffer.Length);
+            
+            using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
+              BinaryReader msbr = new BinaryReader(ms);
+              intepreterLoop(ms, msbr, localToWorld.Value);
             }
 
-            meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
+            var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
+            var totalVertexCount = subMeshVertices.Length;
+            var totalIndexCount = subMeshIndices.Count();
 
-            if (indexCount > submeshIndexStart) // Skip empty sub mesh
-              textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
+            // Debug.Log($"totalVertexCount {submeshCount} {totalVertexCount}");
 
-            submeshIndexStart = indexCount;
-          }
+            var meshData = meshDataArray[entityIndex];
+            meshData.subMeshCount = submeshCount;
+            meshData.SetVertexBufferParams(totalVertexCount, vertexAttributes);
+            meshData.SetIndexBufferParams(totalIndexCount, IndexFormat.UInt16);
 
-          // Debug.Log($"{entityIndex} Indice count allocated {indexCount} vc {vertexCount}");
+            // Debug.Log($"{entityIndex} Indice count requested {totalIndexCount} tvc {totalVertexCount}");
 
-          submeshKeys.Dispose();
-        }
-      }
+            ushort submeshIndexStart = 0;
+            ushort indexCount = 0;
+            var indices = meshData.GetIndexData<ushort>();
+            var vertices = meshData.GetVertexData<Vertex>();
+            for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
+              vertices.CopyFrom(subMeshVertices);
 
-      Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
+              if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
+                do {
+                  indices[indexCount++] = index;
+                } while (subMeshIndices.TryGetNextValue(out index, ref indexIterator));
+              }
 
-      var entityChildren = GetBufferFromEntity<Child>(true);
+              meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
 
-      textureIdAccumulator = 0;
-      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
-        var entity = entities[entityIndex];
-        var mesh = meshes[entityIndex];
-        mesh.RecalculateNormals();
-        // mesh.RecalculateTangents();
-        mesh.RecalculateBounds();
-        mesh.UploadMeshData(false);
+              if (indexCount > submeshIndexStart) // Don't add empty submeshes to textureId array
+                textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
 
-        var renderBounds = new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } };
-
-        var childCount = 0;
-        DynamicBuffer<Child> children = default;
-
-        if (entityChildren.HasComponent(entity)) {
-          children = entityChildren[entity];
-          childCount = children.Length;
-        }
-
-        var submeshCount = mesh.subMeshCount;
-        for (int subMesh = 0; subMesh < Mathf.Max(submeshCount, childCount); ++subMesh) {
-          Entity modelPart;
-          if (subMesh < childCount) {
-            modelPart = children[subMesh].Value;
-
-            if (subMesh >= submeshCount || mesh.GetIndexCount(subMesh) == 0) { // Skip unneeded or empty sub mesh
-              commandBuffer.DestroyEntity(modelPart);
-              continue;
+              submeshIndexStart = indexCount;
             }
-          } else {
-            // TODO material 0 = bitmap_from_tpoly_data
 
-            modelPart = commandBuffer.CreateEntity(viewPartArchetype);
-            commandBuffer.SetComponent(modelPart, default(ModelPart));
-            commandBuffer.SetComponent(modelPart, default(LocalToWorld));
-            commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(modelPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(new float3(0f, 0f, 0f)) });
+            // Debug.Log($"{entityIndex} Indice count allocated {indexCount} vc {vertexCount}");
+
+            submeshKeys.Dispose();
+          }
+          #endregion
+        }
+
+        // Debug.Log($"textureIdAccumulator {textureIdAccumulator} entities {entityCount} max {textureIds.Length}");
+
+        Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
+
+        var entityChildren = GetBufferFromEntity<Child>(true);
+
+        textureIdAccumulator = 0;
+        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+          var entity = entities[entityIndex];
+          var mesh = meshes[entityIndex];
+          mesh.RecalculateNormals();
+          // mesh.RecalculateTangents();
+          mesh.RecalculateBounds();
+          mesh.UploadMeshData(false);
+
+          var renderBounds = new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } };
+
+          var childCount = 0;
+          DynamicBuffer<Child> children = default;
+
+          if (entityChildren.HasComponent(entity)) {
+            children = entityChildren[entity];
+            childCount = children.Length;
           }
 
-          var textureId = textureIds[textureIdAccumulator++];
+          var submeshCount = mesh.subMeshCount;
+          for (int submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
+            Entity modelPart;
+            if (submeshIndex < childCount) {
+              modelPart = children[submeshIndex].Value;
 
-          commandBuffer.SetComponent(modelPart, renderBounds);
-          commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
-            mesh = mesh,
-            material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
-            subMesh = subMesh,
-            layer = 0,
-            castShadows = ShadowCastingMode.On,
-            receiveShadows = true,
-            needMotionVectorPass = false,
-            layerMask = uint.MaxValue
-          });
-          
-          // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
+              if (submeshIndex >= submeshCount || mesh.GetIndexCount(submeshIndex) == 0) { // Skip unneeded or empty sub mesh
+                commandBuffer.DestroyEntity(modelPart);
+                continue;
+              }
+            } else {
+              // TODO material 0 = bitmap_from_tpoly_data
+
+              modelPart = commandBuffer.CreateEntity(viewPartArchetype);
+              commandBuffer.SetComponent(modelPart, default(ModelPart));
+              commandBuffer.SetComponent(modelPart, default(LocalToWorld));
+              commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
+              commandBuffer.SetComponent(modelPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
+            }
+
+            var textureId = textureIds[textureIdAccumulator++];
+
+            commandBuffer.SetComponent(modelPart, renderBounds);
+            commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
+              mesh = mesh,
+              material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
+              subMesh = submeshIndex,
+              layer = 0,
+              castShadows = ShadowCastingMode.On,
+              receiveShadows = true,
+              needMotionVectorPass = false,
+              layerMask = uint.MaxValue
+            });
+            
+            // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
+          }
         }
-      }
 
-      textureIds.Dispose();
+        textureIds.Dispose();
+      }
 
       var removeMeshToCacheJob = new RemoveMeshFromCacheJob() {
         EntityTypeHandle = GetEntityTypeHandle(),
@@ -387,7 +394,7 @@ namespace SS.System {
           var normal = math.cross(vertexBuffer[vertexIndices[1]].position - origin, vertexBuffer[vertexIndices[2]].position - origin);
           var viewVec = origin - eyePositionLocal;
 
-          if (drawState.check == false /*&& math.dot(viewVec, normal) < 0f*/) { // TODO check if math.dot this is really needed.
+          if (drawState.check == false && math.dot(viewVec, normal) >= 0f) { // TODO check if math.dot this is really needed.
             int vertexStart = subMeshVertices.Length;
 
             for (int i = 0; i < vertexCount; ++i) {
