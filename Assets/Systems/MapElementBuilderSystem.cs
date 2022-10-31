@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.CompilerServices;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -17,26 +19,29 @@ using static Unity.Mathematics.math;
 namespace SS.System {
   [UpdateInGroup (typeof(InitializationSystemGroup))]
   public partial class MapElementBuilderSystem : SystemBase {
-    public Dictionary<ushort, Material> mapMaterial;
+    public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
 
     private EntityArchetype viewPartArchetype;
     private EntityQuery mapElementQuery;
     private EntityQuery viewPartQuery;
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
+  
+    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
+    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
+
+    private RenderMeshDescription renderMeshDescription;
 
     protected override void OnCreate() {
       base.OnCreate();
 
-      RequireSingletonForUpdate<Level>();
-      RequireSingletonForUpdate<LevelInfo>();
+      RequireForUpdate<Level>();
+      RequireForUpdate<LevelInfo>();
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
+      viewPartArchetype = EntityManager.CreateArchetype(
         typeof(LevelViewPart),
         typeof(Parent),
-        typeof(LocalToWorld),
-        typeof(LocalToParent),
-        typeof(RenderBounds),
-        typeof(RenderMesh),
+        typeof(LocalToParentTransform),
+        typeof(LocalToWorldTransform),
         typeof(FrozenRenderSceneTag)
       );
 
@@ -44,7 +49,6 @@ namespace SS.System {
         All = new ComponentType[] {
           ComponentType.ReadOnly<TileLocation>(),
           ComponentType.ReadOnly<MapElement>(),
-          ComponentType.ReadWrite<LocalToWorld>(),
           ComponentType.ReadOnly<LevelViewPartRebuildTag>()
         }
       });
@@ -61,19 +65,28 @@ namespace SS.System {
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        [4] = new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+        [4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       };
+
+      this.renderMeshDescription = new RenderMeshDescription(
+        shadowCastingMode: ShadowCastingMode.On,
+        receiveShadows: true,
+        staticShadowCaster: true
+      );
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
       this.vertexAttributes.Dispose();
+      this.entityMeshIDs.Dispose();
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndInitializationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystemManaged<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
+
+      var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
       var entityCount = mapElementQuery.CalculateEntityCount();
       if (entityCount == 0) return;
@@ -94,100 +107,111 @@ namespace SS.System {
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      var destroyOldViewParts = cleanJob.ScheduleParallel(viewPartQuery, dependsOn: Dependency);
-      Dependency = destroyOldViewParts;
-      ecbSystem.AddJobHandleForProducer(destroyOldViewParts);
-      destroyOldViewParts.Complete();
+      Dependency = cleanJob.ScheduleParallel(viewPartQuery, Dependency);
       #endregion
 
-      #region  Build new view parts
+      #region Build new view parts
+      NativeArray<int> chunkBaseEntityIndices = mapElementQuery.CalculateBaseEntityIndexArrayAsync(Allocator.TempJob, Dependency, out JobHandle baseIndexJobHandle);
+
       var buildJob = new BuildMapElementMeshJob {
         entityTypeHandle = GetEntityTypeHandle(),
         tileLocationTypeHandle = GetComponentTypeHandle<TileLocation>(true),
         mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
-        localToWorldTypeHandle = GetComponentTypeHandle<LocalToWorld>(true),
-        allMapElements = GetComponentDataFromEntity<MapElement>(true),
-        map = level,
+        allMapElements = GetComponentLookup<MapElement>(true),
+        ChunkBaseEntityIndices = chunkBaseEntityIndices,
 
+        map = level,
         levelInfo = levelInfo,
+
+        vertexAttributes = vertexAttributes,
         meshDataArray = meshDataArray,
         submeshTextureIndex = submeshTextureIndex,
-        vertexAttributes = vertexAttributes
       };
 
-      var buildMapElements = buildJob.ScheduleParallel(mapElementQuery, dependsOn: Dependency);
-      Dependency = buildMapElements;
-      ecbSystem.AddJobHandleForProducer(buildMapElements);
-      buildMapElements.Complete();
+      Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
       #endregion
 
-      // TODO we should reuse meshes from removed viewpart entities.
+      CompleteDependency();
+      EntityManager.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery);
 
+      #region Update meshes
       var meshes = new Mesh[entityCount];
-      for (var i = 0; i < entityCount; ++i)
-        meshes[i] = new Mesh();
+      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        var entity = entities[entityIndex];
+        meshes[entityIndex] = entityMeshes.GetOrAdd(entity, entity => {
+          var mesh = new Mesh();
+          // mesh.MarkDynamic();
+          if (entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh)) == false)
+            throw new Exception(@"Failed to add registered mesh.");
 
+          return mesh;
+        });
+      }
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
-      for (int i = 0; i < entityCount; ++i) {
-        var mesh = meshes[i];
-        if (mesh.subMeshCount == 0) continue;
-
+      for (int meshIndex = 0; meshIndex < meshes.Length; ++meshIndex) {
+        var mesh = meshes[meshIndex];
         mesh.RecalculateNormals();
         // mesh.RecalculateTangents();
         mesh.RecalculateBounds();
-        mesh.UploadMeshData(true);
+        mesh.UploadMeshData(false);
+      }
+      #endregion
 
-        var entity = entities[i];
-        var tile = GetComponent<MapElement>(entity);
+      var sceneTileTag = new FrozenRenderSceneTag {
+        SceneGUID = new Unity.Entities.Hash128 { Value = level.Id }
+      };
 
-        var sceneTileTag = new FrozenRenderSceneTag {
-          SceneGUID = new Unity.Entities.Hash128 { Value = level.Id },
-          SectionIndex = i
-        };
+      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+      EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
+      EntityManager.SetComponentData(prototype, new LocalToParentTransform { Value = UniformScaleTransform.Identity });
+      RenderMeshUtility.AddComponents(
+        prototype,
+        EntityManager,
+        renderMeshDescription,
+        new RenderMeshArray(new Material[0], new Mesh[0])
+      );
+      EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
-        var textureIndices = new NativeSlice<byte>(submeshTextureIndex, i * 6, 6);
+      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        var entity = entities[entityIndex];
 
-        for (int subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
+        if (entityMeshes.TryGetValue(entity, out Mesh mesh) == false)
+          continue;
+
+        if (mesh.subMeshCount == 0) continue;
+
+        if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
+          continue;
+
+        var textureIndices = new NativeSlice<byte>(submeshTextureIndex, entityIndex * 6, 6);
+
+        var renderBounds = new RenderBounds { Value = mesh.bounds.ToAABB() };
+
+        for (sbyte subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 
-          /*
-          var renderMeshDescription = new RenderMeshDescription(mesh, mapMaterial[textureIndices[subMesh]], subMeshIndex: subMesh);
-
-          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-          RenderMeshUtility.AddComponents(viewPart, commandBuffer, renderMeshDescription);
-
-          commandBuffer.SetComponent(viewPart, default(LevelViewPart));
+          var viewPart = commandBuffer.Instantiate(prototype);
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
-          */
-
-          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-          commandBuffer.SetComponent(viewPart, default(LevelViewPart));
-          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, default(LocalToWorld));
-          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.Translate(float3(0f, 0f, 0f)) });
-          commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
-          commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-            mesh = mesh,
-            material = mapMaterial[textureIndices[subMesh]],
-            subMesh = subMesh,
-            layer = 0,
-            castShadows = ShadowCastingMode.On,
-            receiveShadows = true,
-            needMotionVectorPass = false,
-            layerMask = uint.MaxValue
+          commandBuffer.SetComponent(viewPart, renderBounds);
+          commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
+            MeshID = meshID,
+            MaterialID = mapMaterial[textureIndices[subMesh]],
+            Submesh = subMesh
           });
+
+          sceneTileTag.SectionIndex = entityIndex;
           commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
       }
 
-      EntityManager.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery);
+      var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
+      finalizeCommandBuffer.DestroyEntity(prototype);
     }
   }
 
   [BurstCompile]
-  struct DestroyOldViewPartsJob : IJobEntityBatchWithIndex {
+  struct DestroyOldViewPartsJob : IJobChunk {
     [ReadOnly] public EntityTypeHandle entityTypeHandle;
 
     [ReadOnly] public ComponentTypeHandle<Parent> parentTypeHandle;
@@ -196,46 +220,48 @@ namespace SS.System {
 
     [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
-    public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int indexOfFirstEntityInQuery) {
-      var entities = batchInChunk.GetNativeArray(entityTypeHandle);
-      var parents = batchInChunk.GetNativeArray(parentTypeHandle);
+    public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+      var entities = chunk.GetNativeArray(entityTypeHandle);
+      var parents = chunk.GetNativeArray(parentTypeHandle);
 
-      for (int i = 0; i < batchInChunk.Count; ++i) {
+      for (int i = 0; i < chunk.Count; ++i) {
         var entity = entities[i];
         var parent = parents[i];
 
         if (updateMapElements.Contains(parent.Value))
-          CommandBuffer.DestroyEntity(batchIndex, entity);
+          CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
       }
     }
   }
 
   [BurstCompile]
-  struct BuildMapElementMeshJob : IJobEntityBatchWithIndex {
+  struct BuildMapElementMeshJob : IJobChunk {
     [ReadOnly] public EntityTypeHandle entityTypeHandle;
 
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
-    [ReadOnly] public ComponentTypeHandle<LocalToWorld> localToWorldTypeHandle;
-    [ReadOnly] public ComponentDataFromEntity<MapElement> allMapElements;
-    [ReadOnly] public Level map;
+    [ReadOnly] public ComponentLookup<MapElement> allMapElements;
+    [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<int> ChunkBaseEntityIndices;
 
+    [ReadOnly] public Level map;
     [ReadOnly] public LevelInfo levelInfo;
-    public Mesh.MeshDataArray meshDataArray;
-    [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> submeshTextureIndex;
 
     [ReadOnly] public NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
-    public void Execute(ArchetypeChunk batchInChunk, int batchIndex, int indexOfFirstEntityInQuery) {
-      var entities = batchInChunk.GetNativeArray(entityTypeHandle);
-      var tileLocations = batchInChunk.GetNativeArray(tileLocationTypeHandle);
-      var localToWorld = batchInChunk.GetNativeArray(localToWorldTypeHandle);
-      var mapElements = batchInChunk.GetNativeArray(mapElementTypeHandle);
+    [NativeDisableParallelForRestriction] public Mesh.MeshDataArray meshDataArray;
+    [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> submeshTextureIndex;
+
+    public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+      var entities = chunk.GetNativeArray(entityTypeHandle);
+      var tileLocations = chunk.GetNativeArray(tileLocationTypeHandle);
+      var mapElements = chunk.GetNativeArray(mapElementTypeHandle);
 
       // Mesh.ApplyAndDisposeWritableMeshData()
 
-      for (int i = 0; i < batchInChunk.Count; ++i) {
-        var realIndex = indexOfFirstEntityInQuery + i;
+      int baseEntityIndex = ChunkBaseEntityIndices[unfilteredChunkIndex];
+
+      for (int i = 0; i < chunk.Count; ++i) {
+        var realIndex = baseEntityIndex + i;
 
         var entity = entities[i];
         var meshData = meshDataArray[realIndex];
@@ -275,15 +301,11 @@ namespace SS.System {
 
     private unsafe void ClearVertexArray(in Mesh.MeshData mesh) {
       Vertex* nullVertex = stackalloc Vertex[] {
-        new Vertex { pos = float3(0f), uv = half2(0f), light = 0f }
+        new Vertex { pos = float3(0f), normal = float3(0f), tangent = float3(0f), uv = half2(0f), light = 0f }
       };
       
       var vertices = mesh.GetVertexData<Vertex>();
-      
       UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
-
-      //for (int vertex = 0; vertex < vertices.Length; ++vertex)
-      //  vertices[vertex] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
     }
 
     private void BuildMesh (in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
@@ -362,7 +384,7 @@ namespace SS.System {
       #endregion
     }
 
-    private int CreatePlane (in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, int subMeshIndex, bool isCeiling) {
+    private int CreatePlane (in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
       var vertices = mesh.GetVertexData<Vertex>();
       var indices = mesh.GetIndexData<ushort>();
 
@@ -400,10 +422,11 @@ namespace SS.System {
         0, 1, 2, 2, 3, 0
       };
 
-      ReadOnlySpan<int> faceIndicesOffset = stackalloc int[] { 0, 0, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 94 };
+      ReadOnlySpan<int> faceIndicesOffset = stackalloc int[] { 0, 0, 6, 9, 12, 15, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84 };
       ReadOnlySpan<int> faceIndicesLength = stackalloc int[] { 0, 6, 3, 3, 3, 3, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 };
 
       int tileType = (int)tile.TileType;
+
       var indicesTemplate = faceIndices.Slice(faceIndicesOffset[tileType], faceIndicesLength[tileType]);
 
       if (isCeiling == true) {
@@ -437,7 +460,7 @@ namespace SS.System {
       return 1;
     }
     
-    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 6)] int subMeshIndex, [AssumeRange(0, 4)] int leftCorner, [AssumeRange(0, 4)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 4)] int adjacentLeftCorner, [AssumeRange(0, 4)] int adjacentRightCorner, bool flip, bool forceSolid) {
+    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
       var vertices = mesh.GetVertexData<Vertex>();
       var index = mesh.GetIndexData<ushort>();
 
@@ -506,10 +529,10 @@ namespace SS.System {
         return 1;
       } else { // Possibly two part wall
         ReadOnlySpan<int> portalPoints = stackalloc int[] {
-          math.max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)),
-          math.min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)),
-          math.min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)),
-          math.max(tile.FloorCornerHeight(rightCorner), adjacent.FloorCornerHeight(adjacentRightCorner))
+          math.max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)), // Bottom left
+          math.min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)), // Top left
+          math.min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)), // Top right
+          math.max(tile.FloorCornerHeight(rightCorner), adjacent.FloorCornerHeight(adjacentRightCorner)) // Bottom right
         };
 
         bool floorAboveCeiling = portalPoints[0] > portalPoints[1] ^ portalPoints[3] > portalPoints[2]; // Other corner of ceiling is above and other below floor
@@ -519,7 +542,7 @@ namespace SS.System {
         var indexCount = 0;
 
         // Upper portal border is below ceiling
-        if (math.min(portalPoints[1], portalPoints[2]) < math.max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) {
+        if (portalPoints[1] < tile.CeilingCornerHeight(leftCorner) || portalPoints[2] < tile.CeilingCornerHeight(rightCorner)) {
           wallVertices[0].y = (floorAboveCeiling ? portalPoints[1] : math.max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
           wallVertices[1].y = tile.CeilingCornerHeight(leftCorner) * mapScale;
           wallVertices[2].y = tile.CeilingCornerHeight(rightCorner) * mapScale;
@@ -539,7 +562,7 @@ namespace SS.System {
         }
 
         // Lower border is above floor
-        if (math.max(portalPoints[0], portalPoints[3]) > math.min(tile.FloorCornerHeight(leftCorner), tile.FloorCornerHeight(rightCorner))) {
+        if (portalPoints[0] > tile.FloorCornerHeight(leftCorner) || portalPoints[3] > tile.FloorCornerHeight(rightCorner)) {
           wallVertices[0].y = tile.FloorCornerHeight(leftCorner) * mapScale;
           wallVertices[1].y = math.min(portalPoints[0], math.max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
           wallVertices[2].y = math.min(portalPoints[3], math.max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;

@@ -9,25 +9,43 @@ using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 using static Unity.Mathematics.math;
+using Unity.Burst.Intrinsics;
+
+#pragma warning disable CS0282
 
 namespace SS.System {
+  [BurstCompile]
   [UpdateInGroup (typeof(FixedStepSimulationSystemGroup))]
-  public partial class TriggerSystem : SystemBase {
+  public partial struct TriggerSystem : ISystem {
     private const double NextContinuousSeconds = 5.0;
+
+    private EntityTypeHandle entityTypeHandle;
+    private ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
+    private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+    private ComponentLookup<MapElement> mapElementLookup;
+    private ComponentLookup<ObjectInstance> instanceLookup;
+    private ComponentLookup<ObjectInstance.Trigger> triggerLookup;
+
+    private NativeArray<Random> Randoms;
 
     private EntityQuery triggerQuery;
     private EntityArchetype triggerEventArchetype;
 
-    private NativeArray<Random> Randoms;
+    public void OnCreate(ref SystemState state) {
+      state.RequireForUpdate<Level>();
 
-    protected override void OnCreate() {
-      base.OnCreate();
+      entityTypeHandle = state.GetEntityTypeHandle();
+      instanceTypeHandle = state.GetComponentTypeHandle<ObjectInstance>();
+      triggerTypeHandle = state.GetComponentTypeHandle<ObjectInstance.Trigger>();
+      mapElementLookup = state.GetComponentLookup<MapElement>();
+      instanceLookup = state.GetComponentLookup<ObjectInstance>();
+      triggerLookup = state.GetComponentLookup<ObjectInstance.Trigger>();
 
       Randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
       for (int i = 0; i < Randoms.Length; ++i)
         Randoms[i] = Random.CreateFromIndex((uint)i);
 
-      triggerQuery = GetEntityQuery(new EntityQueryDesc {
+      triggerQuery = state.GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<ObjectInstance>(),
           ComponentType.ReadOnly<ObjectInstance.Trigger>(),
@@ -35,50 +53,53 @@ namespace SS.System {
         }
       });
 
-      triggerEventArchetype = World.EntityManager.CreateArchetype(
+      triggerEventArchetype = state.EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
       );
     }
 
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
+    public void OnDestroy(ref SystemState state) {
       Randoms.Dispose();
     }
 
-    protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndFixedStepSimulationEntityCommandBufferSystem>();
-      var commandBuffer = ecbSystem.CreateCommandBuffer();
+    public void OnUpdate(ref SystemState state) {
+      var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
+      var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-      var level = GetSingleton<Level>();
+      var level = SystemAPI.GetSingleton<Level>();
+
+      entityTypeHandle.Update(ref state);
+      instanceTypeHandle.Update(ref state);
+      triggerTypeHandle.Update(ref state);
+      mapElementLookup.Update(ref state);
+      instanceLookup.Update(ref state);
+      triggerLookup.Update(ref state);
 
       var triggerJob = new TriggerJob {
-        entityTypeHandle = GetEntityTypeHandle(),
-        instanceTypeHandle = GetComponentTypeHandle<ObjectInstance>(),
-        triggerTypeHandle = GetComponentTypeHandle<ObjectInstance.Trigger>(),
+        entityTypeHandle = entityTypeHandle,
+        instanceTypeHandle = instanceTypeHandle,
+        triggerTypeHandle = triggerTypeHandle,
 
         TileMapBlobAsset = level.TileMap,
         ObjectInstancesBlobAsset = level.ObjectInstances,
 
         Randoms = Randoms,
-        TimeData = Time,
-        LevelInfo = GetSingleton<LevelInfo>(),
+        TimeData = SystemAPI.Time,
+        LevelInfo = SystemAPI.GetSingleton<LevelInfo>(),
         triggerEventArchetype = triggerEventArchetype,
         
         CommandBuffer = commandBuffer.AsParallelWriter(),
 
-        MapElementFromEntity = GetComponentDataFromEntity<MapElement>(),
-        InstanceFromEntity = GetComponentDataFromEntity<ObjectInstance>(),
-        TriggerFromEntity = GetComponentDataFromEntity<ObjectInstance.Trigger>(),
+        MapElementLookup = mapElementLookup,
+        InstanceLookup = instanceLookup,
+        TriggerLookup = triggerLookup,
       };
 
-      var trigger = triggerJob.ScheduleParallel(triggerQuery, dependsOn: Dependency);
-      Dependency = trigger;
-      trigger.Complete();
+      state.Dependency = triggerJob.ScheduleParallel(triggerQuery, state.Dependency);
     }
 
     [BurstCompile]
-    struct TriggerJob : IJobEntityBatch {
+    struct TriggerJob : IJobChunk {
       [NativeSetThreadIndex] internal readonly int threadIndex;
 
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
@@ -96,32 +117,32 @@ namespace SS.System {
 
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
-      [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<MapElement> MapElementFromEntity;
-      [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<ObjectInstance> InstanceFromEntity;
-      [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<ObjectInstance.Trigger> TriggerFromEntity;
-      
-      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var entities = batchInChunk.GetNativeArray(entityTypeHandle);
-        var instances = batchInChunk.GetNativeArray(instanceTypeHandle);
-        var triggers = batchInChunk.GetNativeArray(triggerTypeHandle);
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Trigger> TriggerLookup;
 
-        for (int i = 0; i < batchInChunk.Count; ++i) {
+      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var entities = chunk.GetNativeArray(entityTypeHandle);
+        var instances = chunk.GetNativeArray(instanceTypeHandle);
+        var triggers = chunk.GetNativeArray(triggerTypeHandle);
+
+        for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           var instance = instances[i];
           var trigger = triggers[i];
 
-          Activate(entity, batchIndex, out bool message);
+          Activate(entity, unfilteredChunkIndex, out bool message);
 
-          CommandBuffer.RemoveComponent<TriggerActivateTag>(batchIndex, entity);
+          CommandBuffer.RemoveComponent<TriggerActivateTag>(unfilteredChunkIndex, entity);
         }
       }
 
-      private bool Activate(in Entity entity, int batchIndex, out bool message) {
+      private bool Activate(in Entity entity, int unfilteredChunkIndex, out bool message) {
         message = false;
 
-        if (TriggerFromEntity.HasComponent(entity)) {
-          var instance = InstanceFromEntity[entity];
-          var trigger = TriggerFromEntity[entity];
+        if (TriggerLookup.HasComponent(entity)) {
+          var instance = InstanceLookup[entity];
+          var trigger = TriggerLookup[entity];
 
           //Debug.Log($"Activate e:{entity.Index} o:{trigger.Link.ObjectIndex}");
 
@@ -133,7 +154,7 @@ namespace SS.System {
           };
 
           if (comparatorCheck(comparator, entity, out byte specialCode))
-            processTrigger(entity, batchIndex); // TODO Activate actually
+            processTrigger(entity, unfilteredChunkIndex); // TODO Activate actually
 
           return true;
         } // else fixture
@@ -147,7 +168,7 @@ namespace SS.System {
       }
 
       // TODO interfaces
-      private unsafe void changeLighting (ref ObjectInstance instance, ref ObjectInstance.Trigger trigger, int batchIndex, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) {
+      private unsafe void changeLighting (ref ObjectInstance instance, ref ObjectInstance.Trigger trigger, int unfilteredChunkIndex, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) {
         var transitionType = actionParam2 & 0xFFFF;
         var numSteps = transitionType != 0 ? (int)((actionParam2 >> 16) & 0xFFF) : -1;
         byte lightState = (byte)(actionParam2 >> 28); // Are we turning on or off. Last nibble.
@@ -177,8 +198,8 @@ namespace SS.System {
           var secondEntity = ObjectInstancesBlobAsset.Value[secondObjID];
           //if (!InstanceFromEntity.HasComponent(ulEntity) || !InstanceFromEntity.HasComponent(lrEntity)) return;
 
-          var firstObj = InstanceFromEntity[firstEntity];
-          var secondObj = InstanceFromEntity[secondEntity];
+          var firstObj = InstanceLookup[firstEntity];
+          var secondObj = InstanceLookup[secondEntity];
 
           rectMin = int2(min(firstObj.Location.TileX, secondObj.Location.TileX), min(firstObj.Location.TileY, secondObj.Location.TileY));
           rectMax = int2(max(firstObj.Location.TileX, secondObj.Location.TileX), max(firstObj.Location.TileY, secondObj.Location.TileY));
@@ -228,7 +249,7 @@ namespace SS.System {
         for (var y = rectMin.y; y <= rectMax.y; ++y) {
           for (var x = rectMin.x; x <= rectMax.x; ++x) {
             var mapEntity = TileMapBlobAsset.Value[y * LevelInfo.Width + x];
-            var mapElement = MapElementFromEntity[mapEntity];
+            var mapElement = MapElementLookup[mapEntity];
             
             if (actionParam3 == 3) { // Radial
               var delta = length(float2(
@@ -257,9 +278,9 @@ namespace SS.System {
             else
               mapElement.ShadeCeilingModifier = tempLight;
 
-            MapElementFromEntity[mapEntity] = mapElement;
+            MapElementLookup[mapEntity] = mapElement;
 
-            CommandBuffer.AddComponent<LightmapRebuildTag>(batchIndex, mapEntity);
+            CommandBuffer.AddComponent<LightmapRebuildTag>(unfilteredChunkIndex, mapEntity);
           }
 
           if (actionParam3 == 1) { // EW Smooth
@@ -278,11 +299,11 @@ namespace SS.System {
 
       private const byte TRAP_TIME_UNIT = 10;
 
-      private unsafe void processTrigger(in Entity entity, int batchIndex) {
-        if (!TriggerFromEntity.HasComponent(entity)) return;
+      private unsafe void processTrigger(in Entity entity, int unfilteredChunkIndex) {
+        if (!TriggerLookup.HasComponent(entity)) return;
 
-        var instance = InstanceFromEntity[entity];
-        var trigger = TriggerFromEntity[entity]; // TODO interfaces
+        var instance = InstanceLookup[entity];
+        var trigger = TriggerLookup[entity]; // TODO interfaces
         
         var actionParam1 = trigger.ActionParam1;
         var actionParam2 = trigger.ActionParam2;
@@ -290,17 +311,17 @@ namespace SS.System {
         var actionParam4 = trigger.ActionParam4;
 
         if (trigger.ActionType == ActionType.Propagate) {
-          timedMulti(actionParam1, batchIndex);
-          timedMulti(actionParam2, batchIndex);
-          timedMulti(actionParam3, batchIndex);
-          timedMulti(actionParam4, batchIndex);
+          timedMulti(actionParam1, unfilteredChunkIndex);
+          timedMulti(actionParam2, unfilteredChunkIndex);
+          timedMulti(actionParam3, unfilteredChunkIndex);
+          timedMulti(actionParam4, unfilteredChunkIndex);
         } else if (trigger.ActionType == ActionType.Lighting) {
           // Debug.Log($"Light e:{entity.Index} o:{trigger.Link.ObjectIndex} ap3:{trigger.ActionParam3}");
 
           if ((actionParam3 & 0x10000) == 0x10000 || (actionParam3 & 0x20000) == 0x20000)
-            changeLighting(ref instance, ref trigger, batchIndex, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+            changeLighting(ref instance, ref trigger, unfilteredChunkIndex, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
           if ((actionParam3 & 0x10000) != 0x10000)
-            changeLighting(ref instance, ref trigger, batchIndex, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+            changeLighting(ref instance, ref trigger, unfilteredChunkIndex, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
 
           if ((actionParam2 & 0xFFFF) != 0) {
             var steps = (actionParam2 >> 16) & 0xFFF;
@@ -323,8 +344,8 @@ namespace SS.System {
 
               // Debug.Log($"Schedule Light steps:{steps} t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex}");
 
-              var eventEntity = CommandBuffer.CreateEntity(batchIndex, triggerEventArchetype);
-              CommandBuffer.SetComponent(batchIndex, eventEntity, scheduleEvent);
+              var eventEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, triggerEventArchetype);
+              CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
             }
           }
         } else if (trigger.ActionType == ActionType.Scheduler) {
@@ -358,8 +379,8 @@ namespace SS.System {
 
             Debug.Log($"Schedule t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex} ts:{timeStamp}");
 
-            var eventEntity = CommandBuffer.CreateEntity(batchIndex, triggerEventArchetype);
-            CommandBuffer.SetComponent(batchIndex, eventEntity, scheduleEvent);
+            var eventEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, triggerEventArchetype);
+            CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
           } else {
             Debug.LogWarning($"Scheduling failed e:{entity.Index} o:{trigger.Link.ObjectIndex} p3:{trigger.ActionParam3}");
           }
@@ -369,13 +390,13 @@ namespace SS.System {
 
         if (trigger.DestroyCount > 0) {
           if (--trigger.DestroyCount == 0)
-            CommandBuffer.DestroyEntity(batchIndex, entity);
+            CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
         }
 
-        TriggerFromEntity[entity] = trigger;
+        TriggerLookup[entity] = trigger;
       }
 
-      private unsafe void timedMulti(uint param, int batchIndex) {
+      private unsafe void timedMulti(uint param, int unfilteredChunkIndex) {
         uint timeUnits = param >> 16; // 0.1 seconds per unit
         if (timeUnits != 0) {
           var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
@@ -391,8 +412,8 @@ namespace SS.System {
 
           // Debug.Log($"Schedule t:{param & 0xFFF}");
 
-          var entity = CommandBuffer.CreateEntity(batchIndex, triggerEventArchetype);
-          CommandBuffer.SetComponent(batchIndex, entity, scheduleEvent);
+          var entity = CommandBuffer.CreateEntity(unfilteredChunkIndex, triggerEventArchetype);
+          CommandBuffer.SetComponent(unfilteredChunkIndex, entity, scheduleEvent);
         } else {
           multi(questDataParse((ushort)(param & 0xFFFF)));
         }
@@ -402,7 +423,7 @@ namespace SS.System {
         if (objectIndex == 0) return;
 
         var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-        if (TriggerFromEntity.HasComponent(entity)) {
+        if (TriggerLookup.HasComponent(entity)) {
           Activate(entity, objectIndex, out bool message);
         } else {
           // TODO

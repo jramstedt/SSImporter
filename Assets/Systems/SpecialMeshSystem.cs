@@ -19,12 +19,13 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
+  [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpecialMeshSystem : SystemBase {
     private const ushort CustomTextureIdBase = 2180;
     private const ushort SmallTextureIdBase = 321;
 
-    public Dictionary<ushort, Material> mapMaterial;
+    public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
 
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
@@ -32,15 +33,15 @@ namespace SS.System {
 
     private EntityArchetype viewPartArchetype;
 
-    private Material[] materials = new Material[64];
-    private Material colorMaterial;
+    private NativeArray<BatchMaterialID> materials;
 
     private Texture clutTexture;
     private Texture2D lightmap;
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
+    private RenderMeshDescription renderMeshDescription;
 
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
       newMeshQuery = GetEntityQuery(new EntityQueryDesc {
@@ -64,34 +65,17 @@ namespace SS.System {
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(SpecialPart),
         typeof(Parent),
-        typeof(LocalToWorld),
-        typeof(LocalToParent),
-        typeof(Translation),
-        typeof(Rotation),
-        typeof(Scale),
-        typeof(RenderBounds),
-        typeof(RenderMesh)
+        typeof(LocalToParentTransform),
+        typeof(LocalToWorldTransform),
+        typeof(RenderBounds)
       );
 
-      clutTexture = await Services.ColorLookupTableTexture;
-      lightmap = await Services.LightmapTexture;
+      clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
+      lightmap = Services.LightmapTexture.WaitForCompletion();
 
-      {
-        var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTexture);
-        material.DisableKeyword(@"_SPECGLOSSMAP");
-        material.DisableKeyword(@"_SPECULAR_COLOR");
-        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
-        material.EnableKeyword(@"LINEAR");
-        material.DisableKeyword(@"TRANSPARENCY_ON");
-        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-        material.enableInstancing = true;
+      var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-        colorMaterial = material;
-      }
+      materials = new(64, Allocator.Persistent);
 
       // TODO FIXME should be accessible from Services.
       for (var i = 0; i < materials.Length; ++i) { // FIXME wrong length
@@ -115,7 +99,7 @@ namespace SS.System {
                 material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
 
                 material.EnableKeyword(@"LINEAR");
-                if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+                if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
                 else material.DisableKeyword(@"TRANSPARENCY_ON");
 
                 material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
@@ -123,7 +107,7 @@ namespace SS.System {
                 material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
                 material.enableInstancing = true;
 
-                materials[materialIndex] = material;
+                materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
               } else {
                 Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
               }
@@ -139,34 +123,72 @@ namespace SS.System {
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        [4] = new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+        [4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       };
+
+      this.renderMeshDescription = new RenderMeshDescription(
+        shadowCastingMode: ShadowCastingMode.On,
+        receiveShadows: true,
+        staticShadowCaster: true
+      );
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
+      this.materials.Dispose();
       this.vertexAttributes.Dispose();
     }
 
     protected override void  OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
+
+      int entityCount = newMeshQuery.CalculateEntityCount();
+      var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
+
+      var meshes = new Mesh[entityCount];
+      for (var i = 0; i < entityCount; ++i)
+        meshes[i] = new Mesh();
+
+      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+      EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
+      EntityManager.SetComponentData(prototype, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f) } });
+      RenderMeshUtility.AddComponents(
+        prototype,
+        EntityManager,
+        renderMeshDescription,
+        new RenderMeshArray(new Material[0], meshes) // TODO reuse meshes and don't recreate mesharray all the time
+      );
+
+      // TODO FIXME improve, parallelize
+
+      var vertexAttributes = this.vertexAttributes;
+      var mapMaterial = this.mapMaterial;
+      var materials = this.materials;
 
       Entities
         .WithAll<TexturedCuboid, ObjectInstance>()
         .WithNone<MeshAddedTag>()
-        .ForEach((Entity entity, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
+        .ForEach((Entity entity, int entityInQueryIndex, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
           var SideTexture = texturedCuboid.SideTexture;
           var TopBottomTexture = texturedCuboid.TopBottomTexture;
 
-          var mesh = new Mesh();
-          var meshDataArray = Mesh.AllocateWritableMeshData(1);
-          var meshData = meshDataArray[0];
+          var meshData = meshDataArray[entityInQueryIndex];
 
           meshData.subMeshCount = 2;
           meshData.SetVertexBufferParams(4 * 6, vertexAttributes);
           meshData.SetIndexBufferParams(6 * 6, IndexFormat.UInt16);
+          
+          ReadOnlySpan<ushort> indiceTemplate = stackalloc ushort[] {
+            2, 1, 0, 0, 3, 2,
+            4, 5, 6, 6, 7, 4,
+
+            8, 9, 10, 10, 11, 8,
+            12, 13, 14, 14, 15, 12,
+            16, 17, 18, 18, 19, 16,
+            22, 21, 20, 20, 23, 22
+          };
 
           ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
             // Top
@@ -181,7 +203,6 @@ namespace SS.System {
             float3(texturedCuboid.SizeX, 0f, texturedCuboid.SizeY),
             float3(-texturedCuboid.SizeX, 0f, texturedCuboid.SizeY)
           };
-
           var vertices = meshData.GetVertexData<Vertex>();
 
           // +Y
@@ -221,31 +242,16 @@ namespace SS.System {
           vertices[23] = new Vertex { pos = verticeTemplate[4], uv = half2(half(1f), half(0f)), light = 0f };
 
           var indices = meshData.GetIndexData<ushort>();
-          
-          // TODO is there a better way?
-          indices.CopyFrom(new ushort[] {
-            2, 1, 0, 0, 3, 2,
-            4, 5, 6, 6, 7, 4,
-
-            8, 9, 10, 10, 11, 8,
-            12, 13, 14, 14, 15, 12,
-            16, 17, 18, 18, 19, 16,
-            22, 21, 20, 20, 23, 22
-          });
+          indiceTemplate.CopyTo(indices.AsSpan());
 
           meshData.SetSubMesh(0, new SubMeshDescriptor(0, 2 * 6, MeshTopology.Triangles));
           meshData.SetSubMesh(1, new SubMeshDescriptor(2 * 6, 4 * 6, MeshTopology.Triangles));
 
-          Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, mesh);
-
-          mesh.RecalculateNormals();
-          // mesh.RecalculateTangents();
-          mesh.RecalculateBounds();
-          mesh.UploadMeshData(true);
+          // TODO var renderBounds = new RenderBounds { Value = mesh.bounds.ToAABB() };
 
           #region Sides
           {
-            Material material;
+            BatchMaterialID material;
 
             if ((SideTexture & 0x80) == 0x80) {
               material = mapMaterial[(ushort)(SideTexture & 0x7F)];
@@ -253,74 +259,59 @@ namespace SS.System {
               material = materials[SideTexture & 0x7F];
             }
 
-            var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-            commandBuffer.SetComponent(viewPart, default(SpecialPart));
-            commandBuffer.SetComponent(viewPart, default(LocalToWorld));
+            var viewPart = commandBuffer.Instantiate(prototype);
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            //commandBuffer.SetComponent(viewPart, new LocalToParent { Value = math.mul(Unity.Mathematics.float4x4.Translate(new float3(0f, -radius, 0f)), Unity.Mathematics.float4x4.Scale(new float3(scale, scale, scale))) });
-            commandBuffer.SetComponent(viewPart, default(LocalToParent));
-            commandBuffer.SetComponent(viewPart, new Translation { Value = new float3(0f, -texturedCuboid.Offset, 0f) });
-            commandBuffer.SetComponent(viewPart, new Rotation { Value = Unity.Mathematics.quaternion.identity });
-            commandBuffer.SetComponent(viewPart, new Scale { Value = 1f });
-            commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
-            commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-              mesh = mesh,
-              material = material,
-              subMesh = 0,
-              layer = 0,
-              castShadows = ShadowCastingMode.On,
-              receiveShadows = true,
-              needMotionVectorPass = false,
-              layerMask = uint.MaxValue
+            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromPosition(0f, -texturedCuboid.Offset, 0f) });
+            commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
+              Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
+              MaterialID = material,
+              Submesh = 0
             });
           }
           #endregion
 
           #region Top and Bottom
           {
-            Material material;
-            
+            BatchMaterialID material;
+
             if ((TopBottomTexture & 0x80) == 0x80) {
               material = mapMaterial[(ushort)(TopBottomTexture & 0x7F)];
             } else {
               material = materials[TopBottomTexture & 0x7F];
             }
 
-            var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-            commandBuffer.SetComponent(viewPart, default(SpecialPart));
-            commandBuffer.SetComponent(viewPart, default(LocalToWorld));
+            var viewPart = commandBuffer.Instantiate(prototype);
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            //commandBuffer.SetComponent(viewPart, new LocalToParent { Value = math.mul(Unity.Mathematics.float4x4.Translate(new float3(0f, -radius, 0f)), Unity.Mathematics.float4x4.Scale(new float3(scale, scale, scale))) });
-            commandBuffer.SetComponent(viewPart, default(LocalToParent));
-            commandBuffer.SetComponent(viewPart, new Translation { Value = new float3(0f, -texturedCuboid.Offset, 0f) });
-            commandBuffer.SetComponent(viewPart, new Rotation { Value = Unity.Mathematics.quaternion.identity });
-            commandBuffer.SetComponent(viewPart, new Scale { Value = 1f });
-            commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
-            commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-              mesh = mesh,
-              material = material,
-              subMesh = 1,
-              layer = 0,
-              castShadows = ShadowCastingMode.On,
-              receiveShadows = true,
-              needMotionVectorPass = false,
-              layerMask = uint.MaxValue
+            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromPosition(0f, -texturedCuboid.Offset, 0f) });
+            commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
+              Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
+              MaterialID = material,
+              Submesh = 1
             });
           }
           #endregion
 
           commandBuffer.AddComponent<MeshAddedTag>(entity);
         })
-        .WithoutBurst()
         .Run();
 
-      ecbSystem.AddJobHandleForProducer(Dependency);
+      Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
+      for (int i = 0; i < entityCount; ++i) {
+          var mesh = meshes[i];
+          mesh.RecalculateNormals();
+          // mesh.RecalculateTangents();
+          mesh.RecalculateBounds();
+          mesh.UploadMeshData(true);
+      }
+
+      var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
+      finalizeCommandBuffer.DestroyEntity(prototype);
     }
   }
 
   public struct SpecialPart : IComponentData { }
 
-  internal struct MeshAddedTag : ISystemStateComponentData { }
+  internal struct MeshAddedTag : ICleanupComponentData { }
 
   public struct TexturedCuboid : IComponentData {
     public float SizeX;

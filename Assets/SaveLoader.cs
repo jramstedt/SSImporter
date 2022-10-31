@@ -15,6 +15,8 @@ using Unity.Assertions;
 using SS.ObjectProperties;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using Unity.Mathematics;
+using Unity.Rendering;
+using UnityEngine.Rendering;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -28,10 +30,10 @@ namespace SS.Resources {
       var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
       var saveData = await loadOp.Task;
 
-      var palette = await Services.Palette;
-      var shadetable = await Services.ShadeTable;
-      var allTextureProperties = await Services.TextureProperties;
-      var objectProperties = await Services.ObjectProperties;
+      var palette = Services.Palette.WaitForCompletion();
+      var shadetable = Services.ShadeTable.WaitForCompletion();
+      var allTextureProperties = Services.TextureProperties.WaitForCompletion();
+      var objectProperties = Services.ObjectProperties.WaitForCompletion();
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
@@ -98,21 +100,21 @@ namespace SS.Resources {
       //var world = new World($"map{mapId:D}");
       var entityManager = world.EntityManager;
 
+      var entitiesGraphicsSystem = world.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+
       world.GetOrCreateSystem<PaletteEffectSystem>();
 
-      var clutTexture = await Services.ColorLookupTableTexture;
-      var lightmap = await Services.LightmapTexture;
+      var clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
+      var lightmap = Services.LightmapTexture.WaitForCompletion();
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
-      var lightmapSystem = world.GetOrCreateSystem<LightmapBuilderSystem>();
-      var flatTextureSystem = world.GetOrCreateSystem<FlatTextureSystem>();
-      var meshInterpeterSystem = world.GetOrCreateSystem<MeshInterpeterSystem>();
 
       var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
       var textureProperties = new TextureProperties[TextureMap.NUM_LOADED_TEXTURES];
       var materials = new Dictionary<ushort, Material>(TextureMap.NUM_LOADED_TEXTURES);
+      var materialIds = new NativeHashMap<ushort, BatchMaterialID>(TextureMap.NUM_LOADED_TEXTURES, Allocator.Persistent);
       for (ushort i = 0; i < TextureMap.NUM_LOADED_TEXTURES; ++i) {
-        if (materials.ContainsKey(i)) continue;
+        if (materialIds.ContainsKey(i)) continue;
 
         ushort textureIndex = 0;
         unsafe {
@@ -134,25 +136,27 @@ namespace SS.Resources {
         material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
 
         material.EnableKeyword(@"LINEAR");
-        if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+        if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
         else material.DisableKeyword(@"TRANSPARENCY_ON");
 
         material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
         material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
         material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
         material.enableInstancing = true;
+
         materials.Add(i, material);
+        materialIds.Add(i, entitiesGraphicsSystem.RegisterMaterial(material));
       }
 
-      var mapSystem = world.GetOrCreateSystem<MapElementBuilderSystem>();
-      mapSystem.mapMaterial = materials; // TODO FIXME Ugly
+      var mapSystem = world.GetOrCreateSystemManaged<MapElementBuilderSystem>();
+      mapSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
 
-      var specialMeshSystem = world.GetOrCreateSystem<SpecialMeshSystem>();
-      specialMeshSystem.mapMaterial = materials; // TODO FIXME Ugly
+      var specialMeshSystem = world.GetOrCreateSystemManaged<SpecialMeshSystem>();
+      specialMeshSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
 
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
       var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent); // Don't dispose.
-      var animateTexturesSystem = world.GetOrCreateSystem<AnimateTexturesSystem>();
+      var animateTexturesSystem = world.GetOrCreateSystemManaged<AnimateTexturesSystem>();
       animateTexturesSystem.textures = textures;
       animateTexturesSystem.textureProperties = textureProperties;
       animateTexturesSystem.mapMaterial = materials; // TODO FIXME Ugly
@@ -169,7 +173,7 @@ namespace SS.Resources {
         entityManager.AddComponentData(animationEntities[i], animationData[i]);
 
       // Create Entities
-      var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance));
+      var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalToWorld));
       using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Temp);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
         var entity = objectInstanceEntities[i];
@@ -185,9 +189,9 @@ namespace SS.Resources {
           math.round(128f * location.Y / 256f) / 128f
         );
 
-        var rotation = float3x3.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
+        var rotation = quaternion.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
 
-        entityManager.AddComponentData(entity, new LocalToWorld { Value = new Unity.Mathematics.float4x4(rotation, translation) });// TODO update in job if instance data changes...
+        entityManager.AddComponentData(entity, new LocalToWorldTransform { Value = UniformScaleTransform.FromPositionRotation(translation, rotation) }); // TODO update in job if instance data changes...
         entityManager.AddComponentData(entity, instanceData);
 
         if (!instanceData.Active || instanceData.SpecIndex == 0) continue;
@@ -349,7 +353,7 @@ namespace SS.Resources {
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       mapSystem.SetSingleton(levelInfo);
 
-      var map = new Level {
+      var level = new Level {
         Id = mapId,
         TextureMap = textureMap,
         ObjectInstances = BuildBlob(objectInstanceEntities)
@@ -363,17 +367,17 @@ namespace SS.Resources {
 
             var entity = mapElementEntities[rowIndex + x];
             entityManager.AddComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
-            entityManager.AddComponentData(entity, new LocalToWorld { Value = Unity.Mathematics.float4x4.Translate(math.float3(x, 0f, y)) });
+            entityManager.AddComponentData(entity, new LocalToWorldTransform { Value = UniformScaleTransform.FromPosition(x, 0f, y) });
             entityManager.AddComponentData(entity, tileMap[x, y]);
             entityManager.AddComponentData(entity, default(LevelViewPartRebuildTag));
             entityManager.AddComponentData(entity, default(LightmapRebuildTag));
           }
         }
 
-        map.TileMap = BuildBlob(mapElementEntities);
+        level.TileMap = BuildBlob(mapElementEntities);
       }
 
-      mapSystem.SetSingleton(map);
+      mapSystem.SetSingleton(level);
       
       var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
       var hackerEntity = entityManager.CreateEntity(hackerArchetype);
@@ -442,10 +446,7 @@ namespace SS.Resources {
 
       var result = new BitmapSet {
         Texture = complete,
-        Transparent = tex128x128.Result.Transparent,
-        AnchorPoint = tex128x128.Result.AnchorPoint,
-        AnchorRect = tex128x128.Result.AnchorRect,
-        Palette = tex128x128.Result.Palette
+        Description = tex128x128.Result.Description
       };
 
       Addressables.Release(tex128x128);

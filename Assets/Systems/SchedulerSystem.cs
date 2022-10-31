@@ -1,48 +1,62 @@
 using SS.Resources;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
 using UnityEngine;
 
+#pragma warning disable CS0282
+
 namespace SS.System {
+  [BurstCompile]
+  [UpdateBefore(typeof(TriggerSystem))]
   [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
-  public partial class SchedulerSystem : SystemBase {
+  public partial struct SchedulerSystem : ISystem {
+    private EntityTypeHandle entityTypeHandle;
+    private ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandle;
+
     private EntityQuery eventQuery;
 
-    protected override void OnCreate() {
-      base.OnCreate();
+    public void OnCreate(ref SystemState state) {
+      state.RequireForUpdate<Level>();
 
-      eventQuery = GetEntityQuery(new EntityQueryDesc {
+      entityTypeHandle = state.GetEntityTypeHandle();
+      scheduleEventTypeHandle = state.GetComponentTypeHandle<ScheduleEvent>();
+
+      eventQuery = state.GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<ScheduleEvent>(),
         }
       });
     }
 
-    protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndFixedStepSimulationEntityCommandBufferSystem>();
-      var commandBuffer = ecbSystem.CreateCommandBuffer();
+    public void OnDestroy(ref SystemState state) { }
 
-      var level = GetSingleton<Level>();
+    public void OnUpdate(ref SystemState state) {
+      var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
+      var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+
+      var level = SystemAPI.GetSingleton<Level>();
+
+      entityTypeHandle.Update(ref state);
+      scheduleEventTypeHandle.Update(ref state);
 
       var schedulerJob = new SchedulerJob {
-        entityTypeHandle = GetEntityTypeHandle(),
-        scheduleEventTypeHandle = GetComponentTypeHandle<ScheduleEvent>(),
+        entityTypeHandle = entityTypeHandle,
+        scheduleEventTypeHandle = scheduleEventTypeHandle,
 
-        TimeData = Time,
+        TimeData = SystemAPI.Time,
         ObjectInstancesBlobAsset = level.ObjectInstances,
 
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      var trigger = schedulerJob.ScheduleParallel(eventQuery, dependsOn: Dependency);
-      Dependency = trigger;
-      trigger.Complete();
+      state.Dependency = schedulerJob.ScheduleParallel(eventQuery, state.Dependency);
     }
 
     [BurstCompile]
-    struct SchedulerJob : IJobEntityBatch {
+    struct SchedulerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandle;
 
@@ -51,13 +65,13 @@ namespace SS.System {
 
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
-      public unsafe void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var entities = batchInChunk.GetNativeArray(entityTypeHandle);
-        var scheduleEvents = batchInChunk.GetNativeArray(scheduleEventTypeHandle);
+      public unsafe void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var entities = chunk.GetNativeArray(entityTypeHandle);
+        var scheduleEvents = chunk.GetNativeArray(scheduleEventTypeHandle);
 
         var timestamp = TimeUtils.SecondsToTimestamp(TimeData.ElapsedTime); // TODO player gametime
 
-        for (int i = 0; i < batchInChunk.Count; ++i) {
+        for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           var scheduleEvent = scheduleEvents[i];
 
@@ -70,15 +84,18 @@ namespace SS.System {
 
             // Debug.Log($"SchedulerJob EventType.Trap t:{trapEvent.TargetObjectIndex} s:{trapEvent.SourceObjectIndex}");
 
-            CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, ObjectInstancesBlobAsset.Value[trapEvent.TargetObjectIndex]);
+            CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.TargetObjectIndex]);
             if (trapEvent.SourceObjectIndex != -1)
-              CommandBuffer.AddComponent<TriggerActivateTag>(batchIndex, ObjectInstancesBlobAsset.Value[trapEvent.SourceObjectIndex]);
+              CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.SourceObjectIndex]);
           }
 
-          CommandBuffer.DestroyEntity(batchIndex, entity);
+          CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
         }
       }
-
+      
+      /// <summary>
+      /// This hack is to handle timestamp overflow.
+      /// </summary>
       private ushort expandTimestamp(ushort timestamp, ushort gametime) {
         if (timestamp <= (gametime - (0xFFFF >> 1)))
           timestamp += 0xFFFF;

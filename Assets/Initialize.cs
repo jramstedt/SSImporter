@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using SS.System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -24,7 +25,7 @@ namespace SS.Resources {
       InitializeResourceManager();
     }
     
-    private static void InitializeResourceManager() {
+    private async static void InitializeResourceManager() {
       // Tests:
       var audioOp = Addressables.LoadAssetAsync<AudioClip>(0x00C9);
       audioOp.Completed += loadOp => AudioSource.PlayClipAtPoint(loadOp.Result, Vector3.zero);
@@ -37,7 +38,8 @@ namespace SS.Resources {
 
       #region Load archive.dat
       Debug.Log(@"Load archive.dat");
-      SaveLoader.LoadMap(1, Initialization.rootPath + @"\DATA", @"ARCHIVE.DAT");
+      await Task.Yield();
+      await SaveLoader.LoadMap(1, Initialization.rootPath + @"\DATA", @"ARCHIVE.DAT");
       #endregion
     }
   }

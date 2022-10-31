@@ -1,7 +1,12 @@
 using System.Collections.Generic;
 using SS.ObjectProperties;
 using SS.Resources;
+using Unity.Burst;
+using Unity.Burst.Intrinsics;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -12,17 +17,16 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
+  [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class FlatTextureSystem : SystemBase {
     private const ushort ArtResourceIdBase = 1350;
     private const ushort DoorResourceIdBase = 2400;
-    private const ushort CustomTextureIdBase = 75;
     private const ushort IconResourceIdBase = 78;
     private const ushort GraffitiResourceIdBase = 79;
     private const ushort RepulsorResourceIdBase = 80;
-    private const ushort SmallTextureIdBase = 321;
 
-    private Dictionary<string, AsyncOperationHandle<BitmapSet>> bitmapLoaders = new();
+    private NativeParallelHashMap<BatchMaterialID, MaterialMeshInfo> resourceMaterialMeshInfos;
 
     private EntityQuery newFlatTextureQuery;
     private EntityQuery activeFlatTextureQuery;
@@ -30,25 +34,36 @@ namespace SS.System {
 
     private EntityArchetype viewPartArchetype;
 
+    private RenderMeshDescription renderMeshDescription;
+
+    private ComponentLookup<ObjectInstance> instanceLookup;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
+
+    private EntitiesGraphicsSystem entitiesGraphicsSystem;
+    private MaterialProviderSystem materialProviderSystem;
+    private SpriteSystem spriteSystem;
+
     private Resources.ObjectProperties objectProperties;
-    private SpriteLibrary spriteLibrary;
-    private Texture2D clutTexture;
-    private Texture2D lightmap;
 
-    private bool Ready = false;
-
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
+      RequireForUpdate<Level>();
+
+      resourceMaterialMeshInfos = new(512, Allocator.Persistent);
+
       newFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>() },
+        All = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>(), ComponentType.ReadOnly<ObjectInstance>() },
         None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureAddedTag>() },
       });
 
       activeFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
+          ComponentType.ReadOnly<ObjectInstance>(),
+
           ComponentType.ReadOnly<FlatTextureInfo>(),
-          ComponentType.ReadOnly<FlatTextureAddedTag>()
+          ComponentType.ReadOnly<FlatTextureAddedTag>(),
+          ComponentType.ReadOnly<AnimatedTag>(),
         }
       });
 
@@ -60,265 +75,212 @@ namespace SS.System {
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(FlatTexturePart),
         typeof(Parent),
-        typeof(LocalToWorld),
-        typeof(LocalToParent),
-        typeof(RenderBounds),
-        typeof(RenderMesh)
+        typeof(LocalToParentTransform),
+        typeof(LocalToWorldTransform),
+        typeof(RenderBounds)
       );
 
-      objectProperties = await Services.ObjectProperties;
-      spriteLibrary = await Services.SpriteLibrary;
-      clutTexture = await Services.ColorLookupTableTexture;
-      lightmap = await Services.LightmapTexture;
+      this.renderMeshDescription = new RenderMeshDescription(
+        shadowCastingMode: ShadowCastingMode.On,
+        receiveShadows: true,
+        staticShadowCaster: true
+      );
 
-      Ready = true;
-    }
+      this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
+      this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
-    private enum ScreenType {
-      Alt,
-      Custom,
-      Text,
-      ScrollText
-    }
+      this.entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+      this.spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
 
-    private string parseScreenData (int data) {
-      const int DATA_MASK = 0xFFF;
-
-      const int INDEX_MASK = 0x007F;
-      const int TYPE_MASK = 0x0180;
-      const int SCALE_MASK = 0x0600;
-      const int STYLE_MASK = 0x0800;
-
-      const int RANDOM_TEXT_MAGIC_COOKIE = 0x7F;
-      const int REGULAR_STATIC_MAGIC_COOKIE = 0x77;
-      const int SHODAN_STATIC_MAGIC_COOKIE = 0x76;
-
-      const int NUM_HACK_CAMERAS = 8;
-      const int FIRST_CAMERA_TMAP = 0x78;
-
-      const int NUM_AUTOMAP_MAGIC_COOKIES = 6;
-      const int FIRST_AUTOMAP_MAGIC_COOKIE = 0x70;
-
-      data &= DATA_MASK;
-
-      var index = data & INDEX_MASK;
-      var type = (ScreenType)((data & TYPE_MASK) >> 7);
-      var scale = (data & SCALE_MASK) >> 9;
-      var style = (data & STYLE_MASK) == STYLE_MASK ? 2 : 3;
-
-      Debug.Log($"parseScreenData {type}");
-
-      if (type == ScreenType.Alt) {
-        return $"{SmallTextureIdBase + index}";
-      } else if (type == ScreenType.Custom) {
-        if (index >= FIRST_CAMERA_TMAP && index <= (FIRST_CAMERA_TMAP + NUM_HACK_CAMERAS)) {
-          var cameraIndex = index - FIRST_CAMERA_TMAP;
-          return $"{CustomTextureIdBase}"; // TODO FIXME PLACEHOLDER
-
-          // if (hasCamera(cameraIndex))
-          //  ret camera
-          // else
-          //  ret static
-        } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
-          return $"{CustomTextureIdBase}"; // TODO FIXME PLACEHOLDER
-          // ret static
-        }
-
-        // if (!HasRes(CustomTextureIdBase + index)) {
-        //   ret static
-        // } else {
-          return $"{CustomTextureIdBase + index}"; 
-        // }
-      } else if (type == ScreenType.Text) {
-        if (index == RANDOM_TEXT_MAGIC_COOKIE) {
-          // TODO randomize text
-          // TODO DRAW TEXT CANVAS
-        } else {
-          // TODO DRAW TEXT CANVAS
-        }
-      } else if (type == ScreenType.ScrollText) {
-        // TODO DRAW TEXT CANVAS
-      }
-
-      return null;
+      objectProperties = Services.ObjectProperties.WaitForCompletion();
     }
 
     protected override void OnUpdate() {
-      if (!Ready) return;
+      this.instanceLookup.Update(this);
+      this.decorationLookup.Update(this);
 
-      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      Entities
-        .WithAll<FlatTextureInfo, ObjectInstance>()
-        .WithNone<FlatTextureAddedTag>()
-        .ForEach((Entity entity, in ObjectInstance instanceData) => {
-          var baseProperties = objectProperties.BasePropertyData(instanceData);
+      var level = GetSingleton<Level>();
 
-          string res = null;
-          float refWidth = 64f;
+      {
+        var animatedEntities = activeFlatTextureQuery.ToEntityArray(Allocator.TempJob);
+        using var instanceDatas = activeFlatTextureQuery.ToComponentDataArray<ObjectInstance>(Allocator.TempJob);
+        var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
+        var entityRefWidth = new NativeArray<float>(animatedEntities.Length, Allocator.TempJob);
 
-          var lightmapped = true;
+        // GetBufferLookup<Child>(true);
 
-          if (baseProperties.DrawType == DrawType.TerrainPolygon) {
-            const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
-            const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
-            const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
 
-            if (instanceData.Class == ObjectClass.Decoration) {
-              var decorationInstance = GetComponent<ObjectInstance.Decoration>(entity);
-              var level = GetSingleton<Level>();
-              ref var objectInstances = ref level.ObjectInstances.Value;
+        processEntities(level, animatedEntities, instanceDatas, entityMeshInfo, entityRefWidth);
 
-              var lookupIndex = 0;
-              var data = decorationInstance.Data2;
-              if (data != 0 /*|| animlist.ObjectIndex == objindex*/) {
-                if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
-                  var dataEntity = objectInstances[(int)data & INDIRECTED_STUFF_DATA_MASK];
-                  var databObjectInstance = GetComponent<ObjectInstance>(dataEntity);
-                  var dataDecorationInstance = GetComponent<ObjectInstance.Decoration>(dataEntity);
+        for (var index = 0; index < animatedEntities.Length; ++index) {
+          var entity = animatedEntities[index];
+          var instanceData = instanceDatas[index];
 
-                  lookupIndex = (int)dataDecorationInstance.Data2 + databObjectInstance.Info.CurrentFrame;
-                } else {
-                  lookupIndex = (int)decorationInstance.Data2 + instanceData.Info.CurrentFrame;
-                }
-              } else if (data == 0 && instanceData.SubClass == 1) {
-                lookupIndex = 0x80;
-              }
+          if (EntityManager.HasBuffer<Child>(entity)) {
+            DynamicBuffer<Child> children = EntityManager.GetBuffer<Child>(entity, true);
 
-              if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
-                unsafe {
-                  res = $"{0x03E8 + level.TextureMap.blockIndex[lookupIndex]}";
-                }
+            var viewPart = children[0].Value;
 
-                refWidth = 128f;
-              } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
-                res = parseScreenData(lookupIndex);
-                Debug.Log($"SUPERSCREEN_TRIPLE {res}");
-
-                refWidth = 64f;
-
-                if(decorationInstance.Data2 != DESTROYED_SCREEN_ANIM_BASE + 3)
-                  lightmapped = false; // screen is full bright
-              } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
-                res = parseScreenData(lookupIndex);
-                Debug.Log($"BIGSCREEN_TRIPLE  {res}");
-
-                refWidth = 32f;
-
-                if(decorationInstance.Data2 != DESTROYED_SCREEN_ANIM_BASE + 3)
-                  lightmapped = false; // screen is full bright
-              } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
-                res = parseScreenData(lookupIndex);
-                Debug.Log($"SCREEN_TRIPLE  {res}");
-
-                refWidth = 64f;
-
-                if(decorationInstance.Data2 != DESTROYED_SCREEN_ANIM_BASE + 3)
-                  lightmapped = false; // screen is full bright
-              }
-            }
-          } else if (baseProperties.DrawType == DrawType.FlatTexture) {
-            if (instanceData.Class == ObjectClass.Decoration) {
-              if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
-                return;
-              } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
-                res = $"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}";
-              } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
-                res = $"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}";
-              } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
-                res = $"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}";
-              }
-            } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
-              Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
-              res = $"{DoorResourceIdBase + objectProperties.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}";
-            }
+            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromScale(1f / entityRefWidth[index]) });
+            commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * entityRefWidth[index]) } });
+            commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
           }
+        }
+      }
 
-          if (res == null) {
-            var currentFrame = instanceData.Info.CurrentFrame != byte.MaxValue ? instanceData.Info.CurrentFrame : 0;
-            var spriteIndex = spriteLibrary.GetSpriteIndex(instanceData, currentFrame);
-            res = $"{ArtResourceIdBase}:{spriteIndex}";
-          }
+      {
+        var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.TempJob);
+        using var instanceDatas = newFlatTextureQuery.ToComponentDataArray<ObjectInstance>(Allocator.TempJob);
+        var entityMeshInfo = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.TempJob);
+        var entityRefWidth = new NativeArray<float>(newEntities.Length, Allocator.TempJob);
 
-          if (!bitmapLoaders.TryGetValue(res, out var loadOp))
-            bitmapLoaders.TryAdd(res, loadOp = Addressables.LoadAssetAsync<BitmapSet>(res));
+        processEntities(level, newEntities, instanceDatas, entityMeshInfo, entityRefWidth);
 
-          if (!loadOp.IsDone) return; // Retry on next OnUpdate
+        var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+        EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
+        RenderMeshUtility.AddComponents(
+          prototype,
+          EntityManager,
+          renderMeshDescription,
+          new RenderMeshArray(new Material[0], new Mesh[0])
+        );
+        EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
-          var bitmapSet = loadOp.Result;
+        var createSpriteEntitiesJob = new CreateSpriteEntitiesJob() {
+          commandBuffer = commandBuffer.AsParallelWriter(),
 
-          // TODO FIXME REUSE MATERIALS!!
+          prototype = prototype,
 
-          Material material;
-          if (lightmapped) {
-            material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
-            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
-          } else {
-            material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-          }
-          
-          material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-          material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-          material.DisableKeyword(@"_SPECGLOSSMAP");
-          material.DisableKeyword(@"_SPECULAR_COLOR");
-          material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-          material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+          entities = newEntities,
+          meshInfo = entityMeshInfo,
+          refWidth = entityRefWidth
+        };
 
-          material.EnableKeyword(@"LINEAR");
-          if (bitmapSet.Transparent) {
-            material.EnableKeyword(@"TRANSPARENCY_ON");
-            material.EnableKeyword(@"_ALPHATEST_ON");
-            material.renderQueue = 2450;
-          } else {
-            material.DisableKeyword(@"TRANSPARENCY_ON");
-            material.DisableKeyword(@"_ALPHATEST_ON");
-          }
+        Dependency = createSpriteEntitiesJob.Schedule(newEntities.Length, 64, Dependency);
 
-          material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-          material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-          material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-          material.enableInstancing = true;
-
-          var isDoubleSided = instanceData.Class == ObjectClass.DoorAndGrating;
-
-          var size = new float2(bitmapSet.Texture.width / refWidth, bitmapSet.Texture.height / refWidth);
-          var mesh = BuildPlaneMesh(size / 2f, isDoubleSided);
-
-          var viewPart = commandBuffer.CreateEntity(viewPartArchetype);
-          
-          commandBuffer.SetComponent(viewPart, new FlatTexturePart { CurrentFrame = 0 }); // TODO FIXME
-          commandBuffer.SetComponent(viewPart, default(LocalToWorld));
-          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
-          commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } });
-          commandBuffer.SetSharedComponent(viewPart, new RenderMesh {
-            mesh = mesh,
-            material = material,
-            subMesh = 0,
-            layer = 0,
-            castShadows = ShadowCastingMode.On,
-            receiveShadows = true,
-            needMotionVectorPass = false,
-            layerMask = uint.MaxValue
-          });
-
-          commandBuffer.AddComponent<FlatTextureAddedTag>(entity);
-        })
-        .WithoutBurst()
-        .Run();
-
-      ecbSystem.AddJobHandleForProducer(Dependency);
+        var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
+        finalizeCommandBuffer.DestroyEntity(prototype);
+      }
     }
 
-    private Mesh BuildPlaneMesh (float2 extent, bool doubleSided) {
-      Mesh mesh = new Mesh();
+    private void processEntities(Level level, NativeArray<Entity> newEntities, NativeArray<ObjectInstance> instanceDatas, NativeArray<MaterialMeshInfo> entityMeshInfo, NativeArray<float> entityRefWidth) {
+      for (int entityIndex = 0; entityIndex < newEntities.Length; ++entityIndex) {
+        var entity = newEntities[entityIndex];
+        var instanceData = instanceDatas[entityIndex];
+
+        float refWidth = 64f;
+        var materialID = GetResource(entity, instanceData, level, ref refWidth);
+
+        entityRefWidth[entityIndex] = refWidth;
+
+        if (materialID == BatchMaterialID.Null) {
+          var currentFrame = instanceData.Info.CurrentFrame != byte.MaxValue ? instanceData.Info.CurrentFrame : 0;
+          var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
+          materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true);
+        }
+
+        if (resourceMaterialMeshInfos.TryGetValue(materialID, out var materialMeshInfo)) {
+          entityMeshInfo[entityIndex] = materialMeshInfo;
+          continue; // Sprite already built. Skip loading.
+        }
+
+        Mesh mesh = new Mesh();
+
+        // TODO ref count and remove & unregister unneeded resources?
+
+        materialMeshInfo = new MaterialMeshInfo {
+          MaterialID = materialID,
+          MeshID = this.entitiesGraphicsSystem.RegisterMesh(mesh),
+          Submesh = 0
+        };
+
+        entityMeshInfo[entityIndex] = materialMeshInfo;
+
+        var isDoubleSided = instanceData.Class == ObjectClass.DoorAndGrating;
+        if (resourceMaterialMeshInfos.TryAdd(materialID, materialMeshInfo)) {
+          var loadOp = materialProviderSystem.GetBitmapSet(materialID);
+          loadOp.Completed += loadOp => {
+            if (loadOp.Status != AsyncOperationStatus.Succeeded)
+              throw loadOp.OperationException;
+
+            var bitmapSet = loadOp.Result;
+
+            BuildPlaneMesh(mesh, float2(bitmapSet.Texture.width, bitmapSet.Texture.height) / 2f, isDoubleSided);
+          };
+        }
+      }
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      resourceMaterialMeshInfos.Dispose();
+    }
+
+    private BatchMaterialID GetResource(in Entity entity, in ObjectInstance instanceData, in Level level, ref float refWidth) {
+      var baseProperties = objectProperties.BasePropertyData(instanceData);
+
+      if (baseProperties.DrawType == DrawType.TerrainPolygon) {
+        const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
+
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationInstance = this.decorationLookup[entity];
+
+          var textureData = materialProviderSystem.CalculateTextureData(entity, instanceData, level);
+
+          if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
+            refWidth = 128f;
+
+            unsafe {
+              return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true);
+            }
+          } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
+            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidth = 64f;
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
+            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidth = 32f;
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
+            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidth = 64f;
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          }
+        }
+      } else if (baseProperties.DrawType == DrawType.FlatTexture) {
+        if (instanceData.Class == ObjectClass.Decoration) {
+          if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
+            // TODO
+            return BatchMaterialID.Null;
+          } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
+            return materialProviderSystem.GetMaterial($"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
+            return materialProviderSystem.GetMaterial($"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
+            return materialProviderSystem.GetMaterial($"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          }
+        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
+          return materialProviderSystem.GetMaterial($"{DoorResourceIdBase + objectProperties.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}", true);
+        }
+      }
+
+      return BatchMaterialID.Null;
+    }
+
+    // TODO almost identical to one in SpriteSystem
+    private void BuildPlaneMesh (Mesh mesh, float2 extent, bool doubleSided) {
       mesh.SetVertexBufferParams(4, 
         new VertexAttributeDescriptor(VertexAttribute.Position),
         new VertexAttributeDescriptor(VertexAttribute.Normal),
         new VertexAttributeDescriptor(VertexAttribute.Tangent),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        new VertexAttributeDescriptor(VertexAttribute.BlendWeight, VertexAttributeFormat.Float32, 1)
+        new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       );
 
       mesh.SetVertexBufferData(new[] {
@@ -344,15 +306,39 @@ namespace SS.System {
       mesh.RecalculateNormals();
       // mesh.RecalculateTangents();
       mesh.RecalculateBounds();
-
-      return mesh;
+      mesh.UploadMeshData(true);
     }
+  }
 
-    protected override void OnDestroy() {
-      base.OnDestroy();
+  public enum TextureType {
+    Alt,
+    Custom,
+    Text,
+    ScrollText
+  }
 
-      //foreach(var loadOp in bitmapLoaders)
-      //  Addressables.Release(loadOp);
+  [BurstCompile]
+  struct CreateSpriteEntitiesJob : IJobParallelFor {
+    public EntityCommandBuffer.ParallelWriter commandBuffer;
+
+    [ReadOnly] public Entity prototype;
+
+    [ReadOnly, DeallocateOnJobCompletion] public NativeArray<Entity> entities;
+    [ReadOnly, DeallocateOnJobCompletion] public NativeArray<MaterialMeshInfo> meshInfo;
+    [ReadOnly, DeallocateOnJobCompletion] public NativeArray<float> refWidth;
+    
+    public void Execute(int index) {
+      var entity = entities[index];
+
+      var viewPart = commandBuffer.Instantiate(index, prototype);
+
+      commandBuffer.SetComponent(index, viewPart, new FlatTexturePart { CurrentFrame = 0 }); // TODO FIXME
+      commandBuffer.SetComponent(index, viewPart, new Parent { Value = entity });
+      commandBuffer.SetComponent(index, viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromScale(1f / refWidth[index]) });
+      commandBuffer.SetComponent(index, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * refWidth[index]) } });
+      commandBuffer.SetComponent(index, viewPart, meshInfo[index]);
+
+      commandBuffer.AddComponent<FlatTextureAddedTag>(index, entity);
     }
   }
 
@@ -362,5 +348,5 @@ namespace SS.System {
     public int CurrentFrame;
   }
 
-  internal struct FlatTextureAddedTag : ISystemStateComponentData { }
+  internal struct FlatTextureAddedTag : ICleanupComponentData { }
 }

@@ -50,7 +50,7 @@ namespace SS.Resources {
         } else if (bitmap.BitmapType == BitmapType.Compressed) {
           pixelData = RunLengthDecode(bitmap, msbr);
         } else {
-          provideHandle.Complete(default(BitmapSet), false, new Exception($"Unsupported bitmap type {bitmap.BitmapType}."));
+          provideHandle.Complete<BitmapSet>(null, false, new Exception($"Unsupported bitmap type {bitmap.BitmapType}."));
           return;
         }
 
@@ -104,17 +104,20 @@ namespace SS.Resources {
 
           texture.Apply();
         } else {
-          provideHandle.Complete(default(BitmapSet), false, new Exception("No supported TextureFormat found."));
+          provideHandle.Complete<BitmapSet>(null, false, new Exception("No supported TextureFormat found."));
           return;
         }
         #endregion
 
         provideHandle.Complete(new BitmapSet {
           Texture = texture,
-          Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
-          AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),
-          AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
-          Palette = palette
+          Description = new () {
+            Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
+            Size = new Vector2Int(texture.width, texture.height),
+            AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),
+            AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
+            Palette = palette
+          }
         }, true, null);
       }
     }
@@ -228,18 +231,16 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct PrivatePalette {
+  public unsafe struct PrivatePalette {
     private readonly uint header;
-
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 3)]
-    private byte[] values;
+    private fixed byte values[256 * 3];
 
     public Color32 this[int index] {
       set {
-        index *= 3;
-
-        if (index > values.Length)
+        if (index > 255)
           throw new IndexOutOfRangeException();
+
+        index *= 3;
 
         values[index] = value.r;
         values[++index] = value.g;
@@ -248,12 +249,12 @@ namespace SS.Resources {
     }
 
     public Color32 Get(int index, bool opaque) {
+      if (index > 255)
+        throw new IndexOutOfRangeException();
+
       opaque = opaque || index != 0;
 
       index *= 3;
-
-      if (index > values.Length)
-        throw new IndexOutOfRangeException();
 
       byte r = values[index];
       byte g = values[++index];
@@ -265,13 +266,18 @@ namespace SS.Resources {
 
   public class BitmapSet : IDisposable {
     public Texture2D Texture;
-    public bool Transparent;
-    public Vector2Int AnchorPoint;
-    public RectInt AnchorRect;
-    public PrivatePalette? Palette;
+    public BitmapDesc Description;
 
     public void Dispose() {
       if (Texture != null) UnityEngine.Object.Destroy(Texture);
     }
+  }
+
+  public struct BitmapDesc {
+    public bool Transparent;
+    public Vector2Int Size;
+    public Vector2Int AnchorPoint;
+    public RectInt AnchorRect;
+    public PrivatePalette? Palette;
   }
 }

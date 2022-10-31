@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using SS.Resources;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
@@ -20,30 +21,36 @@ namespace SS.System {
 
     private EntityQuery textureAnimationQuery;
 
+    private ComponentLookup<TextureAnimationData> textureAnimationDataLookup;
+
     protected override void OnCreate() {
       base.OnCreate();
+
+      RequireForUpdate<Level>();
 
       textureAnimationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadWrite<TextureAnimationData>()
         }
       });
+
+      this.textureAnimationDataLookup = GetComponentLookup<TextureAnimationData>();
     }
 
     protected override void OnUpdate() {
+      this.textureAnimationDataLookup.Update(this);
+
       var animateTexturesJob = new AnimateTexturesJob {
         textureAnimationTypeHandle = GetComponentTypeHandle<TextureAnimationData>(),
-        timeData = Time
+        timeData = SystemAPI.Time
       };
 
-      var animateTextures = animateTexturesJob.ScheduleParallel(textureAnimationQuery, dependsOn: Dependency);
-      Dependency = animateTextures;
-
-      animateTextures.Complete();
+      Dependency = animateTexturesJob.ScheduleParallel(textureAnimationQuery, Dependency);
+      CompleteDependency();
 
       foreach (var (textureIndex, material) in mapMaterial) {
         var textureAnimationEntity = textureAnimationEntities[textureProperties[textureIndex].AnimationGroup];
-        var textureAnimation = GetComponent<TextureAnimationData>(textureAnimationEntity);
+        var textureAnimation = this.textureAnimationDataLookup[textureAnimationEntity];
 
         if (textureAnimation.TotalFrames == 0) continue;
 
@@ -51,7 +58,7 @@ namespace SS.System {
         var newBitmapSet = textures[Mathf.Min(textureIndex + newTextureOffset, textures.Length - 1)]; // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
 
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), newBitmapSet.Texture);
-        if (newBitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+        if (newBitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
         else material.DisableKeyword(@"TRANSPARENCY_ON");
       }
     }
@@ -63,17 +70,17 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct AnimateTexturesJob : IJobEntityBatch {
+    struct AnimateTexturesJob : IJobChunk {
       public ComponentTypeHandle<TextureAnimationData> textureAnimationTypeHandle;
 
       [ReadOnly] public TimeData timeData;
-      
-      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var textureAnimations = batchInChunk.GetNativeArray(textureAnimationTypeHandle);
+
+      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var textureAnimations = chunk.GetNativeArray(textureAnimationTypeHandle);
 
         var deltaTime = (ushort)(timeData.DeltaTime * 1000);
         
-        for (int i = 0; i < batchInChunk.Count; ++i) {
+        for (int i = 0; i < chunk.Count; ++i) {
           var textureAnimation = textureAnimations[i];
 
           if (textureAnimation.TotalFrames == 0) continue;

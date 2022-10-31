@@ -300,7 +300,7 @@ namespace SS {
     public byte Type;
     public ushort Hitpoints;
     public byte MakerDetails;
-    public byte CurrentFrame;
+    public sbyte CurrentFrame;
     public byte TimeRemaining;
     public InstanceFlags Flags;
   }

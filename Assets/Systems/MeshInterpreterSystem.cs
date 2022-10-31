@@ -5,6 +5,7 @@ using System.IO;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.CompilerServices;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -18,6 +19,7 @@ using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.System {
+  [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class MeshInterpeterSystem : SystemBase {
     private const ushort MaterialIdBase = 475;
@@ -27,30 +29,34 @@ namespace SS.System {
     private EntityQuery removedMeshQuery;
 
     private EntityArchetype viewPartArchetype;
-    private EntityQuery viewPartQuery;
+    // private EntityQuery viewPartQuery;
 
-    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new ConcurrentDictionary<Entity, Mesh>();
+    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
+    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     #region Dynamic mesh job variables
     private VertexState[] vertexBuffer = new VertexState[1000];
 
     private byte[] vertexColor = new byte[32];
 
-    private Material[] materials = new Material[64];
-    private Material colorMaterial;
-
     unsafe private byte* parameterData = (byte*)UnsafeUtility.Malloc(4 * 100, 4, Allocator.Persistent);
 
     private DrawState drawState;
     private NativeList<Vertex> subMeshVertices;
-    private NativeParallelMultiHashMap<ushort, ushort> subMeshIndices;
+    private NativeMultiHashMap<ushort, ushort> subMeshIndices;
     #endregion
 
-    private Texture clutTexture;
-    private Texture2D lightmap;
+    private NativeArray<VertexAttributeDescriptor> vertexAttributes;
+    private RenderMeshDescription renderMeshDescription;
 
-    protected override async void OnCreate() {
+    private MaterialProviderSystem materialProviderSystem;
+
+    private Resources.ObjectProperties objectProperties;
+
+    protected override void OnCreate() {
       base.OnCreate();
+
+      RequireForUpdate<Level>();
 
       newMeshQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
@@ -60,8 +66,10 @@ namespace SS.System {
       activeMeshQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<MeshInfo>(),
-          ComponentType.ReadOnly<LocalToWorld>(),
-          ComponentType.ReadOnly<MeshCachedTag>()
+          ComponentType.ReadOnly<ObjectInstance>(),
+          ComponentType.ReadOnly<ObjectInstance.Decoration>(),
+          ComponentType.ReadOnly<MeshCachedTag>(),
+          // ComponentType.ReadOnly<ModelPartRebuildTag>()
         }
       });
 
@@ -73,84 +81,49 @@ namespace SS.System {
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(ModelPart),
         typeof(Parent),
-        typeof(LocalToWorld),
-        typeof(LocalToParent),
-        typeof(RenderBounds),
-        typeof(RenderMesh)
+        typeof(LocalToParentTransform),
+        typeof(LocalToWorldTransform)
       );
 
+      /*
       viewPartQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadOnly<ModelPart>(),
           ComponentType.ReadOnly<Parent>()
         }
       });
+      */
 
-      clutTexture = await Services.ColorLookupTableTexture;
-      lightmap = await Services.LightmapTexture;
+      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
 
-      {
-        var material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTexture);
-        material.DisableKeyword(@"_SPECGLOSSMAP");
-        material.DisableKeyword(@"_SPECULAR_COLOR");
-        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
-        material.EnableKeyword(@"LINEAR");
-        material.DisableKeyword(@"TRANSPARENCY_ON");
-        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-        material.enableInstancing = true;
+      this.vertexAttributes = new (4, Allocator.Persistent) {
+        [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
+        [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
+        [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
+        [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
+      };
 
-        colorMaterial = material;
-      }
+      this.renderMeshDescription = new RenderMeshDescription(
+        shadowCastingMode: ShadowCastingMode.On,
+        receiveShadows: true,
+        staticShadowCaster: true
+      );
 
-      // TODO FIXME should be accessible from Services.
-      for (var i = 0; i < materials.Length; ++i) {
-        var materialIndex = i;
+      objectProperties = Services.ObjectProperties.WaitForCompletion();
+    }
 
-        var checkOp = Addressables.LoadResourceLocationsAsync($"{MaterialIdBase + materialIndex}:{0}", typeof(BitmapSet));
-        checkOp.Completed += op => {
-          if (op.Status == AsyncOperationStatus.Succeeded && op.Result.Count > 0) {
-            var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>(op.Result[0]);
-            bitmapSetOp.Completed += op => {
-              if (op.Status == AsyncOperationStatus.Succeeded) {
-                var bitmapSet = op.Result;
+    protected override void OnDestroy() {
+      base.OnDestroy();
 
-                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
-                material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-                material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-                material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
-                material.DisableKeyword(@"_SPECGLOSSMAP");
-                material.DisableKeyword(@"_SPECULAR_COLOR");
-                material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-                material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
-
-                material.EnableKeyword(@"LINEAR");
-                if (bitmapSet.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-                else material.DisableKeyword(@"TRANSPARENCY_ON");
-
-                material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-                material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-                material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-                material.enableInstancing = true;
-
-                materials[materialIndex] = material;
-              } else {
-                Debug.LogError($"{MaterialIdBase + materialIndex} failed.");
-              }
-            };
-          } else {
-            Debug.LogWarning($"{MaterialIdBase + materialIndex} not found.");
-          }
-        };
-      }
+      this.entityMeshIDs.Dispose();
+      this.vertexAttributes.Dispose();
     }
 
     protected override void OnUpdate() {
-      var ecbSystem = World.GetExistingSystem<EndVariableRateSimulationEntityCommandBufferSystem>();
+      var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
+
+      var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
       #region Cache mesh of new entities
       /*
@@ -171,8 +144,14 @@ namespace SS.System {
         .ForEach((Entity entity) => {
           var mesh = new Mesh();
           mesh.MarkDynamic();
-          entityMeshes.TryAdd(entity, mesh);
-          commandBuffer.AddComponent<MeshCachedTag>(entity);
+          if (entityMeshes.TryAdd(entity, mesh) && entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh))) {
+            commandBuffer.AddComponent<MeshCachedTag>(entity);
+            commandBuffer.AddComponent<ModelPartRebuildTag>(entity);
+          } else {
+            entityMeshes.Remove(entity, out Mesh tmp);
+            entityMeshIDs.Remove(entity);
+            UnityEngine.Object.Destroy(mesh);
+          }
         })
         .WithoutBurst()
         .Run();
@@ -185,20 +164,15 @@ namespace SS.System {
         // TODO Jobify
 
         using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
+        using var instanceDatas = activeMeshQuery.ToComponentDataArray<ObjectInstance>(Allocator.Temp);
+        using var decorationDatas = activeMeshQuery.ToComponentDataArray<ObjectInstance.Decoration>(Allocator.Temp);
 
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
-        
-        using var vertexAttributes = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp) {
-          [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
-          [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
-          [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
-          [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        };
-
-        drawState = default;
+        var meshes = new Mesh[entityCount];
 
         var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
-        var meshes = new Mesh[entityCount];
+
+        drawState = default;
 
         var textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
@@ -208,17 +182,17 @@ namespace SS.System {
             throw new Exception(@"No mesh in cache.");
 
           var meshInfo = GetComponent<MeshInfo>(entity);
-          var localToWorld = GetComponent<LocalToWorld>(entity);
+          var localToWorld = GetComponent<LocalToWorldTransform>(entity);
 
           #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
           using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp)) // TODO we dont need this. We could use meshData.GetVertexData<Vertex>() directly
-          using (subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(300, Allocator.Temp))
+          using (subMeshIndices = new NativeMultiHashMap<ushort, ushort>(300, Allocator.Temp))
           {
             Array.Clear(vertexBuffer, 0, vertexBuffer.Length);
             
             using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
               BinaryReader msbr = new BinaryReader(ms);
-              intepreterLoop(ms, msbr, localToWorld.Value);
+              intepreterLoop(ms, msbr, localToWorld.Value.ToMatrix());
             }
 
             var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
@@ -239,7 +213,7 @@ namespace SS.System {
             var indices = meshData.GetIndexData<ushort>();
             var vertices = meshData.GetVertexData<Vertex>();
             for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
-              vertices.CopyFrom(subMeshVertices);
+              vertices.CopyFrom(subMeshVertices.AsArray());
 
               if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
                 do {
@@ -266,29 +240,52 @@ namespace SS.System {
 
         Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
-        var entityChildren = GetBufferFromEntity<Child>(true);
-
-        textureIdAccumulator = 0;
-        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
-          var entity = entities[entityIndex];
-          var mesh = meshes[entityIndex];
+        for (int meshIndex = 0; meshIndex < meshes.Length; ++meshIndex) {
+          var mesh = meshes[meshIndex];
           mesh.RecalculateNormals();
           // mesh.RecalculateTangents();
           mesh.RecalculateBounds();
           mesh.UploadMeshData(false);
+        }
 
-          var renderBounds = new RenderBounds { Value = new AABB { Center = mesh.bounds.center, Extents = mesh.bounds.extents } };
+        var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+        EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
+        RenderMeshUtility.AddComponents(
+          prototype,
+          EntityManager,
+          renderMeshDescription,
+          new RenderMeshArray(new Material[0], new Mesh[0])
+        );
+        EntityManager.RemoveComponent<RenderMeshArray>(prototype);
+
+        var level = GetSingleton<Level>();
+
+        textureIdAccumulator = 0;
+        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+          var entity = entities[entityIndex];
+          var instanceData = instanceDatas[entityIndex];
+          var decorationData = decorationDatas[entityIndex];
+
+          if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
+            continue;
+
+          if (entityMeshes.TryGetValue(entity, out Mesh mesh) == false)
+            continue;
 
           var childCount = 0;
           DynamicBuffer<Child> children = default;
 
-          if (entityChildren.HasComponent(entity)) {
-            children = entityChildren[entity];
+          if (EntityManager.HasBuffer<Child>(entity)) {
+            children = EntityManager.GetBuffer<Child>(entity, true);
             childCount = children.Length;
           }
+          
+          var baseProperties = objectProperties.BasePropertyData(instanceData);
+
+          // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
 
           var submeshCount = mesh.subMeshCount;
-          for (int submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
+          for (sbyte submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
             Entity modelPart;
             if (submeshIndex < childCount) {
               modelPart = children[submeshIndex].Value;
@@ -298,27 +295,27 @@ namespace SS.System {
                 continue;
               }
             } else {
-              // TODO material 0 = bitmap_from_tpoly_data
-
-              modelPart = commandBuffer.CreateEntity(viewPartArchetype);
-              commandBuffer.SetComponent(modelPart, default(ModelPart));
-              commandBuffer.SetComponent(modelPart, default(LocalToWorld));
+              modelPart = commandBuffer.Instantiate(prototype);
               commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
-              commandBuffer.SetComponent(modelPart, new LocalToParent { Value = Unity.Mathematics.float4x4.identity });
+              commandBuffer.SetComponent(modelPart, new LocalToParentTransform { Value = UniformScaleTransform.Identity });
+              commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
             }
 
             var textureId = textureIds[textureIdAccumulator++];
 
-            commandBuffer.SetComponent(modelPart, renderBounds);
-            commandBuffer.SetSharedComponent(modelPart, new RenderMesh {
-              mesh = mesh,
-              material = textureId == ushort.MaxValue ? colorMaterial : materials[textureId],
-              subMesh = submeshIndex,
-              layer = 0,
-              castShadows = ShadowCastingMode.On,
-              receiveShadows = true,
-              needMotionVectorPass = false,
-              layerMask = uint.MaxValue
+            var materialID = textureId switch {
+              ushort.MaxValue => materialProviderSystem.ColorMaterialID,
+              0 => materialProviderSystem.ParseTextureData(materialProviderSystem.CalculateTextureData(entity, instanceData, level), true, out var textureType, out var scale),
+              _ => BatchMaterialID.Null
+            };
+
+            if (materialID == BatchMaterialID.Null)
+              materialID = materialProviderSystem.GetMaterial($"{MaterialIdBase + textureId}:{0}", true);
+
+            commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {
+              MeshID = meshID,
+              MaterialID = materialID,
+              Submesh = submeshIndex
             });
             
             // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
@@ -326,15 +323,22 @@ namespace SS.System {
         }
 
         textureIds.Dispose();
+
+        commandBuffer.DestroyEntity(prototype);
+
+        // entityManager.RemoveComponent<ModelPartRebuildTag>(activeMeshQuery);
       }
 
       var removeMeshToCacheJob = new RemoveMeshFromCacheJob() {
         EntityTypeHandle = GetEntityTypeHandle(),
         CommandBuffer = commandBuffer.AsParallelWriter(),
-        EntityMeshes = entityMeshes
+
+        EntitiesGraphicsSystem = entitiesGraphicsSystem,
+        EntityMeshes = entityMeshes,
+        EntityMeshIDs = entityMeshIDs
       };
 
-      var removeMeshToCacheJobHandle = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, dependsOn: Dependency);
+      var removeMeshToCacheJobHandle = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, Dependency);
       Dependency = removeMeshToCacheJobHandle;
       ecbSystem.AddJobHandleForProducer(removeMeshToCacheJobHandle);
     }
@@ -672,36 +676,43 @@ namespace SS.System {
       }
     }
 
-    private struct AddMeshToCacheJob : IJobEntityBatch {
+    private struct AddMeshToCacheJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle EntityTypeHandle;
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
       public ConcurrentDictionary<Entity, Mesh> EntityMeshes;
 
-      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var entities = batchInChunk.GetNativeArray(EntityTypeHandle);
+      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var entities = chunk.GetNativeArray(EntityTypeHandle);
 
-        for (int i = 0; i < batchInChunk.Count; ++i) {
+        for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           var mesh = new Mesh();
           mesh.MarkDynamic();
           EntityMeshes.TryAdd(entity, mesh);
-          CommandBuffer.AddComponent<MeshCachedTag>(batchIndex, entity);
+          CommandBuffer.AddComponent<MeshCachedTag>(unfilteredChunkIndex, entity);
         }
       }
     }
 
-    private struct RemoveMeshFromCacheJob : IJobEntityBatch {
+    private struct RemoveMeshFromCacheJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle EntityTypeHandle;
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+
+      public EntitiesGraphicsSystem EntitiesGraphicsSystem;
       public ConcurrentDictionary<Entity, Mesh> EntityMeshes;
+      public NativeHashMap<Entity, BatchMeshID> EntityMeshIDs;
 
-      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var entities = batchInChunk.GetNativeArray(EntityTypeHandle);
+      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var entities = chunk.GetNativeArray(EntityTypeHandle);
 
-        for (int i = 0; i < batchInChunk.Count; ++i) {
+        for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           if (EntityMeshes.TryRemove(entity, out Mesh mesh)) {
-            CommandBuffer.RemoveComponent<MeshCachedTag>(batchIndex, entity);
+            CommandBuffer.RemoveComponent<MeshCachedTag>(unfilteredChunkIndex, entity);
+
+            if (EntityMeshIDs.TryGetValue(entity, out BatchMeshID meshID))
+              EntitiesGraphicsSystem.UnregisterMesh(meshID);
+
             UnityEngine.Object.Destroy(mesh);
           }
         }
@@ -710,7 +721,9 @@ namespace SS.System {
 
     public struct ModelPart : IComponentData { }
 
-    internal struct MeshCachedTag : ISystemStateComponentData { }
+    public struct ModelPartRebuildTag : IComponentData { }
+
+    internal struct MeshCachedTag : ICleanupComponentData { }
 
     internal enum OpCode : ushort {
       eof,

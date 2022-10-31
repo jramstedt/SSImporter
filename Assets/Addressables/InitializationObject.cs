@@ -114,21 +114,17 @@ namespace SS.Resources {
       return rm.StartOperation(op, resourceLocatorBuild);
     }
 
-    class InitOp : AsyncOperationBase<bool>, IUpdateReceiver {
+    class InitOp : AsyncOperationBase<bool> {
       private readonly Func<bool> InitializeCallback;
       public InitOp(Func<bool> initializeCallback) : base() {
         InitializeCallback = initializeCallback;
       }
 
-      public void Update(float unscaledDeltaTime) {
+      protected override void Execute() {
         if (InitializeCallback != null)
           Complete(InitializeCallback(), true, @"");
         else
           Complete(true, true, @"");
-      }
-
-      protected override void Execute() {
-        Update(0.0f);
       }
     }
   }

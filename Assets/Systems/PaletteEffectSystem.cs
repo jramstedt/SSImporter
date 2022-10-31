@@ -1,8 +1,10 @@
 using SS.Resources;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
+using Unity.Jobs;
 using UnityEngine;
 
 namespace SS.System {
@@ -15,13 +17,13 @@ namespace SS.System {
     private EntityQuery paletteEffectQuery;
     private int lastTicks;
 
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
       
-      var rawPalette = await Services.Palette;
+      var rawPalette = Services.Palette.WaitForCompletion();
       palette = rawPalette.ToNativeArray();
-      shadeTable = await Services.ShadeTable;
-      clut = await Services.ColorLookupTableTexture;
+      shadeTable = Services.ShadeTable.WaitForCompletion();
+      clut = Services.ColorLookupTableTexture.WaitForCompletion();
 
       paletteEffectQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -29,11 +31,11 @@ namespace SS.System {
         }
       });
 
-      lastTicks = TimeUtils.SecondsToSlowTicks(Time.ElapsedTime);
+      lastTicks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
     }
 
     protected override void OnUpdate() {
-      var ticks = TimeUtils.SecondsToSlowTicks(Time.ElapsedTime);
+      var ticks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
       var delta = ticks - lastTicks;
 
       if(delta <= 0) return;
@@ -44,16 +46,17 @@ namespace SS.System {
         palette = palette,
         deltaTicks = delta
       };
-
-      var effect = effectJob.ScheduleParallel(paletteEffectQuery, dependsOn: Dependency);
-      Dependency = effect;
-
-      effect.Complete();
+      Dependency = effectJob.ScheduleParallel(paletteEffectQuery, Dependency);
 
       var textureData = clut.GetRawTextureData<Color32>();
-      for (int i = 0; i < textureData.Length; ++i)
-        textureData[i] = palette[shadeTable[i]];
+      var fillClutJob = new FillClutJob {
+        palette = palette,
+        shadeTable = shadeTable,
+        textureData = textureData
+      };
+      Dependency = fillClutJob.Schedule(textureData.Length, 256, Dependency);
 
+      CompleteDependency();
       clut.Apply(false, false);
     }
 
@@ -64,18 +67,18 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct EffectJob : IJobEntityBatch {
+    struct EffectJob : IJobChunk {
       public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandle;
 
       [NativeDisableParallelForRestriction] public NativeArray<Color32> palette;
 
       [ReadOnly] public int deltaTicks;
 
-      public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-        var paletteEffects = batchInChunk.GetNativeArray(paletteEffectTypeHandle);
+      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var paletteEffects = chunk.GetNativeArray(paletteEffectTypeHandle);
 
         using (var tmpPal = new NativeArray<Color32>(256, Allocator.Temp)) {
-          for (int i = 0; i < batchInChunk.Count; ++i) {
+          for (int i = 0; i < chunk.Count; ++i) {
             var paletteEffect = paletteEffects[i];
 
             var colors = paletteEffect.Last - paletteEffect.First + 1;
@@ -93,6 +96,17 @@ namespace SS.System {
             paletteEffects[i] = paletteEffect;
           }
         }
+      }
+    }
+
+    [BurstCompile]
+    struct FillClutJob : IJobParallelFor {
+      [ReadOnly] public NativeArray<Color32> palette;
+      [ReadOnly] public ShadeTableData shadeTable;
+      [WriteOnly] public NativeArray<Color32> textureData;
+
+      public void Execute(int index) {
+        textureData[index] = palette[shadeTable[index]];
       }
     }
   }

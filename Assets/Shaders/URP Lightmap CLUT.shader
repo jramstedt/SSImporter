@@ -16,7 +16,10 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         [HideInInspector] _BlendOp("__blendop", Float) = 0.0
         [HideInInspector] _SrcBlend("__src", Float) = 1.0
         [HideInInspector] _DstBlend("__dst", Float) = 0.0
+        [HideInInspector] _SrcBlendAlpha("__srcA", Float) = 1.0
+        [HideInInspector] _DstBlendAlpha("__dstA", Float) = 0.0
         [HideInInspector] _ZWrite("__zw", Float) = 1.0
+        [HideInInspector] _AlphaToMask("__alphaToMask", Float) = 0.0
 
         // Editmode props
         _QueueOffset("Queue offset", Float) = 0.0
@@ -32,7 +35,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         Tags {"RenderType" = "Opaque" "IgnoreProjector" = "True" "RenderPipeline" = "UniversalPipeline" "ShaderModel"="4.5"}
         LOD 100
 
-        Blend [_SrcBlend][_DstBlend]
+        Blend [_SrcBlend][_DstBlend], [_SrcBlendAlpha][_DstBlendAlpha]
         ZWrite [_ZWrite]
         Cull [_Cull]
 
@@ -40,13 +43,15 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         {
             Name "Unlit"
 
+            AlphaToMask[_AlphaToMask]
+
             HLSLPROGRAM
             #pragma exclude_renderers gles gles3 glcore
             #pragma target 4.5
 
             #pragma shader_feature_local_fragment _SURFACE_TYPE_TRANSPARENT
             #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
+            #pragma shader_feature_local_fragment _ALPHAMODULATE_ON
 
             #pragma multi_compile _ TRANSPARENCY_ON
             #pragma multi_compile _ LINEAR
@@ -59,6 +64,8 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
             #pragma multi_compile _ DEBUG_DISPLAY
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
 
             #pragma vertex UnlitPassVertex
             #pragma fragment UnlitPassFragment
@@ -79,7 +86,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
-                half lightblend : BLENDWEIGHTS;
+                half lightblend : TEXCOORD1;
 
                 #if defined(DEBUG_DISPLAY)
                 float3 normalOS : NORMAL;
@@ -203,7 +210,13 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
               #endif
             }
 
-            half4 UnlitPassFragment(Varyings input) : SV_Target
+            void UnlitPassFragment(
+                Varyings input
+                , out half4 outColor : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out float4 outRenderingLayers : SV_Target1
+            #endif
+            )
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -216,7 +229,12 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
                 half3 color = texColor.rgb;
                 half alpha = texColor.a;
 
-                AlphaDiscard(alpha, _Cutoff);
+                alpha = AlphaDiscard(alpha, _Cutoff);
+                color = AlphaModulate(color, alpha);
+
+            #ifdef LOD_FADE_CROSSFADE
+                LODFadeCrossFade(input.positionCS);
+            #endif
 
                 InputData inputData;
                 InitializeInputData(input, inputData);
@@ -226,17 +244,6 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
                 ApplyDecalToBaseColor(input.positionCS, color);
             #endif
 
-                #if defined(_FOG_FRAGMENT)
-                    #if (defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2))
-                    float viewZ = -input.fogCoord;
-                    float nearToFarZ = max(viewZ - _ProjectionParams.y, 0);
-                    half fogFactor = ComputeFogFactorZ0ToFar(nearToFarZ);
-                    #else
-                    half fogFactor = 0;
-                    #endif
-                #else
-                half fogFactor = input.fogCoord;
-                #endif
                 half4 finalColor = UniversalFragmentUnlit(inputData, color, alpha);
 
             #if defined(_SCREEN_SPACE_OCCLUSION) && !defined(_SURFACE_TYPE_TRANSPARENT)
@@ -245,9 +252,26 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
                 finalColor.rgb *= aoFactor.directAmbientOcclusion;
             #endif
 
+            #if defined(_FOG_FRAGMENT)
+            #if (defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2))
+                float viewZ = -input.fogCoord;
+                float nearToFarZ = max(viewZ - _ProjectionParams.y, 0);
+                half fogFactor = ComputeFogFactorZ0ToFar(nearToFarZ);
+            #else
+                half fogFactor = 0;
+            #endif
+            #else
+                half fogFactor = input.fogCoord;
+            #endif
                 finalColor.rgb = MixFog(finalColor.rgb, fogFactor);
+                finalColor.a = OutputAlpha(finalColor.a, IsSurfaceTypeTransparent(_Surface));
 
-                return finalColor;
+                outColor = finalColor;
+
+            #ifdef _WRITE_RENDERING_LAYERS
+                uint renderingLayers = GetMeshRenderingLayer();
+                outRenderingLayers = float4(EncodeMeshRenderingLayer(renderingLayers), 0, 0, 0);
+            #endif
             }
 
             ENDHLSL
@@ -259,7 +283,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             Tags{"LightMode" = "DepthOnly"}
 
             ZWrite On
-            ColorMask 0
+            ColorMask R
 
             HLSLPROGRAM
             #pragma exclude_renderers gles gles3 glcore
@@ -271,6 +295,10 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             // -------------------------------------
             // Material Keywords
             #pragma shader_feature_local_fragment _ALPHATEST_ON
+
+            // -------------------------------------
+            // Unity defined keywords
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
 
             //--------------------------------------
             // GPU Instancing
@@ -303,8 +331,10 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
 
             // -------------------------------------
-            // Unity defined keywords
+            // Universal Pipeline keywords
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT // forward-only variant
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
 
             //--------------------------------------
             // GPU Instancing
@@ -347,7 +377,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         Tags {"RenderType" = "Opaque" "IgnoreProjector" = "True" "RenderPipeline" = "UniversalPipeline" "ShaderModel"="2.0"}
         LOD 100
 
-        Blend [_SrcBlend][_DstBlend]
+        Blend [_SrcBlend][_DstBlend], [_SrcBlendAlpha][_DstBlendAlpha]
         ZWrite [_ZWrite]
         Cull [_Cull]
 
@@ -355,13 +385,15 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
         {
             Name "Unlit"
 
+            AlphaToMask[_AlphaToMask]
+
             HLSLPROGRAM
             #pragma only_renderers gles gles3 glcore d3d11
             #pragma target 2.0
 
             #pragma shader_feature_local_fragment _SURFACE_TYPE_TRANSPARENT
             #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
+            #pragma shader_feature_local_fragment _ALPHAMODULATE_ON
 
             // -------------------------------------
             // Unity defined keywords
@@ -369,6 +401,9 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             #pragma multi_compile_instancing
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile _ DEBUG_DISPLAY
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 3.5 DOTS_INSTANCING_ON
 
             #pragma vertex UnlitPassVertex
             #pragma fragment UnlitPassFragment
@@ -384,7 +419,7 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             Tags{"LightMode" = "DepthOnly"}
 
             ZWrite On
-            ColorMask 0
+            ColorMask R
 
             HLSLPROGRAM
             #pragma only_renderers gles gles3 glcore d3d11
@@ -397,9 +432,15 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             // Material Keywords
             #pragma shader_feature_local_fragment _ALPHATEST_ON
 
+            // -------------------------------------
+            // Unity defined keywords
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
+
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 3.5 DOTS_INSTANCING_ON
 
             #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
@@ -427,11 +468,13 @@ Shader "Universal Render Pipeline/System Shock/Lightmap CLUT"
             // -------------------------------------
             // Unity defined keywords
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT // forward-only variant
+            #pragma multi_compile_fragment _ LOD_FADE_CROSSFADE
 
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 3.5 DOTS_INSTANCING_ON
 
             #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"

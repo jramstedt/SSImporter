@@ -1,5 +1,6 @@
 using SS.Resources;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -12,12 +13,12 @@ namespace SS.System {
 
     private Texture2D lightmap;
 
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
-      RequireSingletonForUpdate<LevelInfo>();
+      RequireForUpdate<LevelInfo>();
 
-      lightmap = await Services.LightmapTexture;
+      lightmap = Services.LightmapTexture.WaitForCompletion();
 
       mapElementQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -41,30 +42,29 @@ namespace SS.System {
         levelInfo = GetSingleton<LevelInfo>()
       };
 
-      var buildMapElements = lightmapJob.ScheduleParallel(mapElementQuery, dependsOn: Dependency);
-      Dependency = buildMapElements;
+      Dependency = lightmapJob.ScheduleParallel(mapElementQuery, Dependency);
 
-      buildMapElements.Complete();
+      CompleteDependency();
 
       EntityManager.RemoveComponent<LightmapRebuildTag>(mapElementQuery);
-
+      
       lightmap.Apply(false, false);
     }
   }
 
   [BurstCompile]
-  struct UpdateLightmapJob : IJobEntityBatch {
+  struct UpdateLightmapJob : IJobChunk {
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
     [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> lightmap;
     [ReadOnly] public int stride;
     [ReadOnly] public LevelInfo levelInfo;
 
-    public void Execute(ArchetypeChunk batchInChunk, int batchIndex) {
-      var tileLocations = batchInChunk.GetNativeArray(tileLocationTypeHandle);
-      var mapElements = batchInChunk.GetNativeArray(mapElementTypeHandle);
+    public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+      var tileLocations = chunk.GetNativeArray(tileLocationTypeHandle);
+      var mapElements = chunk.GetNativeArray(mapElementTypeHandle);
 
-      for (int i = 0; i < batchInChunk.Count; ++i) {
+      for (int i = 0; i < chunk.Count; ++i) {
         var tileLocation = tileLocations[i];
         var mapElement = mapElements[i];
 
