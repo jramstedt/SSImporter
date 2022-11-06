@@ -22,9 +22,13 @@ namespace SS.System {
     private EntityTypeHandle entityTypeHandle;
     private ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
     private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+
     private ComponentLookup<MapElement> mapElementLookup;
     private ComponentLookup<ObjectInstance> instanceLookup;
     private ComponentLookup<ObjectInstance.Trigger> triggerLookup;
+    private ComponentLookup<ObjectInstance.Interface> interfaceLookup;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
+    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
 
     private NativeArray<Random> Randoms;
 
@@ -40,6 +44,9 @@ namespace SS.System {
       mapElementLookup = state.GetComponentLookup<MapElement>();
       instanceLookup = state.GetComponentLookup<ObjectInstance>();
       triggerLookup = state.GetComponentLookup<ObjectInstance.Trigger>();
+      interfaceLookup = state.GetComponentLookup<ObjectInstance.Interface>();
+      decorationLookup = state.GetComponentLookup<ObjectInstance.Decoration>();
+      doorLookup = state.GetComponentLookup<ObjectInstance.DoorAndGrating>();
 
       Randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
       for (int i = 0; i < Randoms.Length; ++i)
@@ -74,6 +81,9 @@ namespace SS.System {
       mapElementLookup.Update(ref state);
       instanceLookup.Update(ref state);
       triggerLookup.Update(ref state);
+      interfaceLookup.Update(ref state);
+      decorationLookup.Update(ref state);
+      doorLookup.Update(ref state);
 
       var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
@@ -87,13 +97,16 @@ namespace SS.System {
         TimeData = SystemAPI.Time,
         LevelInfo = SystemAPI.GetSingleton<LevelInfo>(),
         triggerEventArchetype = triggerEventArchetype,
-        
+
         CommandBuffer = commandBuffer.AsParallelWriter(),
 
         MapElementLookup = mapElementLookup,
         InstanceLookup = instanceLookup,
         TriggerLookup = triggerLookup,
-      };
+        InterfaceLookup = interfaceLookup,
+        DecorationLookup = decorationLookup,
+        DoorLookup = doorLookup
+    };
 
       state.Dependency = triggerJob.ScheduleParallel(triggerQuery, state.Dependency);
     }
@@ -120,6 +133,9 @@ namespace SS.System {
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookup;
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Trigger> TriggerLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Interface> InterfaceLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.DoorAndGrating> DoorLookup;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
@@ -146,10 +162,10 @@ namespace SS.System {
 
           //Debug.Log($"Activate e:{entity.Index} o:{trigger.Link.ObjectIndex}");
 
-          int comparator = instance.Info.Type switch {
-            0 => 0, // DEATHWATCH_TRIGGER_TYPE
-            5 => 0, // AREA_ENTRY_TRIGGER_TYPE
-            6 => 0, // AREA_CONTINUOUS_TRIGGER_TYPE
+          uint comparator = instance.Info.Type switch {
+            0 /* DEATHWATCH_TRIGGER_TYPE */       => 0,
+            5 /* AREA_ENTRY_TRIGGER_TYPE */       => 0,
+            6 /* AREA_CONTINUOUS_TRIGGER_TYPE */  => 0,
             _ => trigger.Comparator
           };
 
@@ -157,12 +173,26 @@ namespace SS.System {
             processTrigger(entity, unfilteredChunkIndex); // TODO Activate actually
 
           return true;
-        } // else fixture
+        } else if(InterfaceLookup.HasComponent(entity)) {
+          var instance = InstanceLookup[entity];
+          var fixture = InterfaceLookup[entity];
+
+          uint comparator = instance.SubClass switch {
+            1 /* FIXTURE_SUBCLASS_RECEPTACLE */   => 0,
+            4 /* FIXTURE_SUBCLASS_VENDING */      => 0,
+            _ => fixture.Comparator
+          };
+
+          if (comparatorCheck(comparator, entity, out byte specialCode))
+            processTrigger(entity, unfilteredChunkIndex); // TODO Activate actually
+
+          return true;
+        }
   
         return false;
       }
 
-      private bool comparatorCheck(int comparator, in Entity entity, out byte specialCode) {
+      private bool comparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
         specialCode = 0;
         return true;
       }
@@ -384,6 +414,29 @@ namespace SS.System {
           } else {
             Debug.LogWarning($"Scheduling failed e:{entity.Index} o:{trigger.Link.ObjectIndex} p3:{trigger.ActionParam3}");
           }
+        } else if (trigger.ActionType == ActionType.PropagateAlternating) {
+          var triggerIndex = (short)trigger.Link.ObjectIndex;
+
+          var phase = actionParam4;
+          var maxPhase = actionParam3 == 0 ? 1 : 2;
+
+          if (phase == 0)
+            timedMulti((uint)questDataParse((ushort)actionParam1), unfilteredChunkIndex);
+          else if (phase == 1)
+            timedMulti((uint)questDataParse((ushort)actionParam2), unfilteredChunkIndex);
+          else if (phase == 2)
+            timedMulti((uint)questDataParse((ushort)actionParam3), unfilteredChunkIndex);
+
+          if (++phase > maxPhase)
+            phase = 0;
+
+          setTrapData(triggerIndex, 4, phase);
+        } else if (trigger.ActionType == ActionType.ChangeClassData) {
+          changeInstance(questDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4);
+          changeInstance(questDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4);
+        } else if (trigger.ActionType == ActionType.ChangeAnimation) {
+          changeAnimation(questDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4 != 0);
+          changeAnimation(questDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4 != 0);
         } else {
           Debug.LogWarning($"Not supported e:{entity.Index} o:{trigger.Link.ObjectIndex} at:{trigger.ActionType}");
         }
@@ -419,6 +472,118 @@ namespace SS.System {
         }
       }
 
+      /// <summary>
+      /// 
+      /// </summary>
+      /// <param name="objectIndex"></param>
+      /// <param name="parameterNumber">From 1 to 4</param>
+      /// <param name="value"></param>
+      private void setTrapData(short objectIndex, byte parameterNumber, uint value) {
+        if (parameterNumber < 1 || parameterNumber > 4) return;
+        if (objectIndex == 0) return;
+
+        var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+        if (TriggerLookup.HasComponent(entity)) {
+          var trigger = TriggerLookup[entity];
+
+          if (parameterNumber == 1) trigger.ActionParam1 = value;
+          if (parameterNumber == 2) trigger.ActionParam2 = value;
+          if (parameterNumber == 3) trigger.ActionParam3 = value;
+          if (parameterNumber == 4) trigger.ActionParam4 = value;
+
+          TriggerLookup[entity] = trigger;
+        } else if(InterfaceLookup.HasComponent(entity)) { 
+          var fixture = InterfaceLookup[entity];
+
+          if (parameterNumber == 1) fixture.ActionParam1 = value;
+          if (parameterNumber == 2) fixture.ActionParam2 = value;
+          if (parameterNumber == 3) fixture.ActionParam3 = value;
+          if (parameterNumber == 4) fixture.ActionParam4 = value;
+
+          InterfaceLookup[entity] = fixture;
+        }
+      }
+
+      private void changeInstance(short objectIndex, uint actionParam2, uint actionParam3, uint actionParam4) {
+        if (objectIndex == 0) return;
+
+        var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+        if (InstanceLookup.HasComponent(entity)) {
+          var instance = InstanceLookup[entity];
+
+          if (!instance.Active) return;
+
+          if (instance.Class == ObjectClass.Decoration) {
+            var decoration = DecorationLookup[entity];
+            if (actionParam2 != uint.MaxValue) decoration.Cosmetic = (ushort)actionParam2;
+            if (actionParam3 != uint.MaxValue) decoration.Data1 = actionParam3;
+            if (actionParam4 != uint.MaxValue) decoration.Data2 = actionParam4;
+            DecorationLookup[entity] = decoration;
+          } else if (instance.Class == ObjectClass.DoorAndGrating) {
+            var door = DoorLookup[entity];
+            if (actionParam2 != uint.MaxValue) door.Lock = (ushort)actionParam2;
+            if (actionParam3 != uint.MaxValue) {
+              door.LockMessage = (byte)(actionParam3 >> 8);
+              door.Color = (byte)(actionParam3 & 0xFF);
+            }
+            if (actionParam4 != uint.MaxValue) {
+              door.AccessLevel = (byte)(actionParam4 >> 8);
+              door.AutocloseTime = (byte)(actionParam4 & 0xFF);
+            }
+            DoorLookup[entity] = door;
+          } else if (instance.Class == ObjectClass.Interface || instance.Class == ObjectClass.Trigger) {
+            setTrapData(objectIndex, (byte)actionParam2, actionParam3);
+          }
+        }
+      }
+
+      private void changeAnimation(short objectIndex, uint actionParam2, uint actionParam3, bool removeAnimation) {
+        if (objectIndex == 0) return;
+
+        byte frames = 0;
+
+        var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+        if (InstanceLookup.HasComponent(entity) && DecorationLookup.HasComponent(entity)) {
+          var instance = InstanceLookup[entity];
+
+          if (!instance.Active) return;
+          if (instance.Info.Hitpoints == 0) return;
+
+          frames = (byte)DecorationLookup[entity].Cosmetic;
+
+          if (frames == 0) frames = 4;
+
+          // if (removeAnimation) AnimateAnimationJob.RemoveAnimation(entity);
+
+          if (actionParam2 == 0) {
+            var reverse = (actionParam3 & 0x8000) == 0x8000; // 1 << 15
+            var cycle = (actionParam3 & 0x10000) == 0x10000; // 1 << 16
+
+            if ((actionParam3 & 0xF0000000) > 0) frames = (byte)(actionParam3 >> 28);
+            changeInstance(objectIndex, frames, uint.MaxValue, actionParam3 & 0x7FFF);
+            instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
+
+            // add_obj_to_animlist(objectIndex, true, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+          } else {
+            var reverse = (actionParam2 & 0x8000) == 0x8000; // 1 << 15
+            var cycle = (actionParam2 & 0x10000) == 0x10000; // 1 << 16
+
+            if ((actionParam2 & 0xF0000000) > 0) frames = (byte)(actionParam2 >> 28);
+            changeInstance(objectIndex, frames, uint.MaxValue, actionParam2 & 0x7FFF);
+            instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
+
+            /*
+            if (actionParam3 != 0)
+              add_obj_to_animlist(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
+            else
+              add_obj_to_animlist(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+            */
+          }
+
+          InstanceLookup[entity] = instance;
+        }
+      }
+
       private void multi(short objectIndex) {
         if (objectIndex == 0) return;
 
@@ -428,7 +593,8 @@ namespace SS.System {
         } else {
           // TODO
           // if door then unlock it
-          // object use
+
+          // object use !!!
         }
       }
 

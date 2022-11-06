@@ -179,7 +179,7 @@ namespace SS {
 
       public ActionType ActionType;
       public byte DestroyCount;
-      public int Comparator; // ?? comparator
+      public uint Comparator; // ?? comparator
       public uint ActionParam1;
       public uint ActionParam2;
       public uint ActionParam3;

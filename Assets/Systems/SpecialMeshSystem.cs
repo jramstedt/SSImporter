@@ -17,14 +17,12 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpecialMeshSystem : SystemBase {
-    private const ushort CustomTextureIdBase = 2180;
-    private const ushort SmallTextureIdBase = 321;
-
     public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
 
     private EntityQuery newMeshQuery;

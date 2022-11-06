@@ -9,12 +9,11 @@ using Unity.Core;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class AnimateObjectSystem : SystemBase {
-    private const ushort DoorResourceIdBase = 2400;
-
     private EntityQuery animationQuery;
 
     private NativeParallelHashMap<ushort, ushort> blockCounts;
@@ -48,6 +47,7 @@ namespace SS.System {
       var level = GetSingleton<Level>();
 
       var animateJob = new AnimateAnimationJob {
+        entityTypeHandle = GetEntityTypeHandle(),
         animationTypeHandle = GetComponentTypeHandle<AnimationData>(),
         CommandBuffer = commandBuffer.AsParallelWriter(),
 
@@ -56,9 +56,9 @@ namespace SS.System {
         TimeData = SystemAPI.Time,
         blockCounts = blockCounts,
         InstanceLookup = GetComponentLookup<ObjectInstance>(),
-        DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(),
-        ItemLookup = GetComponentLookup<ObjectInstance.Item>(),
-        EnemyLookup = GetComponentLookup<ObjectInstance.Enemy>(),
+        DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true),
+        ItemLookup = GetComponentLookup<ObjectInstance.Item>(true),
+        EnemyLookup = GetComponentLookup<ObjectInstance.Enemy>(true),
       };
 
       var animate = animateJob.ScheduleParallel(animationQuery, dependsOn: Dependency);
@@ -71,8 +71,11 @@ namespace SS.System {
       this.blockCounts.Dispose();
     }
 
+    // TODO FIXME remove enity's animations (and call remove callback if has one)
+
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
+      public EntityTypeHandle entityTypeHandle;
       public ComponentTypeHandle<AnimationData> animationTypeHandle;
 
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
@@ -86,17 +89,20 @@ namespace SS.System {
       [ReadOnly] public NativeParallelHashMap<ushort, ushort> blockCounts;
 
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Item> ItemLookup;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Enemy> EnemyLookup;
+      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
+      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookup;
+      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookup;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
+        var animationentities = chunk.GetNativeArray(entityTypeHandle);
         var animationDatas = chunk.GetNativeArray(animationTypeHandle);
 
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
 
         for (int i = 0; i < chunk.Count; ++i) {
+          var animationEntity = animationentities[i];
           var animation = animationDatas[i];
+
           var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
           var instanceData = InstanceLookup[entity];
 
@@ -136,21 +142,23 @@ namespace SS.System {
 
               if (instanceData.Info.CurrentFrame < 0) {
                 if (animation.IsCyclic) {
-                  if (animation.CallbackIndex != 0 && animation.IsCallbackTypeCycle) {
-                    // cb_list[cb_num++] = i;
-                  }
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   animation.Flags &= ~AnimationData.AnimationFlags.Reversing;
                   instanceData.Info.CurrentFrame = 0;
                 } else if (animation.IsRepeat) {
-                  if (animation.CallbackIndex != 0 && animation.IsCallbackTypeRepeat) {
-                    // cb_list[cb_num++] = i;
-                  }
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-                } else {
+                } else { // Remove
                   instanceData.Info.CurrentFrame = 0;
-                  // anim_rem[rem_num++] = i;
+
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+
+                  CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
                 }
               }
             } else {
@@ -158,21 +166,23 @@ namespace SS.System {
 
               if (instanceData.Info.CurrentFrame >= frameCount) {
                 if (animation.IsCyclic) {
-                  if (animation.CallbackIndex != 0 && animation.IsCallbackTypeCycle) {
-                    // cb_list[cb_num++] = i;
-                  }
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   animation.Flags |= AnimationData.AnimationFlags.Reversing;
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
                 } else if (animation.IsRepeat) {
-                  if (animation.CallbackIndex != 0 && animation.IsCallbackTypeRepeat) {
-                    // cb_list[cb_num++] = i;
-                  }
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   instanceData.Info.CurrentFrame = 0;
-                } else {
+                } else { // Remove
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-                  // anim_rem[rem_num++] = i;
+
+                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                  
+                  CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
                 }
               }
             }
@@ -182,6 +192,32 @@ namespace SS.System {
           animationDatas[i] = animation;
 
           CommandBuffer.AddComponent<AnimatedTag>(unfilteredChunkIndex, entity);
+        }
+      }
+
+      private void processCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {
+        var userData = animation.UserData;
+
+        if (animation.CallbackOperation == AnimationData.Callback.UnShodanize) {
+          if (userData != 0) {
+            if (instanceData.Class == ObjectClass.Decoration) {
+              var decoration = DecorationLookup[entity];
+              decoration.Data2 = SHODAN_STATIC_MAGIC_COOKIE | ((uint)TextureType.Custom << TPOLY_INDEX_BITS);
+              decoration.Cosmetic = 0;
+              DecorationLookup[entity] = decoration;
+            }
+            instanceData.Info.CurrentFrame = 0;
+          } else {
+            // add_obj_to_animlist(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
+          }
+        } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
+          if ((userData & 0x20000) == 0x20000) { // 1 << 17
+            //TriggerJob.multi(userData & 0x7FFF);
+          } else {
+            //TriggerJob.changeAnimation(animation.ObjectIndex, 0, userData, 0)
+          }
+        } else {
+          Debug.LogWarning($"Not supported e:{entity.Index} o:{animation.ObjectIndex} t:{animation.CallbackType} op:{animation.CallbackOperation}");
         }
       }
     }
@@ -200,15 +236,17 @@ namespace SS.System {
     }
 
     public enum AnimationCallbackType : ushort {
+      Null = 0x00,
       Remove = 0x01,
       Repeat,
       Cycle
     }
 
     public enum Callback : uint {
+      Null = 0x00,
       DiegoTeleport = 0x01,
       DestroyScreen,
-      Unshodanize,
+      UnShodanize,
       Unmulti,
       Multi,
       Animate
@@ -217,8 +255,8 @@ namespace SS.System {
     public ushort ObjectIndex;
     public AnimationFlags Flags;
     public AnimationCallbackType CallbackType;
-    public Callback CallbackIndex;
-    public uint UserDataPointer;
+    public Callback CallbackOperation;
+    public uint UserData;
     public readonly ushort FrameTime;
 
     public bool IsRepeat => (Flags & AnimationFlags.Repeat) == AnimationFlags.Repeat;

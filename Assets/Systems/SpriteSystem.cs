@@ -11,13 +11,12 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpriteSystem : SystemBase {
-    private const ushort ArtResourceIdBase = 1350;
-
     private EntityQuery newSpriteQuery;
     private EntityQuery activeSpriteQuery;
     private EntityQuery removedSpriteQuery;
@@ -99,18 +98,18 @@ namespace SS.System {
           spriteIndices[bitmapIndex] = artIndex;
 
           var currentBitmapIndex = bitmapIndex; // cache for load op
-          var loadOp = materialProviderSystem.GetBitmapSet(materialID);
+          var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
           loadOp.Completed += loadOp => {
             if (loadOp.Status != AsyncOperationStatus.Succeeded)
               throw loadOp.OperationException;
             
-            var bitmapSet = loadOp.Result;
+            var bitmapDesc = loadOp.Result;
 
-            BuildSpriteMesh(mesh, bitmapSet.Description);
+            BuildSpriteMesh(mesh, bitmapDesc);
 
             unsafe {
               ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), currentBitmapIndex); //ref spriteMeshes[currentBitmapIndex];
-              spriteMesh.AnchorPoint = bitmapSet.Description.AnchorPoint;
+              spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
             }
           };
 
@@ -148,7 +147,7 @@ namespace SS.System {
         .WithAll<SpriteInfo, ObjectInstance>()
         .WithNone<SpriteAddedTag>()
         .ForEach((Entity entity, in ObjectInstance instanceData) => {
-          var currentFrame = instanceData.Info.CurrentFrame != byte.MaxValue ? instanceData.Info.CurrentFrame : 0;
+          var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var spriteMesh = GetSprite(instanceData, currentFrame);
 
           var baseData = objectProperties.BasePropertyData(instanceData);

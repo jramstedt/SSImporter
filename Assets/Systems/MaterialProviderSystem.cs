@@ -1,11 +1,14 @@
+using System;
 using System.Collections.Generic;
 using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -14,28 +17,33 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using Hash128 = UnityEngine.Hash128;
+using Random = Unity.Mathematics.Random;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MaterialProviderSystem : SystemBase {
-    private const ushort CustomTextureIdBase = 2180;
-    private const ushort SmallTextureIdBase = 321;
-
     private NativeParallelHashMap<Hash128, BatchMaterialID> lightmappedMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
     private NativeParallelHashMap<Hash128, BatchMaterialID> unlitMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
     private NativeParallelHashMap<BatchMaterialID, Hash128> materialIDToBitmapResource;
     private Dictionary<Hash128, AsyncOperationHandle<BitmapSet>> bitmapSetLoaders = new();
 
-    private ComponentLookup<ObjectInstance> instanceLookup;
-    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
-    private Resources.ObjectProperties objectProperties;
 
-    private BatchMaterialID colorMaterialId;
+    private NativeArray<Random> randoms;
+
+    private BatchMaterialID colorMaterialID;
+    private BatchMaterialID noiseMaterialID;
 
     private Material lightmapMaterialTemplate;
     private Material unlitMaterialTemplate;
+
+    private AsyncOperationHandle<BitmapSet> noiseBitmapSet;
+
+    private BatchMaterialID[] cameraMaterialsIDs;
+    private AsyncOperationHandle<BitmapDesc>[] cameraSetLoaders;
+    private RenderTexture[] cameraRenderTextures;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -44,13 +52,14 @@ namespace SS.System {
       unlitMaterials = new(1024, Allocator.Persistent);
       materialIDToBitmapResource = new(1024, Allocator.Persistent);
 
-      instanceLookup = GetComponentLookup<ObjectInstance>(true);
-      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+
+      randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+      for (int i = 0; i < randoms.Length; ++i)
+        randoms[i] = Random.CreateFromIndex((uint)i);
 
       var clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
       var lightmap = Services.LightmapTexture.WaitForCompletion();
-      objectProperties = Services.ObjectProperties.WaitForCompletion();
 
       lightmapMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
       lightmapMaterialTemplate.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
@@ -90,11 +99,82 @@ namespace SS.System {
       colorMaterial.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
       colorMaterial.enableInstancing = true;
 
-      colorMaterialId = entitiesGraphicsSystem.RegisterMaterial(colorMaterial);
+      colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(colorMaterial);
+
+      {
+        var noiseMaterial = new Material(unlitMaterialTemplate);
+        noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
+
+        var createOp = Addressables.ResourceManager.StartOperation(new CreateNoiseTexture(), default);
+        createOp.Completed += op => {
+          if (op.Status != AsyncOperationStatus.Succeeded)
+              throw op.OperationException;
+
+          var bitmapSet = op.Result;
+
+          noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+          noiseMaterial.DisableKeyword(@"TRANSPARENCY_ON");
+          noiseMaterial.DisableKeyword(@"_ALPHATEST_ON");
+        };
+
+        this.noiseBitmapSet = createOp;
+      }
+
+      {
+        this.cameraSetLoaders = new AsyncOperationHandle<BitmapDesc>[NUM_HACK_CAMERAS];
+        this.cameraMaterialsIDs = new BatchMaterialID[NUM_HACK_CAMERAS];
+        this.cameraRenderTextures = new RenderTexture[NUM_HACK_CAMERAS];
+        /*
+          RenderTextureFormat format;
+          if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8))
+            format = RenderTextureFormat.R8;
+          else if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGB32))
+            format = RenderTextureFormat.ARGB32;
+          else
+            throw new Exception("No supported TextureFormat found.");
+        */
+        var format = RenderTextureFormat.ARGB32;
+
+        for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
+          var cameraMaterial = new Material(colorMaterial);
+          this.cameraMaterialsIDs[i] = entitiesGraphicsSystem.RegisterMaterial(cameraMaterial);
+
+          RenderTexture cameraTexture = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16));
+          cameraMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), cameraTexture);
+
+          cameraTexture.name = @"Camera";
+          cameraTexture.filterMode = FilterMode.Point;
+          cameraTexture.wrapMode = TextureWrapMode.Repeat;
+
+          this.cameraRenderTextures[i] = cameraTexture;
+
+          this.cameraSetLoaders[i] = Addressables.ResourceManager.CreateCompletedOperation(new BitmapDesc() {
+            Transparent = false,
+            Size = new(32, 32),
+            AnchorPoint = new(),
+            AnchorRect = new()
+          }, null);
+        }
+      }
     }
 
     protected override void OnUpdate() {
+      if (noiseBitmapSet.IsDone) {
+        var noiseTexture = noiseBitmapSet.Result.Texture;
+        var noiseTextureData = noiseTexture.GetRawTextureData<byte>();
+        var fillStaticTextureJob = new FillNoiseTexture() {
+          ColorBase = Palette.GRAY_8_BASE,
+          Stride = noiseTexture.format == TextureFormat.R8 ? 1 : 4,
+          TextureData = noiseTextureData,
+          Randoms = randoms
+        };
 
+        Dependency = fillStaticTextureJob.ScheduleBatch(noiseTextureData.Length, 32, Dependency);
+
+        CompleteDependency();
+
+        noiseTexture.Apply(false, false);
+      }
     }
 
     protected override void OnDestroy() {
@@ -103,11 +183,14 @@ namespace SS.System {
       lightmappedMaterials.Dispose();
       unlitMaterials.Dispose();
       materialIDToBitmapResource.Dispose();
+
+      randoms.Dispose();
     }
 
     public Material LightmapMaterial => lightmapMaterialTemplate;
     public Material UnlitMaterial => unlitMaterialTemplate;
-    public BatchMaterialID ColorMaterialID => this.colorMaterialId;
+    public BatchMaterialID ColorMaterialID => colorMaterialID;
+    public BatchMaterialID NoiseMaterialID => noiseMaterialID;
 
     public BatchMaterialID GetMaterial (string resource, bool lightmapped) {
       var hash = Hash128.Compute(resource);
@@ -121,11 +204,11 @@ namespace SS.System {
         return batchMaterialID; // Res already loaded. Skip loading.
 
       Material material = lightmapped switch {
-        true => new Material(this.lightmapMaterialTemplate),
-        false => new Material(this.unlitMaterialTemplate)
+        true => new Material(lightmapMaterialTemplate),
+        false => new Material(unlitMaterialTemplate)
       };
 
-      batchMaterialID = this.entitiesGraphicsSystem.RegisterMaterial(material);
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (materials.TryAdd(hash, batchMaterialID)) {
         materialIDToBitmapResource[batchMaterialID] = hash;
@@ -154,71 +237,28 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    public AsyncOperationHandle<BitmapSet> GetBitmapSet(BatchMaterialID materialID) {
-      return bitmapSetLoaders[materialIDToBitmapResource[materialID]];
+    public BatchMaterialID GetCameraMaterial (int cameraIndex) {
+      return cameraMaterialsIDs[cameraIndex];
+    }
+
+    public RenderTexture GetCameraRenderTexture (int cameraIndex) {
+      return cameraRenderTextures[cameraIndex];
+    }
+
+    public AsyncOperationHandle<BitmapDesc> GetBitmapDesc(BatchMaterialID materialID) {
+      var cameraIndex = Array.IndexOf(cameraMaterialsIDs, materialID);
+
+      if (materialID == noiseMaterialID)
+        return Addressables.ResourceManager.CreateChainOperation(noiseBitmapSet, op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null)) ;
+      if (cameraIndex != -1)
+        return cameraSetLoaders[cameraIndex];
+      else
+        return Addressables.ResourceManager.CreateChainOperation(bitmapSetLoaders[materialIDToBitmapResource[materialID]], op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null)) ;
     }
     
-    public int CalculateTextureData (in Entity entity, in ObjectInstance instanceData, in Level level) {
-      this.instanceLookup.Update(this); // FIXME
-      this.decorationLookup.Update(this); // FIXME
-
-      var baseProperties = objectProperties.BasePropertyData(instanceData);
-
-      var textureData = 0;
-
-      var isIndirectable = instanceData.Class == ObjectClass.Decoration &&
-        (baseProperties.DrawType == DrawType.TexturedPolygon || baseProperties.DrawType == DrawType.TerrainPolygon);
-
-      //(instanceData.Class == ObjectClass.Decoration && baseProperties.DrawType == DrawType.TexturedPolygon) ||
-      //instanceData.Triple == 0x70208 || // SUPERSCREEN_TRIPLE
-      //instanceData.Triple == 0x70209 || // BIGSCREEN_TRIPLE
-      //instanceData.Triple == 0x70206; // SCREEN_TRIPLE
-
-      if (isIndirectable) { // Must be ObjectClass.Decoration
-        var decorationInstance = this.decorationLookup[entity];
-        var data = decorationInstance.Data2;
-
-        const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
-        const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
-
-        if (data != 0 /*|| animlist.ObjectIndex == objindex*/) {
-          if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
-            var dataEntity = level.ObjectInstances.Value[(int)data & INDIRECTED_STUFF_DATA_MASK];
-            var databObjectInstance = this.instanceLookup[dataEntity];
-            var dataDecorationInstance = this.decorationLookup[dataEntity];
-
-            textureData = (int)dataDecorationInstance.Data2 + databObjectInstance.Info.CurrentFrame;
-          } else {
-            textureData = (int)decorationInstance.Data2 + instanceData.Info.CurrentFrame;
-          }
-        } else if (instanceData.SubClass == 1 /* BIGSTUFF_SUBCLASS_FURNISHING */) {
-          const int SECRET_FURNITURE_DEFAULT_O3DREP = 0x80;
-          textureData = SECRET_FURNITURE_DEFAULT_O3DREP;
-        }
-      } else if (baseProperties.DrawType != DrawType.TerrainPolygon || baseProperties.DrawType != DrawType.TexturedPolygon) {
-        textureData = baseProperties.BitmapIndex;
-
-        if (baseProperties.DrawType != DrawType.Voxel && instanceData.Class != ObjectClass.DoorAndGrating && instanceData.Info.CurrentFrame != byte.MaxValue) {
-          textureData += instanceData.Info.CurrentFrame;
-        }
-      }
-
-      return textureData;
-    }
-
     public BatchMaterialID ParseTextureData (int textureData, bool lightmapped, out TextureType type, out int scale) {
       const int DATA_MASK = 0xFFF;
 
-      const int INDEX_MASK = 0x007F;
-      const int TYPE_MASK = 0x0180;
-      const int SCALE_MASK = 0x0600;
-      const int STYLE_MASK = 0x0800;
-
-      const int RANDOM_TEXT_MAGIC_COOKIE = 0x7F;
-      const int REGULAR_STATIC_MAGIC_COOKIE = 0x77;
-      const int SHODAN_STATIC_MAGIC_COOKIE = 0x76;
-
-      const int NUM_HACK_CAMERAS = 8;
       const int FIRST_CAMERA_TMAP = 0x78;
 
       const int NUM_AUTOMAP_MAGIC_COOKIES = 6;
@@ -227,8 +267,8 @@ namespace SS.System {
       textureData &= DATA_MASK;
 
       var index = textureData & INDEX_MASK;
-      type = (TextureType)((textureData & TYPE_MASK) >> 7);
-      scale = (textureData & SCALE_MASK) >> 9;
+      type = (TextureType)((textureData & TYPE_MASK) >> TPOLY_INDEX_BITS);
+      scale = (textureData & SCALE_MASK) >> (TPOLY_INDEX_BITS + TPOLY_TYPE_BITS);
       var style = (textureData & STYLE_MASK) == STYLE_MASK ? 2 : 3;
 
       if (type == TextureType.Alt) {
@@ -236,22 +276,20 @@ namespace SS.System {
       } else if (type == TextureType.Custom) {
         if (index >= FIRST_CAMERA_TMAP && index <= (FIRST_CAMERA_TMAP + NUM_HACK_CAMERAS)) {
           var cameraIndex = index - FIRST_CAMERA_TMAP;
-          return GetMaterial($"{CustomTextureIdBase}", lightmapped); // TODO FIXME PLACEHOLDER
 
           // if (hasCamera(cameraIndex))
-          //  ret camera
+          return GetCameraMaterial(cameraIndex);
           // else
-          //  ret static
+          // return noiseMaterialID;
         } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
-          return GetMaterial($"{CustomTextureIdBase}", lightmapped); // TODO FIXME PLACEHOLDER
-          // ret static
+          return noiseMaterialID;
         } else if (index >= FIRST_AUTOMAP_MAGIC_COOKIE && index <= (FIRST_AUTOMAP_MAGIC_COOKIE + NUM_AUTOMAP_MAGIC_COOKIES)) {
           return GetMaterial($"{CustomTextureIdBase}", lightmapped); // TODO FIXME PLACEHOLDER
           // ret automap bitmap
         }
 
         // if (!HasRes(CustomTextureIdBase + index)) {
-        //   ret static
+        //   return noiseMaterialID;
         // } else {
           return GetMaterial($"{CustomTextureIdBase + index}", lightmapped); 
         // }
@@ -269,6 +307,55 @@ namespace SS.System {
       }
 
       return BatchMaterialID.Null;
+    }
+
+    private class CreateNoiseTexture: AsyncOperationBase<BitmapSet> {
+      protected override void Execute() {
+        Texture2D noiseTexture;
+        if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
+          noiseTexture = new Texture2D(32, 32, TextureFormat.R8, false, true);
+        } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+          noiseTexture = new Texture2D(32, 32, TextureFormat.RGBA32, false, true);
+        } else {
+          throw new Exception("No supported TextureFormat found.");
+        }
+        noiseTexture.name = @"Noise";
+        noiseTexture.filterMode = FilterMode.Point;
+        noiseTexture.wrapMode = TextureWrapMode.Repeat;
+
+        BitmapSet noiseBitmapSet = new() {
+          Texture = noiseTexture,
+          Description = new() {
+            Transparent = false,
+            Size = new(noiseTexture.width, noiseTexture.height),
+            AnchorPoint = new(),
+            AnchorRect = new()
+          }
+        };
+
+        Complete(noiseBitmapSet, true, null);
+      }
+    }
+
+    [BurstCompile]
+    struct FillNoiseTexture : IJobParallelForBatch {
+      [NativeSetThreadIndex] internal readonly int threadIndex;
+
+      [ReadOnly] public byte ColorBase;
+      [ReadOnly] public int Stride;
+
+      [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> TextureData;
+      [NativeDisableContainerSafetyRestriction] public NativeArray<Random> Randoms;
+
+      public void Execute(int startIndex, int count) {
+        var random = Randoms[threadIndex];
+        
+        int lastIndex = startIndex+count;
+        for (int index = startIndex; index < lastIndex; ++index)
+          TextureData[index * Stride] = (byte)(ColorBase + (random.NextUInt() & 0x07));
+        
+        Randoms[threadIndex] = random;
+      }
     }
   }
 }

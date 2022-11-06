@@ -79,8 +79,9 @@ namespace SS.Resources {
 
       var textureAnimation = saveData.GetResourceDataArray<TextureAnimationData>((ushort)(0x002A + resourceId));
 
-      // 0x002B surveillance sources
+      var surveillanceSources = saveData.GetResourceDataArray<ushort>((ushort)(0x002B + resourceId)); // obj ids
       // 0x002C surveillance surrogates
+
       // 0x002D level variables
       // 0x002E map notes
       // 0x002F map notes pointers
@@ -339,6 +340,20 @@ namespace SS.Resources {
         #endregion
       }
 
+      var surveillanceSourceEntities = new NativeArray<Entity>(TextureUtils.NUM_HACK_CAMERAS, Allocator.Temp);
+      for (var i = 0; i < surveillanceSourceEntities.Length; ++i) {
+        //var objIndex = surveillanceSources[i];
+        //var obj = objectInstances[i];
+        //var entity = obj.Active ? objectInstanceEntities[objIndex] : Entity.Null;
+
+        var entity = objectInstanceEntities[surveillanceSources[i]];
+        surveillanceSourceEntities[i] = entity;
+
+        entityManager.AddComponentData(entity, new SurveillanceSource() {
+          CameraIndex = i
+      });
+      }
+
       var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
       using (var paletteEffects = entityManager.CreateEntity(paletteEffectArchetype, 6, Allocator.Temp)) {
         entityManager.AddComponentData<PaletteEffect>(paletteEffects[0], new PaletteEffect { First = 0x03, Last = 0x07, FrameTime = 68, TimeRemaining = 0 });
@@ -356,7 +371,8 @@ namespace SS.Resources {
       var level = new Level {
         Id = mapId,
         TextureMap = textureMap,
-        ObjectInstances = BuildBlob(objectInstanceEntities)
+        ObjectInstances = BuildBlob(objectInstanceEntities),
+        SurveillanceCameras = BuildBlob(surveillanceSourceEntities)
       };
 
       var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalToWorld), typeof(MapElement));
@@ -463,5 +479,6 @@ namespace SS.Resources {
     public TextureMap TextureMap;
     public BlobAssetReference<BlobArray<Entity>> TileMap;
     public BlobAssetReference<BlobArray<Entity>> ObjectInstances;
+    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras;
   }
 }

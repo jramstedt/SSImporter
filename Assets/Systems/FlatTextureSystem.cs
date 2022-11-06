@@ -15,17 +15,12 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class FlatTextureSystem : SystemBase {
-    private const ushort ArtResourceIdBase = 1350;
-    private const ushort DoorResourceIdBase = 2400;
-    private const ushort IconResourceIdBase = 78;
-    private const ushort GraffitiResourceIdBase = 79;
-    private const ushort RepulsorResourceIdBase = 80;
-
     private NativeParallelHashMap<BatchMaterialID, MaterialMeshInfo> resourceMaterialMeshInfos;
 
     private EntityQuery newFlatTextureQuery;
@@ -111,10 +106,9 @@ namespace SS.System {
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
         var entityRefWidth = new NativeArray<float>(animatedEntities.Length, Allocator.TempJob);
 
-        // GetBufferLookup<Child>(true);
-
-
         processEntities(level, animatedEntities, instanceDatas, entityMeshInfo, entityRefWidth);
+
+        // GetBufferLookup<Child>(true);
 
         for (var index = 0; index < animatedEntities.Length; ++index) {
           var entity = animatedEntities[index];
@@ -178,7 +172,7 @@ namespace SS.System {
         entityRefWidth[entityIndex] = refWidth;
 
         if (materialID == BatchMaterialID.Null) {
-          var currentFrame = instanceData.Info.CurrentFrame != byte.MaxValue ? instanceData.Info.CurrentFrame : 0;
+          var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
           materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true);
         }
@@ -202,14 +196,14 @@ namespace SS.System {
 
         var isDoubleSided = instanceData.Class == ObjectClass.DoorAndGrating;
         if (resourceMaterialMeshInfos.TryAdd(materialID, materialMeshInfo)) {
-          var loadOp = materialProviderSystem.GetBitmapSet(materialID);
+          var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
           loadOp.Completed += loadOp => {
             if (loadOp.Status != AsyncOperationStatus.Succeeded)
               throw loadOp.OperationException;
 
-            var bitmapSet = loadOp.Result;
+            var bitmapDesc = loadOp.Result;
 
-            BuildPlaneMesh(mesh, float2(bitmapSet.Texture.width, bitmapSet.Texture.height) / 2f, isDoubleSided);
+            BuildPlaneMesh(mesh, float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 2f, isDoubleSided);
           };
         }
       }
@@ -228,9 +222,10 @@ namespace SS.System {
         const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
 
         if (instanceData.Class == ObjectClass.Decoration) {
-          var decorationInstance = this.decorationLookup[entity];
+          this.decorationLookup.Update(this); // TODO FIXME hack
 
-          var textureData = materialProviderSystem.CalculateTextureData(entity, instanceData, level);
+          var decorationData = this.decorationLookup.GetRefRO(entity).ValueRO;
+          var textureData = CalculateTextureData(instanceData, decorationData, level, instanceLookup, decorationLookup);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidth = 128f;
@@ -239,15 +234,15 @@ namespace SS.System {
               return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true);
             }
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
-            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidth = 64f;
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
-            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidth = 32f;
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
-            var lightmapped = decorationInstance.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidth = 64f;
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
           }

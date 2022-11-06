@@ -17,12 +17,12 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static SS.TextureUtils;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class MeshInterpeterSystem : SystemBase {
-    private const ushort MaterialIdBase = 475;
 
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
@@ -48,6 +48,9 @@ namespace SS.System {
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
+
+    private ComponentLookup<ObjectInstance> instanceLookup;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
 
     private MaterialProviderSystem materialProviderSystem;
 
@@ -109,6 +112,9 @@ namespace SS.System {
         staticShadowCaster: true
       );
 
+      this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
+      this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
+
       objectProperties = Services.ObjectProperties.WaitForCompletion();
     }
 
@@ -120,6 +126,9 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
+      this.instanceLookup.Update(this);
+      this.decorationLookup.Update(this);
+
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
@@ -305,12 +314,12 @@ namespace SS.System {
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
-              0 => materialProviderSystem.ParseTextureData(materialProviderSystem.CalculateTextureData(entity, instanceData, level), true, out var textureType, out var scale),
+              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(instanceData, decorationData, level, instanceLookup, decorationLookup), true, out var textureType, out var scale),
               _ => BatchMaterialID.Null
             };
 
             if (materialID == BatchMaterialID.Null)
-              materialID = materialProviderSystem.GetMaterial($"{MaterialIdBase + textureId}:{0}", true);
+              materialID = materialProviderSystem.GetMaterial($"{ModelTextureIdBase + textureId}:{0}", true);
 
             commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {
               MeshID = meshID,
