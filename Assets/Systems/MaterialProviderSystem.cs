@@ -39,6 +39,7 @@ namespace SS.System {
     private Material lightmapMaterialTemplate;
     private Material unlitMaterialTemplate;
 
+    private Material noiseMaterial;
     private AsyncOperationHandle<BitmapSet> noiseBitmapSet;
 
     private BatchMaterialID[] cameraMaterialsIDs;
@@ -102,7 +103,7 @@ namespace SS.System {
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(colorMaterial);
 
       {
-        var noiseMaterial = new Material(unlitMaterialTemplate);
+        this.noiseMaterial = new Material(unlitMaterialTemplate);
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
 
         var createOp = Addressables.ResourceManager.StartOperation(new CreateNoiseTexture(), default);
@@ -219,6 +220,11 @@ namespace SS.System {
         }
 
         loadOp.Completed += loadOp => {
+          if (loadOp.Status != AsyncOperationStatus.Succeeded) {
+            material.CopyPropertiesFromMaterial(noiseMaterial);
+            return;
+          }
+
           var bitmapSet = loadOp.Result;
           material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
           if (bitmapSet.Description.Transparent) {
@@ -288,13 +294,12 @@ namespace SS.System {
           // ret automap bitmap
         }
 
-        // if (!HasRes(CustomTextureIdBase + index)) {
-        //   return noiseMaterialID;
-        // } else {
-          return GetMaterial($"{CustomTextureIdBase + index}", lightmapped); 
-        // }
+        var defaultMaterial = GetMaterial($"{CustomTextureIdBase + index}", lightmapped);
 
-        
+        if (defaultMaterial == BatchMaterialID.Null)
+          return noiseMaterialID;
+
+        return defaultMaterial;
       } else if (type == TextureType.Text) {
         if (index == RANDOM_TEXT_MAGIC_COOKIE) {
           // TODO randomize text
@@ -351,8 +356,13 @@ namespace SS.System {
         var random = Randoms[threadIndex];
         
         int lastIndex = startIndex+count;
-        for (int index = startIndex; index < lastIndex; ++index)
-          TextureData[index * Stride] = (byte)(ColorBase + (random.NextUInt() & 0x07));
+        for (int index = startIndex; index < lastIndex; ++index) {
+          var rand = random.NextUInt();
+          if ((rand & 0x300) == 0x300)
+            TextureData[index * Stride] = (byte)(ColorBase + (rand & 0x07));
+          else
+            TextureData[index * Stride] = 0;
+        }
         
         Randoms[threadIndex] = random;
       }

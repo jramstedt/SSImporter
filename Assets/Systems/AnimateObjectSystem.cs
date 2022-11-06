@@ -7,29 +7,63 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
+using Unity.Jobs.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using Random = Unity.Mathematics.Random;
 using static SS.TextureUtils;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class AnimateObjectSystem : SystemBase {
-    private EntityQuery animationQuery;
-
     private NativeParallelHashMap<ushort, ushort> blockCounts;
 
     private Resources.ObjectProperties objectProperties;
+
+    private EntityTypeHandle entityTypeHandle;
+    private ComponentTypeHandle<AnimationData> animationTypeHandle;
+
+    private ComponentLookup<MapElement> mapElementLookup;
+    private ComponentLookup<ObjectInstance> instanceLookup;
+    private ComponentLookup<ObjectInstance.Item> itemLookup;
+    private ComponentLookup<ObjectInstance.Enemy> enemyLookup;
+    private ComponentLookup<ObjectInstance.Trigger> triggerLookup;
+    private ComponentLookup<ObjectInstance.Interface> interfaceLookup;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
+    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
+    private NativeArray<Random> randoms;
+    private EntityQuery animationQuery;
+    private EntityArchetype triggerEventArchetype;
 
     protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
 
+      entityTypeHandle = GetEntityTypeHandle();
+      animationTypeHandle = GetComponentTypeHandle<AnimationData>();
+      mapElementLookup = GetComponentLookup<MapElement>();
+      instanceLookup = GetComponentLookup<ObjectInstance>();
+      itemLookup = GetComponentLookup<ObjectInstance.Item>();
+      enemyLookup = GetComponentLookup<ObjectInstance.Enemy>();
+      triggerLookup = GetComponentLookup<ObjectInstance.Trigger>();
+      interfaceLookup = GetComponentLookup<ObjectInstance.Interface>();
+      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>();
+      doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>();
+
+      randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+      for (int i = 0; i < randoms.Length; ++i)
+        randoms[i] = Random.CreateFromIndex((uint)i);
+
       animationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
           ComponentType.ReadWrite<AnimationData>()
         }
       });
+
+      triggerEventArchetype = EntityManager.CreateArchetype(
+        typeof(ScheduleEvent)
+      );
 
       // TODO Make better somehow. Don't load specific file and scan trough.
       var artResources = await Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res").Task;
@@ -42,43 +76,78 @@ namespace SS.System {
 
     protected override void OnUpdate() {
       var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
-      var commandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
 
       var level = GetSingleton<Level>();
+      var player = SystemAPI.GetSingleton<Hacker>();
+      var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
+
+      entityTypeHandle.Update(this);
+      animationTypeHandle.Update(this);
+      mapElementLookup.Update(this);
+      instanceLookup.Update(this);
+      itemLookup.Update(this);
+      enemyLookup.Update(this);
+      triggerLookup.Update(this);
+      interfaceLookup.Update(this);
+      decorationLookup.Update(this);
+      doorLookup.Update(this);
+
+      var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
+      var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
 
       var animateJob = new AnimateAnimationJob {
-        entityTypeHandle = GetEntityTypeHandle(),
-        animationTypeHandle = GetComponentTypeHandle<AnimationData>(),
-        CommandBuffer = commandBuffer.AsParallelWriter(),
-
+        entityTypeHandle = entityTypeHandle,
+        animationTypeHandle = animationTypeHandle,
+        
         ObjectInstancesBlobAsset = level.ObjectInstances,
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
         TimeData = SystemAPI.Time,
         blockCounts = blockCounts,
-        InstanceLookup = GetComponentLookup<ObjectInstance>(),
-        DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true),
+        InstanceLookup = instanceLookup,
+        DecorationLookup = decorationLookup,
         ItemLookup = GetComponentLookup<ObjectInstance.Item>(true),
         EnemyLookup = GetComponentLookup<ObjectInstance.Enemy>(true),
+
+        Processor = new TriggerProcessor() {
+          CommandBuffer = processorCommandBuffer.AsParallelWriter(),
+          TriggerEventArchetype = triggerEventArchetype,
+
+          Player = player,
+          TimeData = SystemAPI.Time,
+          LevelInfo = levelInfo,
+
+          TileMapBlobAsset = level.TileMap,
+          ObjectInstancesBlobAsset = level.ObjectInstances,
+
+          MapElementLookup = mapElementLookup,
+          InstanceLookup = instanceLookup,
+          TriggerLookup = triggerLookup,
+          InterfaceLookup = interfaceLookup,
+          DecorationLookup = decorationLookup,
+          DoorLookup = doorLookup,
+
+          Randoms = randoms
+        },
+
+        CommandBuffer = animateJobCommandBuffer.AsParallelWriter()
       };
 
-      var animate = animateJob.ScheduleParallel(animationQuery, dependsOn: Dependency);
-      Dependency = animate;
+      Dependency = animateJob.ScheduleParallel(animationQuery, Dependency);
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
       this.blockCounts.Dispose();
+      randoms.Dispose();
     }
-
-    // TODO FIXME remove enity's animations (and call remove callback if has one)
 
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
-      public EntityTypeHandle entityTypeHandle;
-      public ComponentTypeHandle<AnimationData> animationTypeHandle;
+      [NativeSetThreadIndex] internal readonly int threadIndex;
 
-      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      [ReadOnly] public EntityTypeHandle entityTypeHandle;
+      public ComponentTypeHandle<AnimationData> animationTypeHandle;
 
       [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
       [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
@@ -93,9 +162,16 @@ namespace SS.System {
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookup;
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookup;
 
+      public TriggerProcessor Processor;
+
+      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var animationentities = chunk.GetNativeArray(entityTypeHandle);
         var animationDatas = chunk.GetNativeArray(animationTypeHandle);
+
+        Processor.threadIndex = threadIndex;
+        Processor.unfilteredChunkIndex = unfilteredChunkIndex;
 
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
 
@@ -212,9 +288,9 @@ namespace SS.System {
           }
         } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
           if ((userData & 0x20000) == 0x20000) { // 1 << 17
-            //TriggerJob.multi(userData & 0x7FFF);
+            Processor.multi((short)(userData & 0x7FFF));
           } else {
-            //TriggerJob.changeAnimation(animation.ObjectIndex, 0, userData, 0)
+            Processor.changeAnimation((short)animation.ObjectIndex, 0, userData, false);
           }
         } else {
           Debug.LogWarning($"Not supported e:{entity.Index} o:{animation.ObjectIndex} t:{animation.CallbackType} op:{animation.CallbackOperation}");
