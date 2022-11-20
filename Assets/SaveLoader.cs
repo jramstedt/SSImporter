@@ -164,14 +164,13 @@ namespace SS.Resources {
       animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
 
       for (int i = 0; i < textureAnimation.Length; ++i)
-        entityManager.AddComponentData(textureAnimationEntities[i], textureAnimation[i]);
+        entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
       var animationArchetype = entityManager.CreateArchetype(typeof(AnimationData));
       using var animationEntities = entityManager.CreateEntity(animationArchetype, animationCounter, Allocator.Temp);
-      var animateObjectSystem = world.GetOrCreateSystem<AnimateObjectSystem>();
 
       for (int i = 0; i < animationCounter; ++i)
-        entityManager.AddComponentData(animationEntities[i], animationData[i]);
+        entityManager.SetComponentData(animationEntities[i], animationData[i]);
 
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalToWorld));

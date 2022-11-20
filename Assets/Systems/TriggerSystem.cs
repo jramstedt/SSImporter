@@ -29,7 +29,9 @@ namespace SS.System {
     private NativeArray<Random> randoms;
 
     private EntityQuery triggerQuery;
+    private EntityQuery animationQuery;
     private EntityArchetype triggerEventArchetype;
+    private EntityArchetype animationArchetype;
 
     public void OnCreate(ref SystemState state) {
       state.RequireForUpdate<Level>();
@@ -56,8 +58,18 @@ namespace SS.System {
         }
       });
 
+      animationQuery = state.GetEntityQuery(new EntityQueryDesc {
+        All = new ComponentType[] {
+          ComponentType.ReadWrite<AnimationData>()
+        }
+      });
+
       triggerEventArchetype = state.EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
+      );
+
+      animationArchetype = state.EntityManager.CreateArchetype(
+        typeof(AnimationData)
       );
     }
 
@@ -85,6 +97,15 @@ namespace SS.System {
       var triggerJobCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
+      var animationCount = animationQuery.CalculateEntityCount();
+      var cachedAnimations = new NativeArray<(Entity entity, AnimationData animationData)>(animationCount, Allocator.TempJob);
+
+      var collectAnimationDataJob = new CollectAnimationDataJob {
+        CachedAnimations = cachedAnimations
+      };
+
+      state.Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, state.Dependency);
+
       var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
         instanceTypeHandle = instanceTypeHandle,
@@ -108,7 +129,10 @@ namespace SS.System {
           DecorationLookup = decorationLookup,
           DoorLookup = doorLookup,
 
-          Randoms = randoms
+          Randoms = randoms,
+
+          AnimationArchetype = animationArchetype,
+          CachedAnimations = cachedAnimations
         },
 
         CommandBuffer = triggerJobCommandBuffer.AsParallelWriter(),

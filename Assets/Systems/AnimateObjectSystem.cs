@@ -12,6 +12,8 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using Random = Unity.Mathematics.Random;
 using static SS.TextureUtils;
+using static SS.System.AnimationData;
+using System;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
@@ -33,7 +35,9 @@ namespace SS.System {
     private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
     private NativeArray<Random> randoms;
     private EntityQuery animationQuery;
+
     private EntityArchetype triggerEventArchetype;
+    private EntityArchetype animationArchetype;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -65,6 +69,10 @@ namespace SS.System {
         typeof(ScheduleEvent)
       );
 
+      animationArchetype = EntityManager.CreateArchetype(
+        typeof(AnimationData)
+      );
+
       // TODO Make better somehow. Don't load specific file and scan trough.
       var artResources = await Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res").Task;
       this.blockCounts = new (artResources.ResourceEntries.Count, Allocator.Persistent);
@@ -77,7 +85,7 @@ namespace SS.System {
     protected override void OnUpdate() {
       var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
 
-      var level = GetSingleton<Level>();
+      var level = SystemAPI.GetSingleton<Level>();
       var player = SystemAPI.GetSingleton<Hacker>();
       var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
@@ -94,6 +102,15 @@ namespace SS.System {
 
       var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
+
+      var animationCount = animationQuery.CalculateEntityCount();
+      var cachedAnimations = new NativeArray<(Entity entity, AnimationData animationData)>(animationCount, Allocator.TempJob);
+
+      var collectAnimationDataJob = new CollectAnimationDataJob {
+        CachedAnimations = cachedAnimations
+      };
+
+      Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, Dependency);
 
       var animateJob = new AnimateAnimationJob {
         entityTypeHandle = entityTypeHandle,
@@ -126,7 +143,10 @@ namespace SS.System {
           DecorationLookup = decorationLookup,
           DoorLookup = doorLookup,
 
-          Randoms = randoms
+          Randoms = randoms,
+
+          AnimationArchetype = animationArchetype,
+          CachedAnimations = cachedAnimations
         },
 
         CommandBuffer = animateJobCommandBuffer.AsParallelWriter()
@@ -284,13 +304,13 @@ namespace SS.System {
             }
             instanceData.Info.CurrentFrame = 0;
           } else {
-            // add_obj_to_animlist(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
+            Processor.addAnimation(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
           }
         } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
           if ((userData & 0x20000) == 0x20000) { // 1 << 17
             Processor.multi((short)(userData & 0x7FFF));
           } else {
-            Processor.changeAnimation((short)animation.ObjectIndex, 0, userData, false);
+            Processor.changeAnimation(animation.ObjectIndex, 0, userData, false);
           }
         } else {
           Debug.LogWarning($"Not supported e:{entity.Index} o:{animation.ObjectIndex} t:{animation.CallbackType} op:{animation.CallbackOperation}");
@@ -305,6 +325,7 @@ namespace SS.System {
   public struct AnimationData : IComponentData {
     public const int MAX_ANIMLIST_SIZE = 64;
 
+    [Flags]
     public enum AnimationFlags : byte {
         Repeat = 0x01,
         Reversing = 0x02,
@@ -333,7 +354,7 @@ namespace SS.System {
     public AnimationCallbackType CallbackType;
     public Callback CallbackOperation;
     public uint UserData;
-    public readonly ushort FrameTime;
+    public ushort FrameTime;
 
     public bool IsRepeat => (Flags & AnimationFlags.Repeat) == AnimationFlags.Repeat;
     public bool IsCyclic => (Flags & AnimationFlags.Cyclic) == AnimationFlags.Cyclic;
