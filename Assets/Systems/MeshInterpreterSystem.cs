@@ -181,7 +181,8 @@ namespace SS.System {
 
         var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
 
-        drawState = default;
+        subMeshIndices = new NativeMultiHashMap<ushort, ushort>(256, Allocator.Temp);
+        subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp);
 
         var textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
@@ -194,13 +195,14 @@ namespace SS.System {
           var localToWorld = GetComponent<LocalToWorldTransform>(entity);
 
           #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
-          using (subMeshVertices = new NativeList<Vertex>(100, Allocator.Temp)) // TODO we dont need this. We could use meshData.GetVertexData<Vertex>() directly
-          using (subMeshIndices = new NativeMultiHashMap<ushort, ushort>(300, Allocator.Temp))
           {
-            Array.Clear(vertexBuffer, 0, vertexBuffer.Length);
-            
             using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
               BinaryReader msbr = new BinaryReader(ms);
+
+              subMeshIndices.Clear();
+              subMeshVertices.Clear();
+              drawState = default;
+              
               intepreterLoop(ms, msbr, localToWorld.Value.ToMatrix());
             }
 
@@ -221,9 +223,9 @@ namespace SS.System {
             ushort indexCount = 0;
             var indices = meshData.GetIndexData<ushort>();
             var vertices = meshData.GetVertexData<Vertex>();
-            for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
-              vertices.CopyFrom(subMeshVertices.AsArray());
+            vertices.CopyFrom(subMeshVertices.AsArray());
 
+            for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
               if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
                 do {
                   indices[indexCount++] = index;
@@ -231,10 +233,7 @@ namespace SS.System {
               }
 
               meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
-
-              if (indexCount > submeshIndexStart) // Don't add empty submeshes to textureId array
-                textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
-
+              textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
               submeshIndexStart = indexCount;
             }
 
@@ -299,7 +298,7 @@ namespace SS.System {
             if (submeshIndex < childCount) {
               modelPart = children[submeshIndex].Value;
 
-              if (submeshIndex >= submeshCount || mesh.GetIndexCount(submeshIndex) == 0) { // Skip unneeded or empty sub mesh
+              if (submeshIndex >= submeshCount) {
                 commandBuffer.DestroyEntity(modelPart);
                 continue;
               }
@@ -307,7 +306,6 @@ namespace SS.System {
               modelPart = commandBuffer.Instantiate(prototype);
               commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
               commandBuffer.SetComponent(modelPart, new LocalToParentTransform { Value = UniformScaleTransform.Identity });
-              commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
             }
 
             var textureId = textureIds[textureIdAccumulator++];
@@ -321,6 +319,7 @@ namespace SS.System {
             if (materialID == BatchMaterialID.Null)
               materialID = materialProviderSystem.GetMaterial($"{ModelTextureIdBase + textureId}:{0}", true);
 
+            commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
             commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {
               MeshID = meshID,
               MaterialID = materialID,
@@ -433,8 +432,8 @@ namespace SS.System {
           drawState.color = (byte)msbr.ReadUInt16();
           drawState.gouraud = Gouraud.normal;
         } else if (command == OpCode.sortnorm) {
-          float3 normal = new float3(msbr.ReadFixed1616(), msbr.ReadFixed1616(), msbr.ReadFixed1616());
-          float3 point = new float3(msbr.ReadFixed1616(), msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 normal = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 point = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
 
           long firstOpcodePosition = dataPos + msbr.ReadUInt16();
           long secondOpcodePosition = dataPos + msbr.ReadUInt16();
@@ -659,24 +658,18 @@ namespace SS.System {
           ushort count = msbr.ReadUInt16();
           ushort vertexCount = count;
 
-          var vertexIndices = new NativeArray<ushort>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
           int vertexStart = subMeshVertices.Length;
 
-          while (count-- > 0)
-            vertexIndices[count] = msbr.ReadUInt16();
-
           for (int i = 0; i < vertexCount; ++i) {
-            var vertexState = vertexBuffer[vertexIndices[i]];
+            var vertexState = vertexBuffer[msbr.ReadUInt16()];
             subMeshVertices.Add(new Vertex { pos = vertexState.position, uv = new half2(vertexState.uv) });
           }
 
           for (int i = 0; i < vertexCount - 2; ++i) {
-            subMeshIndices.Add(textureId, (ushort)vertexStart);
-            subMeshIndices.Add(textureId, (ushort)(vertexStart + i + 1));
             subMeshIndices.Add(textureId, (ushort)(vertexStart + i + 2));
+            subMeshIndices.Add(textureId, (ushort)(vertexStart + i + 1));
+            subMeshIndices.Add(textureId, (ushort)vertexStart);
           }
-
-          vertexIndices.Dispose();
         } else if (command == OpCode.dbg) {
           ushort skip = msbr.ReadUInt16();
           ushort code = msbr.ReadUInt16();
