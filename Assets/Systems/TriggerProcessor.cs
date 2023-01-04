@@ -39,8 +39,7 @@ namespace SS.System {
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.DoorAndGrating> DoorLookup;
     [NativeDisableContainerSafetyRestriction] public NativeArray<Random> Randoms;
 
-    [ReadOnly] public EntityArchetype AnimationArchetype;
-    [ReadOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
+    public AnimateObjectSystemData.Writer animationList;
 
     public bool Activate(in Entity entity, out bool message) {
       message = false;
@@ -159,7 +158,7 @@ namespace SS.System {
             SourceObjectIndex = (short)trigger.Link.ObjectIndex
           };
 
-          Debug.Log($"Schedule t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex} ts:{timeStamp}");
+          // Debug.Log($"Schedule t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex} ts:{timeStamp}");
 
           var eventEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, TriggerEventArchetype);
           CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
@@ -409,7 +408,7 @@ namespace SS.System {
 
         if (frames == 0) frames = 4;
 
-        if (removeAnimation) this.removeAnimation(objectIndex);
+        if (removeAnimation) animationList.removeAnimation(objectIndex);
 
         if (actionParam2 == 0) {
           var reverse = (actionParam3 & 0x8000) == 0x8000; // 1 << 15
@@ -418,8 +417,9 @@ namespace SS.System {
           if ((actionParam3 & 0xF0000000) > 0) frames = (byte)(actionParam3 >> 28);
           changeInstance(objectIndex, frames, uint.MaxValue, actionParam3 & 0x7FFF);
           instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
+          instance.Info.TimeRemaining = 0;
 
-          addAnimation(objectIndex, true, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+          animationList.addAnimation(objectIndex, true, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
         } else {
           var reverse = (actionParam2 & 0x8000) == 0x8000; // 1 << 15
           var cycle = (actionParam2 & 0x10000) == 0x10000; // 1 << 16
@@ -427,11 +427,12 @@ namespace SS.System {
           if ((actionParam2 & 0xF0000000) > 0) frames = (byte)(actionParam2 >> 28);
           changeInstance(objectIndex, frames, uint.MaxValue, actionParam2 & 0x7FFF);
           instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
-
+          instance.Info.TimeRemaining = 0;
+          
           if (actionParam3 != 0)
-            addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
+            animationList.addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
           else
-            addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+            animationList.addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
         }
 
         InstanceLookup[entity] = instance;
@@ -475,51 +476,6 @@ namespace SS.System {
       }
     }
 
-    private Entity findAnimatingEntity (ushort objectIndex) {
-      foreach (var (entity, animationData) in CachedAnimations) {
-        if (animationData.ObjectIndex == objectIndex)
-            return entity;
-      }
-
-      return Entity.Null;
-    }
-
-    public void addAnimation (ushort objectIndex, bool repeat, bool reverse, bool cycle, ushort speed, Callback callbackOperation, uint userData, AnimationCallbackType callbackType) {
-      const ushort DEFAULT_ANIMLIST_SPEED = 128;
-
-      AnimationFlags flags = 0;
-      if (repeat) flags |= AnimationFlags.Repeat;
-      if (reverse) flags |= AnimationFlags.Reversing;
-      if (cycle) flags |= AnimationFlags.Cyclic;
-
-      var animationData = new AnimationData {
-        ObjectIndex = objectIndex,
-        Flags = flags,
-        CallbackType = callbackType,
-        CallbackOperation = callbackOperation,
-        UserData = userData,
-        FrameTime = speed > 0 ? speed : DEFAULT_ANIMLIST_SPEED
-      };
-
-      var animationEntity = findAnimatingEntity(objectIndex);
-
-      if (animationEntity == Entity.Null)
-        animationEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, AnimationArchetype);
-
-      CommandBuffer.SetComponent(unfilteredChunkIndex, animationEntity, animationData);
-
-      var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-
-      var instance = InstanceLookup[entity];
-      instance.Info.TimeRemaining = 0;
-      InstanceLookup[entity] = instance;
-    }
-
-    public void removeAnimation (ushort objectIndex) {
-      var animationEntity = findAnimatingEntity(objectIndex);
-      CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
-    }
-
     private bool comparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
       specialCode = 0;
       return true;
@@ -544,15 +500,4 @@ namespace SS.System {
       }
     }
   }
-
-  #pragma warning disable CS0282
-  [BurstCompile]
-  public partial struct CollectAnimationDataJob : IJobEntity {
-    [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
-
-    public void Execute([EntityInQueryIndex] int entityInQueryIndex, in Entity entity, in AnimationData animationData) {
-        CachedAnimations[entityInQueryIndex] = (entity, animationData);
-    }
-  }
-  #pragma warning restore CS0282
 }

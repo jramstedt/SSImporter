@@ -173,7 +173,7 @@ namespace SS.Resources {
         entityManager.SetComponentData(animationEntities[i], animationData[i]);
 
       // Create Entities
-      var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalToWorld));
+      var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalTransform), typeof(LocalToWorld));
       using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Temp);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
         var entity = objectInstanceEntities[i];
@@ -191,8 +191,8 @@ namespace SS.Resources {
 
         var rotation = quaternion.EulerZXY(-location.Pitch / 256f * math.PI * 2f, location.Yaw / 256f * math.PI * 2f, -location.Roll / 256f * math.PI * 2f);
 
-        entityManager.AddComponentData(entity, new LocalToWorldTransform { Value = UniformScaleTransform.FromPositionRotation(translation, rotation) }); // TODO update in job if instance data changes...
-        entityManager.AddComponentData(entity, instanceData);
+        entityManager.SetComponentData(entity, instanceData);
+        entityManager.SetComponentData(entity, LocalTransform.FromPositionRotation(translation, rotation)); // TODO update in job if instance data changes...
 
         if (!instanceData.Active || instanceData.SpecIndex == 0) continue;
 
@@ -362,10 +362,10 @@ namespace SS.Resources {
         entityManager.AddComponentData<PaletteEffect>(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
         entityManager.AddComponentData<PaletteEffect>(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
       }
-      
+
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
-      mapSystem.SetSingleton(levelInfo);
+      entityManager.SetComponentData(levelInfoEntity, levelInfo);
 
       var level = new Level {
         Id = mapId,
@@ -374,16 +374,17 @@ namespace SS.Resources {
         SurveillanceCameras = BuildBlob(surveillanceSourceEntities)
       };
 
-      var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalToWorld), typeof(MapElement));
+      var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
       using (var mapElementEntities = entityManager.CreateEntity(mapElementArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp)) {
         for (int x = 0; x < levelInfo.Width; ++x) {
           for (int y = 0; y < levelInfo.Height; ++y) {
             var rowIndex = y * levelInfo.Width;
 
             var entity = mapElementEntities[rowIndex + x];
-            entityManager.AddComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
-            entityManager.AddComponentData(entity, new LocalToWorldTransform { Value = UniformScaleTransform.FromPosition(x, 0f, y) });
-            entityManager.AddComponentData(entity, tileMap[x, y]);
+            entityManager.SetComponentData(entity, new TileLocation { X = (byte)x, Y = (byte)y });
+            entityManager.SetComponentData(entity, LocalTransform.FromPosition(x, 0f, y));
+            entityManager.SetComponentData(entity, tileMap[x, y]);
+
             entityManager.AddComponentData(entity, default(LevelViewPartRebuildTag));
             entityManager.AddComponentData(entity, default(LightmapRebuildTag));
           }
@@ -392,7 +393,7 @@ namespace SS.Resources {
         level.TileMap = BuildBlob(mapElementEntities);
       }
 
-      mapSystem.SetSingleton(level);
+      entityManager.SetComponentData(levelInfoEntity, level);
       
       var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
       var hackerEntity = entityManager.CreateEntity(hackerArchetype);

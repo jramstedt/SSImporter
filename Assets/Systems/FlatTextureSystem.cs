@@ -69,9 +69,14 @@ namespace SS.System {
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(FlatTexturePart),
+
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
         typeof(Parent),
-        typeof(LocalToParentTransform),
-        typeof(LocalToWorldTransform),
+        typeof(ParentTransform),
+
+        typeof(LocalToWorld),
         typeof(RenderBounds)
       );
 
@@ -98,7 +103,7 @@ namespace SS.System {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      var level = GetSingleton<Level>();
+      var level = SystemAPI.GetSingleton<Level>();
 
       {
         var animatedEntities = activeFlatTextureQuery.ToEntityArray(Allocator.TempJob);
@@ -119,7 +124,7 @@ namespace SS.System {
 
             var viewPart = children[0].Value;
 
-            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromScale(1f / entityRefWidth[index]) });
+            commandBuffer.SetComponent(viewPart, LocalTransform.FromScale(1f / entityRefWidth[index]));
             commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * entityRefWidth[index]) } });
             commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
           }
@@ -135,7 +140,6 @@ namespace SS.System {
         processEntities(level, newEntities, instanceDatas, entityMeshInfo, entityRefWidth);
 
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-        EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
         RenderMeshUtility.AddComponents(
           prototype,
           EntityManager,
@@ -159,6 +163,8 @@ namespace SS.System {
         var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
         finalizeCommandBuffer.DestroyEntity(prototype);
       }
+
+      // Dependency.Complete();
     }
 
     private void processEntities(Level level, NativeArray<Entity> newEntities, NativeArray<ObjectInstance> instanceDatas, NativeArray<MaterialMeshInfo> entityMeshInfo, NativeArray<float> entityRefWidth) {
@@ -306,10 +312,10 @@ namespace SS.System {
   }
 
   public enum TextureType {
-    Alt,
-    Custom,
-    Text,
-    ScrollText
+    Alt, // TPOLY_TYPE_ALT_TMAP
+    Custom, // TPOLY_TYPE_CUSTOM_MAT
+    Text, // TPOLY_TYPE_TEXT_BITMAP
+    ScrollText // TPOLY_TYPE_SCROLL_TEXT
   }
 
   [BurstCompile]
@@ -329,7 +335,7 @@ namespace SS.System {
 
       commandBuffer.SetComponent(index, viewPart, new FlatTexturePart { CurrentFrame = 0 }); // TODO FIXME
       commandBuffer.SetComponent(index, viewPart, new Parent { Value = entity });
-      commandBuffer.SetComponent(index, viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromScale(1f / refWidth[index]) });
+      commandBuffer.SetComponent(index, viewPart, LocalTransform.FromScale(1f / refWidth[index]));
       commandBuffer.SetComponent(index, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * refWidth[index]) } });
       commandBuffer.SetComponent(index, viewPart, meshInfo[index]);
 

@@ -29,7 +29,6 @@ namespace SS.System {
     private NativeArray<Random> randoms;
 
     private EntityQuery triggerQuery;
-    private EntityQuery animationQuery;
     private EntityArchetype triggerEventArchetype;
     private EntityArchetype animationArchetype;
 
@@ -55,12 +54,6 @@ namespace SS.System {
           ComponentType.ReadOnly<ObjectInstance>(),
           ComponentType.ReadOnly<ObjectInstance.Trigger>(),
           ComponentType.ReadOnly<TriggerActivateTag>()
-        }
-      });
-
-      animationQuery = state.GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadWrite<AnimationData>()
         }
       });
 
@@ -97,14 +90,8 @@ namespace SS.System {
       var triggerJobCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-      var animationCount = animationQuery.CalculateEntityCount();
-      var cachedAnimations = new NativeArray<(Entity entity, AnimationData animationData)>(animationCount, Allocator.TempJob);
-
-      var collectAnimationDataJob = new CollectAnimationDataJob {
-        CachedAnimations = cachedAnimations
-      };
-
-      state.Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, state.Dependency);
+      var animationCommandListSystem = state.World.GetExistingSystem<AnimationCommandListSystem>();
+      var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
       var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
@@ -131,8 +118,9 @@ namespace SS.System {
 
           Randoms = randoms,
 
-          AnimationArchetype = animationArchetype,
-          CachedAnimations = cachedAnimations
+          animationList = new AnimateObjectSystemData.Writer {
+            commands = animationCommandListSystemData.commands.AsWriter()
+          }
         },
 
         CommandBuffer = triggerJobCommandBuffer.AsParallelWriter(),
@@ -155,11 +143,12 @@ namespace SS.System {
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var instances = chunk.GetNativeArray(instanceTypeHandle);
-        var triggers = chunk.GetNativeArray(triggerTypeHandle);
+        var instances = chunk.GetNativeArray(ref instanceTypeHandle);
+        var triggers = chunk.GetNativeArray(ref triggerTypeHandle);
 
         Processor.threadIndex = threadIndex;
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
+        Processor.animationList.commands.BeginForEachIndex(threadIndex);
 
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
@@ -170,6 +159,8 @@ namespace SS.System {
 
           CommandBuffer.RemoveComponent<TriggerActivateTag>(unfilteredChunkIndex, entity);
         }
+
+        Processor.animationList.commands.EndForEachIndex();
       }
     }
   }

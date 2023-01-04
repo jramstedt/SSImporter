@@ -83,9 +83,15 @@ namespace SS.System {
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(ModelPart),
+
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
         typeof(Parent),
-        typeof(LocalToParentTransform),
-        typeof(LocalToWorldTransform)
+        typeof(ParentTransform),
+
+        typeof(LocalToWorld),
+        typeof(RenderBounds)
       );
 
       /*
@@ -191,8 +197,8 @@ namespace SS.System {
           if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
             throw new Exception(@"No mesh in cache.");
 
-          var meshInfo = GetComponent<MeshInfo>(entity);
-          var localToWorld = GetComponent<LocalToWorldTransform>(entity);
+          var meshInfo = SystemAPI.GetComponent<MeshInfo>(entity);
+          var localTransform = SystemAPI.GetComponent<LocalTransform>(entity);
 
           #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
           {
@@ -203,7 +209,7 @@ namespace SS.System {
               subMeshVertices.Clear();
               drawState = default;
               
-              intepreterLoop(ms, msbr, localToWorld.Value.ToMatrix());
+              intepreterLoop(ms, msbr, localTransform.ToMatrix());
             }
 
             var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
@@ -257,7 +263,7 @@ namespace SS.System {
         }
 
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-        EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
+        EntityManager.SetComponentData(prototype, LocalTransform.Identity);
         RenderMeshUtility.AddComponents(
           prototype,
           EntityManager,
@@ -266,7 +272,7 @@ namespace SS.System {
         );
         EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
-        var level = GetSingleton<Level>();
+        var level = SystemAPI.GetSingleton<Level>();
 
         textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
@@ -305,7 +311,6 @@ namespace SS.System {
             } else {
               modelPart = commandBuffer.Instantiate(prototype);
               commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
-              commandBuffer.SetComponent(modelPart, new LocalToParentTransform { Value = UniformScaleTransform.Identity });
             }
 
             var textureId = textureIds[textureIdAccumulator++];
@@ -655,8 +660,7 @@ namespace SS.System {
           }
         } else if (command == OpCode.tmap) {
           ushort textureId = msbr.ReadUInt16();
-          ushort count = msbr.ReadUInt16();
-          ushort vertexCount = count;
+          ushort vertexCount = msbr.ReadUInt16();
 
           int vertexStart = subMeshVertices.Length;
 

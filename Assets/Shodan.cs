@@ -3,6 +3,9 @@ namespace SS {
     public const int FIRST_SHODAN_QUEST_VAR = 0x10;
     public const int NUM_SHODAN_LEVELS = 13;
 
+    public const int FIRST_SHODAN_ANIM = 0x3f;
+    public const int NUM_SHODAN_FRAMES = 6;
+
     public static int GetShodanQuestVar(int level) => FIRST_SHODAN_QUEST_VAR + level;
   }
 }

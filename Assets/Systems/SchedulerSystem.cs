@@ -67,7 +67,7 @@ namespace SS.System {
 
       public unsafe void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var scheduleEvents = chunk.GetNativeArray(scheduleEventTypeHandle);
+        var scheduleEvents = chunk.GetNativeArray(ref scheduleEventTypeHandle);
 
         var timestamp = TimeUtils.SecondsToTimestamp(TimeData.ElapsedTime); // TODO player gametime
 
@@ -80,7 +80,7 @@ namespace SS.System {
           if (scheduleEvent.Type == EventType.Trap) {
             TrapScheduleEvent trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
 
-            Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} ts:{timestamp}");
+            // Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} ts:{timestamp}");
 
             // Debug.Log($"SchedulerJob EventType.Trap t:{trapEvent.TargetObjectIndex} s:{trapEvent.SourceObjectIndex}");
 

@@ -58,9 +58,14 @@ namespace SS.System {
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(SpritePart),
+
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
         typeof(Parent),
-        typeof(LocalToParentTransform),
-        typeof(LocalToWorldTransform),
+        typeof(ParentTransform),
+
+        typeof(LocalToWorld),
         typeof(RenderBounds)
       );
 
@@ -134,7 +139,6 @@ namespace SS.System {
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
       RenderMeshUtility.AddComponents(
         prototype,
         EntityManager,
@@ -164,7 +168,7 @@ namespace SS.System {
           var viewPart = commandBuffer.Instantiate(prototype);
           commandBuffer.SetComponent(viewPart, new SpritePart { CurrentFrame = currentFrame });
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale) } );
+          commandBuffer.SetComponent(viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale) );
           commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f / scale) } });
           commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
             MeshID = spriteMesh.Mesh,
@@ -180,9 +184,9 @@ namespace SS.System {
       var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
 
       Entities
-        .WithAll<SpritePart, LocalToParentTransform>()
-        .ForEach((ref LocalToParentTransform localTransform) => {
-          localTransform.Value.Rotation = towardsCameraRotation;
+        .WithAll<SpritePart, LocalTransform>()
+        .ForEach((ref LocalTransform localTransform) => {
+          localTransform.Rotation = towardsCameraRotation;
         })
         .Run();
 

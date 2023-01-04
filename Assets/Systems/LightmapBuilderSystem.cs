@@ -39,7 +39,7 @@ namespace SS.System {
 
         lightmap = lightmap.GetRawTextureData<byte>(),
         stride = lightmap.format == TextureFormat.RG16 ? 2 : 4,
-        levelInfo = GetSingleton<LevelInfo>()
+        levelInfo = SystemAPI.GetSingleton<LevelInfo>()
       };
 
       Dependency = lightmapJob.ScheduleParallel(mapElementQuery, Dependency);
@@ -61,8 +61,8 @@ namespace SS.System {
     [ReadOnly] public LevelInfo levelInfo;
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-      var tileLocations = chunk.GetNativeArray(tileLocationTypeHandle);
-      var mapElements = chunk.GetNativeArray(mapElementTypeHandle);
+      var tileLocations = chunk.GetNativeArray(ref tileLocationTypeHandle);
+      var mapElements = chunk.GetNativeArray(ref mapElementTypeHandle);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var tileLocation = tileLocations[i];

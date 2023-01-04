@@ -77,7 +77,7 @@ namespace SS {
     // public Span<short> InitialShodanSecurityLevels { get { fixed (short* a = initialShodanSecurityLevels) { return new Span<short>(a, UnsafeUtility.SizeOf<short>() * NUM_LEVELS); } } }
 
     public fixed sbyte controls[DEGREES_OF_FREEDOM];
-    public short playerObjectId;
+    public short playerObjectIndex;
     public Location realspaceLocation;            // This is where the player will come back out of cspace into
     public int versionNumber;
     public fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory

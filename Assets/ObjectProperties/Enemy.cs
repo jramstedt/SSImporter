@@ -22,7 +22,7 @@ namespace SS.ObjectProperties {
     public int Flags;
     [MarshalAs(UnmanagedType.U1)] public bool Mirror;
     
-    public fixed byte Frames[8];
+    public EightOf<byte> Frames;
     public byte AnimSpeed;
 
     public byte AttackSound;
@@ -61,8 +61,8 @@ namespace SS.ObjectProperties {
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public unsafe struct Cyberspace {
-      public fixed byte Colors[3];
-      public fixed byte AlternativeColors[3];
+      public ThreeOf<byte> Colors;
+      public ThreeOf<byte> AlternativeColors;
     }
 
     [Serializable]

@@ -39,9 +39,16 @@ namespace SS.System {
 
       viewPartArchetype = EntityManager.CreateArchetype(
         typeof(LevelViewPart),
+
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
         typeof(Parent),
-        typeof(LocalToParentTransform),
-        typeof(LocalToWorldTransform),
+        typeof(ParentTransform),
+
+        typeof(LocalToWorld),
+        typeof(RenderBounds),
+
         typeof(FrozenRenderSceneTag)
       );
 
@@ -93,8 +100,8 @@ namespace SS.System {
 
       using var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
-      var level = GetSingleton<Level>();
-      var levelInfo = GetSingleton<LevelInfo>();
+      var level = SystemAPI.GetSingleton<Level>();
+      var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
       using var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
@@ -163,8 +170,7 @@ namespace SS.System {
       };
 
       var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
-      EntityManager.SetComponentData(prototype, new LocalToParentTransform { Value = UniformScaleTransform.Identity });
+      EntityManager.SetComponentData(prototype, LocalTransform.Identity);
       RenderMeshUtility.AddComponents(
         prototype,
         EntityManager,
@@ -222,7 +228,7 @@ namespace SS.System {
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var entities = chunk.GetNativeArray(entityTypeHandle);
-      var parents = chunk.GetNativeArray(parentTypeHandle);
+      var parents = chunk.GetNativeArray(ref parentTypeHandle);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var entity = entities[i];
@@ -253,8 +259,8 @@ namespace SS.System {
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var entities = chunk.GetNativeArray(entityTypeHandle);
-      var tileLocations = chunk.GetNativeArray(tileLocationTypeHandle);
-      var mapElements = chunk.GetNativeArray(mapElementTypeHandle);
+      var tileLocations = chunk.GetNativeArray(ref tileLocationTypeHandle);
+      var mapElements = chunk.GetNativeArray(ref mapElementTypeHandle);
 
       // Mesh.ApplyAndDisposeWritableMeshData()
 

@@ -65,7 +65,7 @@ namespace SS.System {
       var triggerContinuous = SystemAPI.Time.ElapsedTime > NextContinuousTrigger;
       var triggerLevelEnter = !LevelEnterProcessed;
 
-      var triggerJob = new ContinuousTriggerJob {
+      var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
         instanceTypeHandle = instanceTypeHandle,
         triggerTypeHandle = triggerTypeHandle,
@@ -82,7 +82,7 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct ContinuousTriggerJob : IJobChunk {
+    struct TriggerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
@@ -93,8 +93,8 @@ namespace SS.System {
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var instances = chunk.GetNativeArray(instanceTypeHandle);
-        var triggers = chunk.GetNativeArray(triggerTypeHandle);
+        var instances = chunk.GetNativeArray(ref instanceTypeHandle);
+        var triggers = chunk.GetNativeArray(ref triggerTypeHandle);
 
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];

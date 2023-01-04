@@ -51,7 +51,7 @@ namespace SS.ObjectProperties {
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public unsafe struct Cyberspace {
-      public fixed byte Colors[6];
+      public SixOf<byte> Colors;
     }
 
     [Serializable]

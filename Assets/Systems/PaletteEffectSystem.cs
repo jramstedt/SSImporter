@@ -75,7 +75,7 @@ namespace SS.System {
       [ReadOnly] public int deltaTicks;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-        var paletteEffects = chunk.GetNativeArray(paletteEffectTypeHandle);
+        var paletteEffects = chunk.GetNativeArray(ref paletteEffectTypeHandle);
 
         using (var tmpPal = new NativeArray<Color32>(256, Allocator.Temp)) {
           for (int i = 0; i < chunk.Count; ++i) {

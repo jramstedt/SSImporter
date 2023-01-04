@@ -62,9 +62,14 @@ namespace SS.System {
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(SpecialPart),
+
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
         typeof(Parent),
-        typeof(LocalToParentTransform),
-        typeof(LocalToWorldTransform),
+        typeof(ParentTransform),
+
+        typeof(LocalToWorld),
         typeof(RenderBounds)
       );
 
@@ -150,7 +155,6 @@ namespace SS.System {
         meshes[i] = new Mesh();
 
       var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      EntityManager.SetComponentData(prototype, new LocalToWorldTransform { Value = UniformScaleTransform.Identity });
       EntityManager.SetComponentData(prototype, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f) } });
       RenderMeshUtility.AddComponents(
         prototype,
@@ -259,7 +263,7 @@ namespace SS.System {
 
             var viewPart = commandBuffer.Instantiate(prototype);
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromPosition(0f, -texturedCuboid.Offset, 0f) });
+            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
             commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
               Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
               MaterialID = material,
@@ -280,7 +284,7 @@ namespace SS.System {
 
             var viewPart = commandBuffer.Instantiate(prototype);
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, new LocalToParentTransform { Value = UniformScaleTransform.FromPosition(0f, -texturedCuboid.Offset, 0f) });
+            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
             commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
               Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
               MaterialID = material,

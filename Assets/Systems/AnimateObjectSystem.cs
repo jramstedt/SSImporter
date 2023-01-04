@@ -14,6 +14,7 @@ using Random = Unity.Mathematics.Random;
 using static SS.TextureUtils;
 using static SS.System.AnimationData;
 using System;
+using Unity.Jobs;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
@@ -37,7 +38,6 @@ namespace SS.System {
     private EntityQuery animationQuery;
 
     private EntityArchetype triggerEventArchetype;
-    private EntityArchetype animationArchetype;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -48,7 +48,7 @@ namespace SS.System {
       animationTypeHandle = GetComponentTypeHandle<AnimationData>();
       mapElementLookup = GetComponentLookup<MapElement>();
       instanceLookup = GetComponentLookup<ObjectInstance>();
-      itemLookup = GetComponentLookup<ObjectInstance.Item>();
+      itemLookup = GetComponentLookup<ObjectInstance.Item>(true);
       enemyLookup = GetComponentLookup<ObjectInstance.Enemy>();
       triggerLookup = GetComponentLookup<ObjectInstance.Trigger>();
       interfaceLookup = GetComponentLookup<ObjectInstance.Interface>();
@@ -69,10 +69,6 @@ namespace SS.System {
         typeof(ScheduleEvent)
       );
 
-      animationArchetype = EntityManager.CreateArchetype(
-        typeof(AnimationData)
-      );
-
       // TODO Make better somehow. Don't load specific file and scan trough.
       var artResources = await Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res").Task;
       this.blockCounts = new (artResources.ResourceEntries.Count, Allocator.Persistent);
@@ -83,7 +79,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
+      var ecbSingleton = SystemAPI.GetSingleton<EndVariableRateSimulationEntityCommandBufferSystem.Singleton>();
 
       var level = SystemAPI.GetSingleton<Level>();
       var player = SystemAPI.GetSingleton<Hacker>();
@@ -103,14 +99,8 @@ namespace SS.System {
       var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
 
-      var animationCount = animationQuery.CalculateEntityCount();
-      var cachedAnimations = new NativeArray<(Entity entity, AnimationData animationData)>(animationCount, Allocator.TempJob);
-
-      var collectAnimationDataJob = new CollectAnimationDataJob {
-        CachedAnimations = cachedAnimations
-      };
-
-      Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, Dependency);
+      var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
+      var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
       var animateJob = new AnimateAnimationJob {
         entityTypeHandle = entityTypeHandle,
@@ -122,10 +112,10 @@ namespace SS.System {
         blockCounts = blockCounts,
         InstanceLookup = instanceLookup,
         DecorationLookup = decorationLookup,
-        ItemLookup = GetComponentLookup<ObjectInstance.Item>(true),
-        EnemyLookup = GetComponentLookup<ObjectInstance.Enemy>(true),
+        ItemLookup = itemLookup,
+        EnemyLookup = enemyLookup,
 
-        Processor = new TriggerProcessor() {
+        Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
           TriggerEventArchetype = triggerEventArchetype,
 
@@ -145,8 +135,9 @@ namespace SS.System {
 
           Randoms = randoms,
 
-          AnimationArchetype = animationArchetype,
-          CachedAnimations = cachedAnimations
+          animationList = new AnimateObjectSystemData.Writer {
+            commands = animationCommandListSystemData.commands.AsWriter()
+          }
         },
 
         CommandBuffer = animateJobCommandBuffer.AsParallelWriter()
@@ -178,7 +169,7 @@ namespace SS.System {
       [ReadOnly] public NativeParallelHashMap<ushort, ushort> blockCounts;
 
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
-      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookup;
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookup;
 
@@ -187,16 +178,17 @@ namespace SS.System {
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-        var animationentities = chunk.GetNativeArray(entityTypeHandle);
-        var animationDatas = chunk.GetNativeArray(animationTypeHandle);
+        var animationEntities = chunk.GetNativeArray(entityTypeHandle);
+        var animationDatas = chunk.GetNativeArray(ref animationTypeHandle);
 
         Processor.threadIndex = threadIndex;
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
+        Processor.animationList.commands.BeginForEachIndex(threadIndex);
 
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
 
         for (int i = 0; i < chunk.Count; ++i) {
-          var animationEntity = animationentities[i];
+          var animationEntity = animationEntities[i];
           var animation = animationDatas[i];
 
           var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
@@ -289,13 +281,19 @@ namespace SS.System {
 
           CommandBuffer.AddComponent<AnimatedTag>(unfilteredChunkIndex, entity);
         }
+
+        Processor.animationList.commands.EndForEachIndex();
       }
 
       private void processCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {
         var userData = animation.UserData;
 
         if (animation.CallbackOperation == AnimationData.Callback.UnShodanize) {
+          Debug.Log($"<color=teal> AnimationData.Callback.UnShodanize ud:{userData} oi:{animation.ObjectIndex}");
+
           if (userData != 0) {
+            Debug.Log($"AnimationData.Callback.UnShodanize Setting stuff");
+
             if (instanceData.Class == ObjectClass.Decoration) {
               var decoration = DecorationLookup[entity];
               decoration.Data2 = SHODAN_STATIC_MAGIC_COOKIE | ((uint)TextureType.Custom << TPOLY_INDEX_BITS);
@@ -304,12 +302,17 @@ namespace SS.System {
             }
             instanceData.Info.CurrentFrame = 0;
           } else {
-            Processor.addAnimation(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
+            Debug.Log($"AnimationData.Callback.UnShodanize addAnimation");
+
+            instanceData.Info.TimeRemaining = 0;
+            Processor.animationList.addAnimation(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
           }
         } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
           if ((userData & 0x20000) == 0x20000) { // 1 << 17
             Processor.multi((short)(userData & 0x7FFF));
           } else {
+            Debug.Log($"AnimationData.Callback.Animate changeAnimation");
+
             Processor.changeAnimation(animation.ObjectIndex, 0, userData, false);
           }
         } else {
@@ -318,6 +321,18 @@ namespace SS.System {
       }
     }
   }
+
+  #pragma warning disable CS0282
+  [BurstCompile]
+  public partial struct CollectAnimationDataJob : IJobEntity {
+    [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
+
+    public void Execute([EntityIndexInQuery] int entityInQueryIndex, in Entity entity, in AnimationData animationData) {
+        CachedAnimations[entityInQueryIndex] = (entity, animationData);
+    }
+  }
+  #pragma warning restore CS0282
+
 
   public struct AnimatedTag : IComponentData  { }
 

@@ -76,7 +76,7 @@ namespace SS.System {
       [ReadOnly] public TimeData timeData;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-        var textureAnimations = chunk.GetNativeArray(textureAnimationTypeHandle);
+        var textureAnimations = chunk.GetNativeArray(ref textureAnimationTypeHandle);
 
         var deltaTime = (ushort)(timeData.DeltaTime * 1000);
         

@@ -24,16 +24,16 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public unsafe struct Tracer {
-      public fixed short XCoords[4];
-      public fixed short YCoords[4];
-      public fixed byte ZCoords[4];
+    public struct Tracer {
+      public FourOf<short> XCoords;
+      public FourOf<short> YCoords;
+      public FourOf<byte> ZCoords;
     }
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public unsafe struct Slow {
-      public fixed byte Colors[6];
+      public SixOf<byte> Colors;
     }
 
     [Serializable]
