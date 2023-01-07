@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using UnityEngine;
-using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
@@ -111,7 +108,7 @@ namespace SS.Resources {
 
         provideHandle.Complete(new BitmapSet {
           Texture = texture,
-          Description = new () {
+          Description = new() {
             Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
             Size = new Vector2Int(texture.width, texture.height),
             AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),

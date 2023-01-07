@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Unity.Entities;
 
 namespace SS.ObjectProperties {
   [Serializable]
@@ -59,7 +58,7 @@ namespace SS.ObjectProperties {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Beam {
       public DamageInfo DamageInfo;
-      
+
       public byte MaxCharge;
       public byte AttackMass;
       public byte AttackRange;
@@ -77,11 +76,11 @@ namespace SS.ObjectProperties {
 
       public byte Speed;
       public Triple ProjectileType;
-      
+
       public byte Flags;
     }
   }
-  
+
   [Flags]
   public enum DamageType : byte {
     None = 0x00,

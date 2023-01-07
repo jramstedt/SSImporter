@@ -1,10 +1,8 @@
+using SS.Resources;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using SS.Resources;
-using Unity.Burst;
-using Unity.Burst.CompilerServices;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -14,7 +12,6 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
@@ -29,7 +26,6 @@ namespace SS.System {
     private EntityQuery removedMeshQuery;
 
     private EntityArchetype viewPartArchetype;
-    // private EntityQuery viewPartQuery;
 
     private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
@@ -60,6 +56,7 @@ namespace SS.System {
       base.OnCreate();
 
       RequireForUpdate<Level>();
+      RequireForUpdate<AsyncLoadTag>();
 
       newMeshQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
@@ -94,18 +91,9 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      /*
-      viewPartQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ModelPart>(),
-          ComponentType.ReadOnly<Parent>()
-        }
-      });
-      */
-
       this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
 
-      this.vertexAttributes = new (4, Allocator.Persistent) {
+      this.vertexAttributes = new(4, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -121,7 +109,15 @@ namespace SS.System {
       this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
       this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
+      var objectPropertiesOp = Services.ObjectProperties;
+      objectPropertiesOp.Completed += op => {
+        if (op.Status != AsyncOperationStatus.Succeeded)
+          throw op.OperationException;
+
+        objectProperties = objectPropertiesOp.Result;
+
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+      };
     }
 
     protected override void OnDestroy() {
@@ -208,8 +204,8 @@ namespace SS.System {
               subMeshIndices.Clear();
               subMeshVertices.Clear();
               drawState = default;
-              
-              intepreterLoop(ms, msbr, localTransform.ToMatrix());
+
+              IntepreterLoop(ms, msbr, localTransform.ToMatrix());
             }
 
             var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
@@ -292,7 +288,7 @@ namespace SS.System {
             children = EntityManager.GetBuffer<Child>(entity, true);
             childCount = children.Length;
           }
-          
+
           var baseProperties = objectProperties.BasePropertyData(instanceData);
 
           // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
@@ -316,7 +312,7 @@ namespace SS.System {
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
-              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(instanceData, decorationData, level, instanceLookup, decorationLookup), true, out var textureType, out var scale),
+              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup), true, out var textureType, out var scale),
               _ => BatchMaterialID.Null
             };
 
@@ -329,7 +325,7 @@ namespace SS.System {
               MaterialID = materialID,
               Submesh = submeshIndex
             });
-            
+
             // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
           }
         }
@@ -355,7 +351,7 @@ namespace SS.System {
       ecbSystem.AddJobHandleForProducer(removeMeshToCacheJobHandle);
     }
 
-    private unsafe void intepreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
+    private unsafe void IntepreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
       float3 eyePositionLocal = math.transform(math.inverse(objectLocalToWorld), Camera.main.transform.position); // Camera position in object space.
 
       while (ms.Position < ms.Length) {
@@ -369,8 +365,8 @@ namespace SS.System {
         } else if (command == OpCode.jnorm) {
           ushort skipBytes = msbr.ReadUInt16();
 
-          float3 normal = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
-          float3 point = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 normal = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 point = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
 
           var viewVec = point - eyePositionLocal;
 
@@ -389,7 +385,7 @@ namespace SS.System {
           ushort vertexStart = msbr.ReadUInt16();
 
           for (ushort i = 0; i < count; ++i) {
-            vertexBuffer[vertexStart + i].position = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+            vertexBuffer[vertexStart + i].position = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
             vertexBuffer[vertexStart + i].flags = 0;
           }
 
@@ -398,7 +394,7 @@ namespace SS.System {
           ushort vertexCount = count;
 
           var vertexIndices = new NativeArray<ushort>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-          var colorUV = new half2(new half((drawState.color & 0xFF) / 255f), new half((drawState.color >> 8) / 255f));
+          var colorUV = new half2(new((drawState.color & 0xFF) / 255f), new((drawState.color >> 8) / 255f));
 
           if (drawState.gouraud != Gouraud.normal)
             Debug.LogWarning($"Non implemented drawState.gouraud {drawState.gouraud}");
@@ -419,7 +415,7 @@ namespace SS.System {
               // TODO can we use 0 instaed of MaxValue?
 
               //if (drawState.gouraud == Gouraud.normal)
-                subMeshVertices.Add(new Vertex { pos = vertexState.position, uv = colorUV });
+              subMeshVertices.Add(new Vertex { pos = vertexState.position, uv = colorUV });
               //else // TODO if needed
               //  subMeshVertices.Add(new Vertex { pos = vertexState.position, uv = half2.zero });
             }
@@ -436,8 +432,8 @@ namespace SS.System {
           drawState.color = (byte)msbr.ReadUInt16();
           drawState.gouraud = Gouraud.normal;
         } else if (command == OpCode.sortnorm) {
-          float3 normal = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
-          float3 point = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 normal = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 point = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
 
           long firstOpcodePosition = dataPos + msbr.ReadUInt16();
           long secondOpcodePosition = dataPos + msbr.ReadUInt16();
@@ -448,14 +444,14 @@ namespace SS.System {
 
           if (math.dot(viewVec, normal) < 0f) { // is normal pointin towards camera?
             ms.Position = firstOpcodePosition;
-            intepreterLoop(ms, msbr, objectLocalToWorld);
+            IntepreterLoop(ms, msbr, objectLocalToWorld);
             ms.Position = secondOpcodePosition;
-            intepreterLoop(ms, msbr, objectLocalToWorld);
+            IntepreterLoop(ms, msbr, objectLocalToWorld);
           } else {
             ms.Position = secondOpcodePosition;
-            intepreterLoop(ms, msbr, objectLocalToWorld);
+            IntepreterLoop(ms, msbr, objectLocalToWorld);
             ms.Position = firstOpcodePosition;
-            intepreterLoop(ms, msbr, objectLocalToWorld);
+            IntepreterLoop(ms, msbr, objectLocalToWorld);
           }
 
           ms.Position = continuePosition;
@@ -523,54 +519,54 @@ namespace SS.System {
         } else if (command == OpCode.icall_p) {
           long nextOpcode = dataPos + msbr.ReadUInt32();
 
-          var subObjectPosition = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 subObjectPosition = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
           var angle = (*(ushort*)(parameterData + msbr.ReadUInt16()) * 2f * math.PI) / 255f;
           var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateX(angle), float4x4.Translate(subObjectPosition)));
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          intepreterLoop(ms, msbr, subobjectLocalToWorld);
+          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.icall_b) {
           long nextOpcode = dataPos + msbr.ReadUInt32();
 
-          var subObjectPosition = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 subObjectPosition = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
           var angle = (*(ushort*)(parameterData + msbr.ReadUInt16()) * 2f * math.PI) / 255f;
           var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateZ(angle), float4x4.Translate(subObjectPosition)));
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          intepreterLoop(ms, msbr, subobjectLocalToWorld);
+          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.icall_h) {
           long nextOpcode = dataPos + msbr.ReadUInt32();
 
-          var subObjectPosition = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          float3 subObjectPosition = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
           var angle = (*(ushort*)(parameterData + msbr.ReadUInt16()) * 2f * math.PI) / 255f;
           var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateY(angle), float4x4.Translate(subObjectPosition)));
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          intepreterLoop(ms, msbr, subobjectLocalToWorld);
+          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.sfcal) {
           long nextOpcode = dataPos + msbr.ReadUInt16();
           var continuePosition = ms.Position;
-          intepreterLoop(ms, msbr, objectLocalToWorld);
+          IntepreterLoop(ms, msbr, objectLocalToWorld);
           ms.Position = continuePosition;
         } else if (command == OpCode.defres) {
           ushort vertexIndex = msbr.ReadUInt16();
-          vertexBuffer[vertexIndex].position = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          vertexBuffer[vertexIndex].position = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
           vertexBuffer[vertexIndex].flags = 0;
         } else if (command == OpCode.defres_i) {
           ushort vertexIndex = msbr.ReadUInt16();
           VertexState vertex = default;
-          vertex.position = new float3(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
+          vertex.position = new(msbr.ReadFixed1616(), -msbr.ReadFixed1616(), msbr.ReadFixed1616());
           vertex.flags = 0;
-          
+
           vertex.i = msbr.ReadUInt16();
           vertex.flags |= VertexFlag.I;
           vertexBuffer[vertexIndex] = vertex;
@@ -579,15 +575,15 @@ namespace SS.System {
           ushort src = msbr.ReadUInt16();
           ushort count = msbr.ReadUInt16();
           // In SS object rendering is called with variable amount of params. This copies them to array
-          while (count-->0)
-	          *(dest++) = customParams[src++];
+          while (count-- > 0)
+            *(dest++) = customParams[src++];
         } else if (command == OpCode.getparms_i) {
           var dest = *(int**)(parameterData + msbr.ReadUInt16()); // Notice, pointer of pointer.
           ushort src = msbr.ReadUInt16();
           ushort count = msbr.ReadUInt16();
           // In SS object rendering is called with variable amount of params. This copies them to array
-          while (count-->0)
-	          *(dest++) = customParams[src++];
+          while (count-- > 0)
+            *(dest++) = customParams[src++];
         } else if (command == OpCode.gour_p) {
           drawState.gouraudColorBase = (ushort)(*(parameterData + msbr.ReadUInt16()) << 8);
           drawState.gouraud = Gouraud.spoly;
@@ -635,8 +631,8 @@ namespace SS.System {
           var p = *(g3s_point*)(parameterData + paramByteOffset);
 
           vertexBuffer[vertexIndex] = new VertexState {
-            position = new float3(p.x / 65536f, p.y / 65536f, p.z / 65536f),
-            uv = new float2(p.u / 65536f, 1f - p.v / 65536f),
+            position = new(p.x / 65536f, p.y / 65536f, p.z / 65536f),
+            uv = new(p.u / 65536f, 1f - p.v / 65536f),
             flags = (VertexFlag)p.p3_flags,
             i = (ushort)p.i,
             rgb = p.u, // if gouroud
@@ -647,14 +643,14 @@ namespace SS.System {
           // vertexBuffer[vertexIndex] = _vpoint_tab[vpointIndex>>2];
         } else if (command == OpCode.setuv) {
           ref var vertex = ref vertexBuffer[msbr.ReadUInt16()];
-          vertex.uv = new float2(msbr.ReadFixed1616(), 1f - msbr.ReadFixed1616());
+          vertex.uv = new(msbr.ReadFixed1616(), 1f - msbr.ReadFixed1616());
           vertex.flags |= VertexFlag.U | VertexFlag.V;
         } else if (command == OpCode.uvlist) {
           ushort count = msbr.ReadUInt16();
 
           while (count-- > 0) {
             ref var vertex = ref vertexBuffer[msbr.ReadUInt16()];
-            vertex.uv = new float2(msbr.ReadFixed1616(), 1f - msbr.ReadFixed1616());
+            vertex.uv = new(msbr.ReadFixed1616(), 1f - msbr.ReadFixed1616());
             vertex.flags |= VertexFlag.U | VertexFlag.V;
           }
         } else if (command == OpCode.tmap) {
@@ -823,5 +819,7 @@ namespace SS.System {
       public float3 tangent;
       public half2 uv;
     }
+
+    private struct AsyncLoadTag : IComponentData { }
   }
 }

@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using SS.Data;
 using SS.Resources;
+using System;
+using System.Collections.Concurrent;
 using Unity.Burst;
 using Unity.Burst.CompilerServices;
 using Unity.Burst.Intrinsics;
@@ -18,7 +17,7 @@ using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
-  [UpdateInGroup (typeof(InitializationSystemGroup))]
+  [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MapElementBuilderSystem : SystemBase {
     public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
 
@@ -26,7 +25,7 @@ namespace SS.System {
     private EntityQuery mapElementQuery;
     private EntityQuery viewPartQuery;
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
-  
+
     private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
 
@@ -68,7 +67,7 @@ namespace SS.System {
         }
       });
 
-      this.vertexAttributes = new (5, Allocator.Persistent) {
+      this.vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -247,7 +246,7 @@ namespace SS.System {
     [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
     [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
     [ReadOnly] public ComponentLookup<MapElement> allMapElements;
-    [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<int> ChunkBaseEntityIndices;
+    [ReadOnly][DeallocateOnJobCompletion] public NativeArray<int> ChunkBaseEntityIndices;
 
     [ReadOnly] public Level map;
     [ReadOnly] public LevelInfo levelInfo;
@@ -271,7 +270,7 @@ namespace SS.System {
 
         var entity = entities[i];
         var meshData = meshDataArray[realIndex];
-        
+
         var tileLocation = tileLocations[i];
         var mapElement = mapElements[i];
 
@@ -281,17 +280,17 @@ namespace SS.System {
       }
     }
 
-    private bool2 IsWallTextureFlipped (in TileLocation tileLocation, in MapElement texturing) {
+    private bool2 IsWallTextureFlipped(in TileLocation tileLocation, in MapElement texturing) {
       bool2 flip = default;
-  
+
       if (texturing.TextureAlternate) {
-          flip.x = ((tileLocation.X ^ ~tileLocation.Y) & 1) == 1;
-          flip.y = !flip.x;
+        flip.x = ((tileLocation.X ^ ~tileLocation.Y) & 1) == 1;
+        flip.y = !flip.x;
       }
-      
+
       if (texturing.TextureParity) {
-          flip.x = !flip.x;
-          flip.y = !flip.y;
+        flip.x = !flip.x;
+        flip.y = !flip.y;
       }
 
       return flip;
@@ -300,7 +299,7 @@ namespace SS.System {
     private const int VerticesPerViewPart = 8;
     private const int IndicesPerViewPart = 12;
 
-    private unsafe void ClearIndexArray (in Mesh.MeshData mesh) {
+    private unsafe void ClearIndexArray(in Mesh.MeshData mesh) {
       var index = mesh.GetIndexData<ushort>();
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
     }
@@ -309,12 +308,12 @@ namespace SS.System {
       Vertex* nullVertex = stackalloc Vertex[] {
         new Vertex { pos = float3(0f), normal = float3(0f), tangent = float3(0f), uv = half2(0f), light = 0f }
       };
-      
+
       var vertices = mesh.GetVertexData<Vertex>();
       UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
     }
 
-    private void BuildMesh (in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
+    private void BuildMesh(in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
       if (tile.TileType == TileType.Solid) {
         mesh.subMeshCount = 0;
         return;
@@ -390,7 +389,7 @@ namespace SS.System {
       #endregion
     }
 
-    private int CreatePlane (in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
+    private int CreatePlane(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
       var vertices = mesh.GetVertexData<Vertex>();
       var indices = mesh.GetIndexData<ushort>();
 
@@ -443,7 +442,7 @@ namespace SS.System {
 
         // Reverses index order in ceiling
         int lastIndex = indicesTemplate.Length - 1;
-        
+
         for (int i = 0; i < indicesTemplate.Length; ++i) indices[indexStart + i] = (ushort)(indicesTemplate[lastIndex - i] + vertexStart);
         textureIndices[subMeshIndex] = tile.CeilingTexture;
       } else {
@@ -465,14 +464,14 @@ namespace SS.System {
 
       return 1;
     }
-    
+
     private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
       var vertices = mesh.GetVertexData<Vertex>();
       var index = mesh.GetIndexData<ushort>();
 
       var vertexStart = subMeshIndex * VerticesPerViewPart;
       var indexStart = subMeshIndex * IndicesPerViewPart;
-      
+
       ReadOnlySpan<ushort> faceIndices = stackalloc ushort[] { 0, 1, 2, 2, 3, 0 };
 
       ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
@@ -497,7 +496,7 @@ namespace SS.System {
       };
 
       ReadOnlySpan<half2> UVTemplateFlipped = stackalloc half2[] {
-        half2(half(1f), half(0f)), 
+        half2(half(1f), half(0f)),
         half2(half(1f), half(1f)),
         half2(half(0f), half(1f)),
         half2(half(0f), half(0f))
@@ -529,7 +528,7 @@ namespace SS.System {
         vertices[vertexStart + 7] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
 
         for (int i = 0; i < faceIndices.Length; ++i) index[indexStart + i] = (ushort)(faceIndices[i] + vertexStart);
-        
+
         mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, faceIndices.Length, MeshTopology.Triangles));
         textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
         return 1;

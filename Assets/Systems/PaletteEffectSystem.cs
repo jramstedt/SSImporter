@@ -2,7 +2,6 @@ using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Core;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
@@ -22,7 +21,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      RequireForUpdate<PaletteEffectSystemInitializedTag>();
+      RequireForUpdate<AsyncLoadTag>();
 
       var rawPaletteOp = Services.Palette;
       var shadeTableOp = Services.ShadeTable;
@@ -45,7 +44,7 @@ namespace SS.System {
         shadeTable = shadeTableOp.Result;
         clut = clutOp.Result;
 
-        EntityManager.AddComponent<PaletteEffectSystemInitializedTag>(this.SystemHandle);
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
     }
 
@@ -53,7 +52,7 @@ namespace SS.System {
       var ticks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
       var delta = ticks - lastTicks;
 
-      if(delta <= 0) return;
+      if (delta <= 0) return;
       lastTicks = ticks;
 
       var effectJob = new EffectJob {
@@ -125,7 +124,7 @@ namespace SS.System {
       }
     }
 
-    struct PaletteEffectSystemInitializedTag : IComponentData { }
+    private struct AsyncLoadTag : IComponentData { }
   }
 
   struct PaletteEffect : IComponentData {

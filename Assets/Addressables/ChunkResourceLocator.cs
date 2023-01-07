@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
 
@@ -37,7 +36,7 @@ namespace SS.Resources {
     public void Add(ushort resourceId, IResourceLocation location) {
       IList<IResourceLocation> locations;
       if (!Locations.TryGetValue(resourceId, out locations))
-          Locations.Add(resourceId, locations = new List<IResourceLocation>());
+        Locations.Add(resourceId, locations = new List<IResourceLocation>());
 
       locations.Add(location);
     }

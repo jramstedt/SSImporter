@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Unity.Entities;
 
-namespace SS {
+namespace SS.Resources {
   public enum EventType : ushort {
     Null,
     Grenade,
@@ -65,7 +65,7 @@ namespace SS {
     public byte SoundEffectCode;
   }
 
-  
+
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]
   public struct EmailScheduleEvent {
     public enum TypeVersion : byte {

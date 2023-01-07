@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Unity.Entities;
 
 namespace SS.ObjectProperties {
   [Serializable]
@@ -11,7 +10,7 @@ namespace SS.ObjectProperties {
     public const int NUM_ONESHOT_SOFTWARE = 4;
     public const int NUM_MISC_SOFTWARE = 5;
     public const int NUM_DATA_SOFTWARE = 3;
-    
+
     public const int NUM_COMBAT_SOFTS = NUM_OFFENSE_SOFTWARE;
     public const int NUM_DEFENSE_SOFTS = NUM_DEFENSE_SOFTWARE;
     public const int NUM_MISC_SOFTS = NUM_ONESHOT_SOFTWARE + NUM_MISC_SOFTWARE;
@@ -45,7 +44,7 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Data{
+    public struct Data {
       private byte Dummy;
     }
   }

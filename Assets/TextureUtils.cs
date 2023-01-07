@@ -27,16 +27,8 @@ namespace SS {
 
     public const int NUM_HACK_CAMERAS = 8;
 
-    private static readonly BlobAssetReference<ObjectDatas> objectProperties;
-
-    static TextureUtils () {
-      objectProperties = Services.ObjectProperties.WaitForCompletion().ObjectDatasBlobAsset; // TODO FIXME
-    }
-
     [BurstCompile]
-    public static int CalculateTextureData (in ObjectInstance instanceData, in ObjectInstance.Decoration decorationData, in Level level, in ComponentLookup<ObjectInstance> instanceLookup, in ComponentLookup<ObjectInstance.Decoration> decorationLookup) {
-      var baseProperties = objectProperties.Value.BasePropertyData(instanceData);
-
+    public static int CalculateTextureData(in Base baseProperties, in ObjectInstance instanceData, in ObjectInstance.Decoration decorationData, in Level level, in ComponentLookup<ObjectInstance> instanceLookup, in ComponentLookup<ObjectInstance.Decoration> decorationLookup) {
       var textureData = 0;
 
       var isIndirectable = instanceData.Class == ObjectClass.Decoration &&

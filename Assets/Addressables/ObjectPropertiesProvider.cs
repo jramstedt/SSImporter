@@ -2,7 +2,6 @@
 using System;
 using System.ComponentModel;
 using UnityEngine.ResourceManagement.ResourceLocations;
-using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace SS.Resources {
   [DisplayName("System Shock Object Property Data Provider")]

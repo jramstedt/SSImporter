@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 
 namespace SS.Resources {
   public static class Utils {

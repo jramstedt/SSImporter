@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Collections;
@@ -78,15 +76,15 @@ namespace SS.Resources {
             glyphHeight = height,
             glyphWidth = width,
 
-            uvTopLeft = new Vector2( rect.xMin / (float)fontTextureWidth, rect.yMin / (float)fontTextureHeight ),
-            uvTopRight = new Vector2( rect.xMax / (float)fontTextureWidth, rect.yMin / (float)fontTextureHeight ),
-            uvBottomLeft = new Vector2( rect.xMin / (float)fontTextureWidth, rect.yMax / (float)fontTextureHeight ),
-            uvBottomRight = new Vector2( rect.xMax / (float)fontTextureWidth, rect.yMax / (float)fontTextureHeight ),
+            uvTopLeft = new Vector2(rect.xMin / (float)fontTextureWidth, rect.yMin / (float)fontTextureHeight),
+            uvTopRight = new Vector2(rect.xMax / (float)fontTextureWidth, rect.yMin / (float)fontTextureHeight),
+            uvBottomLeft = new Vector2(rect.xMin / (float)fontTextureWidth, rect.yMax / (float)fontTextureHeight),
+            uvBottomRight = new Vector2(rect.xMax / (float)fontTextureWidth, rect.yMax / (float)fontTextureHeight),
           };
         }
         #endregion
         unityFont.characterInfo = characterInfo;
-        
+
         Texture2D fontTexture;
         #region Create texture and copy pixels
         if (font.DataType == BitmapFont.BitmapDataType.Mono && SystemInfo.SupportsTextureFormat(TextureFormat.Alpha8)) {
@@ -134,8 +132,8 @@ namespace SS.Resources {
           var stride = UnsafeUtility.SizeOf<Color32>();
 
           unsafe {
-            var srcPtr = (byte *)UnsafeUtility.PinGCArrayAndGetDataAddress(rawResource, out ulong gcHandle);
-            var dstPtr = (byte *)textureData.GetUnsafePtr();
+            var srcPtr = (byte*)UnsafeUtility.PinGCArrayAndGetDataAddress(rawResource, out ulong gcHandle);
+            var dstPtr = (byte*)textureData.GetUnsafePtr();
             UnsafeUtility.MemClear(dstPtr, textureData.Length);
 
             var lastY = font.Height - 1;
@@ -181,24 +179,24 @@ namespace SS.Resources {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public unsafe struct BitmapFont {
-      public enum BitmapDataType : ushort {
-          Mono = 0x0000,
-          Color = 0xCCCC
-      }
+    public enum BitmapDataType : ushort {
+      Mono = 0x0000,
+      Color = 0xCCCC
+    }
 
-      public BitmapDataType DataType;
+    public BitmapDataType DataType;
 
-      private fixed byte Dummy1[34];
+    private fixed byte Dummy1[34];
 
-      public ushort FirstAscii;
-      public ushort LastAscii;
+    public ushort FirstAscii;
+    public ushort LastAscii;
 
-      private fixed byte Dummy2[32];
+    private fixed byte Dummy2[32];
 
-      public uint xOffset;
-      public uint bitsOffset;
+    public uint xOffset;
+    public uint bitsOffset;
 
-      public ushort Width;
-      public ushort Height;
+    public ushort Width;
+    public ushort Height;
   }
 }

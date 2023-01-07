@@ -7,11 +7,9 @@ using Unity.Entities;
 using UnityEngine;
 using static SS.TextureUtils;
 
-namespace SS.System
-{
+namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
-  public partial class NearbySystem : SystemBase
-  {
+  public partial class NearbySystem : SystemBase {
     private EntityQuery objectQuery;
 
     private bool once = false;

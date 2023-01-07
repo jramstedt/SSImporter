@@ -1,25 +1,21 @@
+using SS.Resources;
 using System;
 using System.Collections.Generic;
-using SS.ObjectProperties;
-using SS.Resources;
 using Unity.Burst;
-using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
-using Unity.Mathematics;
 using Unity.Rendering;
-using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static SS.TextureUtils;
 using Hash128 = UnityEngine.Hash128;
 using Random = Unity.Mathematics.Random;
-using static SS.TextureUtils;
-using UnityEngine.Rendering.Universal;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
@@ -28,7 +24,7 @@ namespace SS.System {
     private NativeParallelHashMap<Hash128, BatchMaterialID> lightmappedMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
     private NativeParallelHashMap<Hash128, BatchMaterialID> unlitMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
     private NativeParallelHashMap<BatchMaterialID, Hash128> materialIDToBitmapResource;
-    private Dictionary<Hash128, AsyncOperationHandle<BitmapSet>> bitmapSetLoaders = new();
+    private readonly Dictionary<Hash128, AsyncOperationHandle<BitmapSet>> bitmapSetLoaders = new();
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
 
@@ -106,7 +102,7 @@ namespace SS.System {
         var createOp = Addressables.ResourceManager.StartOperation(new CreateNoiseTexture(), default);
         createOp.Completed += op => {
           if (op.Status != AsyncOperationStatus.Succeeded)
-              throw op.OperationException;
+            throw op.OperationException;
 
           var bitmapSet = op.Result;
 
@@ -198,7 +194,7 @@ namespace SS.System {
     public BatchMaterialID ColorMaterialID => colorMaterialID;
     public BatchMaterialID NoiseMaterialID => noiseMaterialID;
 
-    public BatchMaterialID GetMaterial (string resource, bool lightmapped) {
+    public BatchMaterialID GetMaterial(string resource, bool lightmapped) {
       var hash = Hash128.Compute(resource);
 
       var materials = lightmapped switch {
@@ -255,11 +251,11 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    public BatchMaterialID GetCameraMaterial (int cameraIndex) {
+    public BatchMaterialID GetCameraMaterial(int cameraIndex) {
       return cameraMaterialsIDs[cameraIndex];
     }
 
-    public RenderTexture GetCameraRenderTexture (int cameraIndex) {
+    public RenderTexture GetCameraRenderTexture(int cameraIndex) {
       return cameraRenderTextures[cameraIndex];
     }
 
@@ -267,14 +263,14 @@ namespace SS.System {
       var cameraIndex = Array.IndexOf(cameraMaterialsIDs, materialID);
 
       if (materialID == noiseMaterialID)
-        return Addressables.ResourceManager.CreateChainOperation(noiseBitmapSet, op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null)) ;
+        return Addressables.ResourceManager.CreateChainOperation(noiseBitmapSet, op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null));
       if (cameraIndex != -1)
         return cameraSetLoaders[cameraIndex];
       else
-        return Addressables.ResourceManager.CreateChainOperation(bitmapSetLoaders[materialIDToBitmapResource[materialID]], op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null)) ;
+        return Addressables.ResourceManager.CreateChainOperation(bitmapSetLoaders[materialIDToBitmapResource[materialID]], op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null));
     }
-    
-    public BatchMaterialID ParseTextureData (int textureData, bool lightmapped, out TextureType type, out int scale) {
+
+    public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, out TextureType type, out int scale) {
       const int DATA_MASK = 0xFFF;
 
       const int FIRST_CAMERA_TMAP = 0x78;
@@ -326,7 +322,7 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    private class CreateNoiseTexture: AsyncOperationBase<BitmapSet> {
+    private class CreateNoiseTexture : AsyncOperationBase<BitmapSet> {
       protected override void Execute() {
         Texture2D noiseTexture;
         if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
@@ -366,8 +362,8 @@ namespace SS.System {
 
       public void Execute(int startIndex, int count) {
         var random = Randoms[threadIndex];
-        
-        int lastIndex = startIndex+count;
+
+        int lastIndex = startIndex + count;
         for (int index = startIndex; index < lastIndex; ++index) {
           var rand = random.NextUInt();
           if ((rand & 0x300) == 0x300)
@@ -375,7 +371,7 @@ namespace SS.System {
           else
             TextureData[index * Stride] = 0;
         }
-        
+
         Randoms[threadIndex] = random;
       }
     }

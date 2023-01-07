@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using Unity.Mathematics;
-using UnityEngine;
+﻿using Unity.Mathematics;
 
 namespace SS.Data {
   internal struct Vertex {

@@ -1,14 +1,10 @@
-
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using SS.Resources;
+using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
-using Unity.Rendering;
 using UnityEngine;
 
 namespace SS.System {
@@ -79,7 +75,7 @@ namespace SS.System {
         var textureAnimations = chunk.GetNativeArray(ref textureAnimationTypeHandle);
 
         var deltaTime = (ushort)(timeData.DeltaTime * 1000);
-        
+
         for (int i = 0; i < chunk.Count; ++i) {
           var textureAnimation = textureAnimations[i];
 

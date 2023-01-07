@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using System.IO;
-using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.ResourceManagement.Exceptions;
 using UnityEngine.ResourceManagement.ResourceProviders;
@@ -43,7 +42,7 @@ namespace SS.Resources {
 
         var data = File.ReadAllBytes(path); // TODO async
         var result = Convert(provideHandle.Type, data);
-        
+
         provideHandle.Complete(result, result != null, result == null ? new Exception($"Unable to load asset of type {provideHandle.Type} from location {provideHandle.Location}.") : null);
       }
     }

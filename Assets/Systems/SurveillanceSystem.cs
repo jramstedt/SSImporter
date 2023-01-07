@@ -55,7 +55,7 @@ namespace SS.System {
 
           EntityManager.AddComponentObject(entity, camera);
           EntityManager.AddComponentObject(entity, urpCameraData);
-          EntityManager.AddComponentData<CameraAdded>(entity, new CameraAdded(){
+          EntityManager.AddComponentData<CameraAdded>(entity, new CameraAdded() {
             go = gameObject
           });
 

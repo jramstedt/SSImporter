@@ -10,7 +10,7 @@ namespace SS.Resources {
     public TextureMap TextureMap;
     public BlobAssetReference<BlobArray<Entity>> TileMap;
     public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
-    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras;
+    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras; // TODO needs to be mutable
   }
 
   public struct TileLocation : IComponentData {

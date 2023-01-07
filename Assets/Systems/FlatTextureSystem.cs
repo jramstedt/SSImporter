@@ -1,3 +1,4 @@
+using SS.Data;
 using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
@@ -10,9 +11,8 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using static Unity.Mathematics.math;
 using static SS.TextureUtils;
-using SS.Data;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
@@ -41,6 +41,7 @@ namespace SS.System {
       base.OnCreate();
 
       RequireForUpdate<Level>();
+      RequireForUpdate<AsyncLoadTag>();
 
       resourceMaterialMeshInfos = new(512, Allocator.Persistent);
 
@@ -90,7 +91,15 @@ namespace SS.System {
       this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
       this.spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
+      var objectPropertiesOp = Services.ObjectProperties;
+      objectPropertiesOp.Completed += op => {
+        if (op.Status != AsyncOperationStatus.Succeeded)
+          throw op.OperationException;
+
+        objectProperties = objectPropertiesOp.Result;
+
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+      };
     }
 
     protected override void OnUpdate() {
@@ -227,7 +236,7 @@ namespace SS.System {
           this.decorationLookup.Update(this); // TODO FIXME hack
 
           var decorationData = this.decorationLookup.GetRefRO(entity).ValueRO;
-          var textureData = CalculateTextureData(instanceData, decorationData, level, instanceLookup, decorationLookup);
+          var textureData = CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;
@@ -275,8 +284,8 @@ namespace SS.System {
     }
 
     // TODO almost identical to one in SpriteSystem
-    private void BuildPlaneMesh (Mesh mesh, float2 extent, bool doubleSided) {
-      mesh.SetVertexBufferParams(4, 
+    private void BuildPlaneMesh(Mesh mesh, float2 extent, bool doubleSided) {
+      mesh.SetVertexBufferParams(4,
         new VertexAttributeDescriptor(VertexAttribute.Position),
         new VertexAttributeDescriptor(VertexAttribute.Normal),
         new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -309,6 +318,8 @@ namespace SS.System {
       mesh.RecalculateBounds();
       mesh.UploadMeshData(true);
     }
+
+    private struct AsyncLoadTag : IComponentData { }
   }
 
   [BurstCompile]
@@ -319,7 +330,7 @@ namespace SS.System {
 
     [ReadOnly, DeallocateOnJobCompletion] public NativeArray<Entity> entities;
     [ReadOnly, DeallocateOnJobCompletion] public NativeArray<MaterialMeshInfo> meshInfo;
-    
+
     public void Execute(int index) {
       var entity = entities[index];
 
@@ -335,7 +346,7 @@ namespace SS.System {
     }
   }
 
-  public struct FlatTextureInfo : IComponentData {}
+  public struct FlatTextureInfo : IComponentData { }
 
   public struct FlatTexturePart : IComponentData {
     public int CurrentFrame;

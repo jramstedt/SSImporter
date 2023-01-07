@@ -1,11 +1,8 @@
+using SS.Resources;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using SS.ObjectProperties;
-using SS.Resources;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
@@ -40,7 +37,7 @@ namespace SS {
       private AsyncOperationHandle<Palette> paletteOp;
       private AsyncOperationHandle<ShadeTableData> shadeTableOp;
 
-      public CreateColorLookupTable (AsyncOperationHandle<Palette> paletteOp, AsyncOperationHandle<ShadeTableData> shadeTableOp) : base() {
+      public CreateColorLookupTable(AsyncOperationHandle<Palette> paletteOp, AsyncOperationHandle<ShadeTableData> shadeTableOp) : base() {
         this.paletteOp = paletteOp;
         this.shadeTableOp = shadeTableOp;
       }

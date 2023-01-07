@@ -4,7 +4,6 @@ using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
-using UnityEngine;
 
 #pragma warning disable CS0282
 
@@ -92,7 +91,7 @@ namespace SS.System {
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
         }
       }
-      
+
       /// <summary>
       /// This hack is to handle timestamp overflow.
       /// </summary>

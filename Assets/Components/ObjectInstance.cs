@@ -1,9 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
-using SS;
-using Unity.Entities;   
+using Unity.Entities;
 
-namespace SS {
+namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct ObjectInstance : IComponentData {
     [MarshalAs(UnmanagedType.U1)] public bool Active;
@@ -31,10 +30,10 @@ namespace SS {
       public byte Charge => AmmoType;
       public byte Temperature => AmmoCount;
     }
-    
+
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Ammunition : IComponentData {
-        public Link Link;
+      public Link Link;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -249,31 +248,31 @@ namespace SS {
 
   [Flags]
   public enum InstanceFlags : byte {
-      Nothing = 0x00,
-      Hud = 0x01,
-      BlockRendering = 0x02,
-      Unlit = 0x04,
-      Indestructible = 0x08,
-      Useful = 0x10,
-      HasPlayerInteracted = 0x20,
-      ClassSpecific2 = 0x40,
-      ClassSpecific = 0x80,
+    Nothing = 0x00,
+    Hud = 0x01,
+    BlockRendering = 0x02,
+    Unlit = 0x04,
+    Indestructible = 0x08,
+    Useful = 0x10,
+    HasPlayerInteracted = 0x20,
+    ClassSpecific2 = 0x40,
+    ClassSpecific = 0x80,
 
-      // Containers & Corpses
-      NoLootYet = ClassSpecific2,
+    // Containers & Corpses
+    NoLootYet = ClassSpecific2,
 
-      // Enemies
-      Loner = ClassSpecific,
-      WantCloser = ClassSpecific2,
-      NoMove = Hud,
-      NoDoor = BlockRendering,
+    // Enemies
+    Loner = ClassSpecific,
+    WantCloser = ClassSpecific2,
+    NoMove = Hud,
+    NoDoor = BlockRendering,
 
-      // Doors
-      AutoClose = ClassSpecific,
-      AutoClose2 = ClassSpecific2,
+    // Doors
+    AutoClose = ClassSpecific,
+    AutoClose2 = ClassSpecific2,
 
-      // Decoration & Items
-      DataIsObjIdsToUse = Hud
+    // Decoration & Items
+    DataIsObjIdsToUse = Hud
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -307,12 +306,12 @@ namespace SS {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Link {
-      public ushort ObjectIndex;
-      public ushort Next;
-      public ushort Prev;
+    public ushort ObjectIndex;
+    public ushort Next;
+    public ushort Prev;
 
-      public ushort HeadUsed => ObjectIndex;
-      public ushort HeadFree => Next;
+    public ushort HeadUsed => ObjectIndex;
+    public ushort HeadFree => Next;
   }
 
   public enum ActionType : byte {

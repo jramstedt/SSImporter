@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
@@ -31,7 +30,7 @@ namespace SS.Resources {
           else
             locations.Add(new ResourceLocationBase($"{location.PrimaryKey}", $"{location.InternalId}:{block}", location.ProviderId, type));
         }
-        
+
         return locations.Count > 0;
       }
 

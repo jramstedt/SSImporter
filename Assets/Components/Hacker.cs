@@ -1,13 +1,10 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using SS.ObjectProperties;
+using System;
+using System.Runtime.InteropServices;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using UnityEngine;
 
-namespace SS {
+namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public unsafe struct Hacker : IComponentData {
     public const int NUM_LEVELS = 22;
@@ -86,7 +83,7 @@ namespace SS {
     public byte posture;                   // current posture (standing/stooped/prone)
     [MarshalAs(UnmanagedType.U1)] public bool footPlanted;              // Player's foot is planted
     public sbyte leanX;                  // leaning, -100-+100
-    public sbyte leanY;               
+    public sbyte leanY;
 
     private ushort eye;                      // eye position 
 
@@ -128,8 +125,8 @@ namespace SS {
     public fixed byte mfdCurrentSlots[NUM_MFDS];                // ptrs to mfd's curr slots
     public fixed byte mfdEmptyFuncs[NUM_MFDS];                  // ptrs to mfd's empty func
     public fixed byte mfdAccessPuzzles[64];             // this is 4 times as much as that hardcoded 8 up there
-                                              // who knows how much we really need, hopefully in soon
-                                              // KLC - changed to 64
+                                                        // who knows how much we really need, hopefully in soon
+                                                        // KLC - changed to 64
     public fixed sbyte mfdSaveSlot[NUM_MFDS];
 
     // Inventory stuff, in general, a value of zero will indicate an empty slot
@@ -223,7 +220,7 @@ namespace SS {
     /// Initializes new player
     /// init_player
     /// </summary>
-    public void Initialize () { // TODO name, difficulty
+    public void Initialize() { // TODO name, difficulty
       UnsafeUtility.MemClear(UnsafeUtility.AddressOf(ref this), UnsafeUtility.SizeOf<Hacker>());
 
       ReadOnlySpan<short> turnOnQuestBits = stackalloc short[] {
@@ -251,7 +248,7 @@ namespace SS {
       for (var i = 0; i < NUM_LEVELS; ++i)
         initialShodanSecurityLevels[i] = -1;
 
-      hitPoints = PLAYER_MAX_HP * 5/6;
+      hitPoints = PLAYER_MAX_HP * 5 / 6;
       cyperspaceHitPoints = PLAYER_MAX_HP;
       accuracy = MAX_ACCURACY;
       energy = MAX_ENERGY;

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Burst;
@@ -20,7 +18,7 @@ namespace SS.Resources {
       [WriteOnly] public NativeArray<float> result;
 
       public void Execute(int startIndex, int count) {
-        int lastIndex = startIndex+count;
+        int lastIndex = startIndex + count;
         for (int index = startIndex; index < lastIndex; ++index)
           result[index] = (0x80 - wavData[index]) / 128.0f;
       }
@@ -79,14 +77,14 @@ namespace SS.Resources {
 
         audioClip.SetData(result.ToArray(), 0);
 
-/*
+        /*
         ams.Position = 0;
         float[] wavData = new float[ams.Length];
         for (int i = 0; i < ams.Length; ++i)
           wavData[i] = (0x80 - ams.ReadByte()) / 128.0f;
 
         audioClip.SetData(wavData, 0);
-*/
+        */
 
         provideHandle.Complete(audioClip, true, null);
       }

@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 
 namespace SS.ObjectProperties {
@@ -11,17 +10,17 @@ namespace SS.ObjectProperties {
     unsafe public T this[int index] {
       get {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 3)
-              throw new global::System.ArgumentException("index must be between[0...3]");
+        if ((uint)index >= 3)
+          throw new global::System.ArgumentException("index must be between[0...3]");
 #endif
-          fixed (T* array = &x) { return array[index]; }
+        fixed (T* array = &x) { return array[index]; }
       }
       set {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 3)
-              throw new global::System.ArgumentException("index must be between[0...3]");
+        if ((uint)index >= 3)
+          throw new global::System.ArgumentException("index must be between[0...3]");
 #endif
-          fixed (T* array = &x) { array[index] = value; }
+        fixed (T* array = &x) { array[index] = value; }
       }
     }
   }
@@ -36,17 +35,17 @@ namespace SS.ObjectProperties {
     unsafe public T this[int index] {
       get {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 4)
-              throw new global::System.ArgumentException("index must be between[0...3]");
+        if ((uint)index >= 4)
+          throw new global::System.ArgumentException("index must be between[0...3]");
 #endif
-          fixed (T* array = &x) { return array[index]; }
+        fixed (T* array = &x) { return array[index]; }
       }
       set {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 4)
-              throw new global::System.ArgumentException("index must be between[0...3]");
+        if ((uint)index >= 4)
+          throw new global::System.ArgumentException("index must be between[0...3]");
 #endif
-          fixed (T* array = &x) { array[index] = value; }
+        fixed (T* array = &x) { array[index] = value; }
       }
     }
   }
@@ -63,17 +62,17 @@ namespace SS.ObjectProperties {
     unsafe public T this[int index] {
       get {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 6)
-              throw new global::System.ArgumentException("index must be between[0...5]");
+        if ((uint)index >= 6)
+          throw new global::System.ArgumentException("index must be between[0...5]");
 #endif
-          fixed (T* array = &i) { return array[index]; }
+        fixed (T* array = &i) { return array[index]; }
       }
       set {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 6)
-              throw new global::System.ArgumentException("index must be between[0...5]");
+        if ((uint)index >= 6)
+          throw new global::System.ArgumentException("index must be between[0...5]");
 #endif
-          fixed (T* array = &i) { array[index] = value; }
+        fixed (T* array = &i) { array[index] = value; }
       }
     }
   }
@@ -92,17 +91,17 @@ namespace SS.ObjectProperties {
     unsafe public T this[int index] {
       get {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 8)
-              throw new global::System.ArgumentException("index must be between[0...7]");
+        if ((uint)index >= 8)
+          throw new global::System.ArgumentException("index must be between[0...7]");
 #endif
-          fixed (T* array = &i) { return array[index]; }
+        fixed (T* array = &i) { return array[index]; }
       }
       set {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-          if ((uint)index >= 8)
-              throw new global::System.ArgumentException("index must be between[0...7]");
+        if ((uint)index >= 8)
+          throw new global::System.ArgumentException("index must be between[0...7]");
 #endif
-          fixed (T* array = &i) { array[index] = value; }
+        fixed (T* array = &i) { array[index] = value; }
       }
     }
   }

@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
+using SS.Data;
 using SS.Resources;
-using Unity.Burst;
-using Unity.Burst.CompilerServices;
+using System;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -15,11 +10,10 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using static Unity.Mathematics.math;
-using static SS.TextureUtils;
 using UnityEngine.Rendering.Universal;
-using SS.Data;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using static SS.TextureUtils;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
@@ -113,7 +107,7 @@ namespace SS.System {
         };
       }
 
-      this.vertexAttributes = new (5, Allocator.Persistent) {
+      this.vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -135,7 +129,7 @@ namespace SS.System {
       this.vertexAttributes.Dispose();
     }
 
-    protected override void  OnUpdate() {
+    protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
@@ -173,7 +167,7 @@ namespace SS.System {
           meshData.subMeshCount = 2;
           meshData.SetVertexBufferParams(4 * 6, vertexAttributes);
           meshData.SetIndexBufferParams(6 * 6, IndexFormat.UInt16);
-          
+
           ReadOnlySpan<ushort> indiceTemplate = stackalloc ushort[] {
             2, 1, 0, 0, 3, 2,
             4, 5, 6, 6, 7, 4,
@@ -228,7 +222,7 @@ namespace SS.System {
           vertices[17] = new Vertex { pos = verticeTemplate[2], uv = half2(half(1f), half(1f)), light = 0f };
           vertices[18] = new Vertex { pos = verticeTemplate[6], uv = half2(half(1f), half(0f)), light = 0f };
           vertices[19] = new Vertex { pos = verticeTemplate[5], uv = half2(half(0f), half(0f)), light = 0f };
-            
+
           // -X
           vertices[20] = new Vertex { pos = verticeTemplate[0], uv = half2(half(1f), half(1f)), light = 0f };
           vertices[21] = new Vertex { pos = verticeTemplate[3], uv = half2(half(0f), half(1f)), light = 0f };
@@ -291,11 +285,11 @@ namespace SS.System {
 
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
       for (int i = 0; i < entityCount; ++i) {
-          var mesh = meshes[i];
-          mesh.RecalculateNormals();
-          // mesh.RecalculateTangents();
-          mesh.RecalculateBounds();
-          mesh.UploadMeshData(true);
+        var mesh = meshes[i];
+        mesh.RecalculateNormals();
+        // mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
+        mesh.UploadMeshData(true);
       }
 
       var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();

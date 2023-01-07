@@ -1,16 +1,12 @@
 
+using SS.ObjectProperties;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using SS.ObjectProperties;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace SS.Resources {
   public class ObjectProperties : IDisposable {
@@ -152,16 +148,16 @@ namespace SS.Resources {
         ObjectDatasBlobAsset = blobBuilder.CreateBlobAssetReference<ObjectDatas>(Allocator.Persistent);
       }
     }
-    
-    private unsafe void ReadData<T> (in BlobBuilder blobBuilder, BinaryReader binaryReader, ref BlobArray<T> targetBlobArray, int elementCount) where T : struct {
+
+    private unsafe void ReadData<T>(in BlobBuilder blobBuilder, BinaryReader binaryReader, ref BlobArray<T> targetBlobArray, int elementCount) where T : struct {
       var blobArray = blobBuilder.Allocate(ref targetBlobArray, elementCount);
       var realBytes = binaryReader.ReadBytes(UnsafeUtility.SizeOf<T>() * elementCount);
-      
+
       UnsafeUtility.MemCpy(blobArray.GetUnsafePtr(), UnsafeUtility.PinGCArrayAndGetDataAddress(realBytes, out ulong gcHandle), realBytes.LongLength);
       UnsafeUtility.ReleaseGCObject(gcHandle);
 
       // TODO FIXME https://issuetracker.unity3d.com/issues/the-binaryreader-read-data-to-a-span-is-always-zero
-      
+
       // var span = new Span<byte>(blobArray.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * elementCount);
       // var bytes = binaryReader.Read(span);
     }
@@ -176,7 +172,7 @@ namespace SS.Resources {
       ObjectDatasBlobAsset.Dispose();
     }
 
-    public static (int Count, Type Class, Type SubClass)[][] ObjectDeclarations = new []{
+    public static (int Count, Type Class, Type SubClass)[][] ObjectDeclarations = new[]{
       new []{ // 00 Weapons
         (Weapon.NUM_PISTOL_GUN,                 typeof(Weapon), typeof(Weapon.Pistol)),
         (Weapon.NUM_AUTO_GUN,                   typeof(Weapon), typeof(Weapon.Automatic)),
@@ -281,7 +277,7 @@ namespace SS.Resources {
     };
   }
 
-  
+
   [StructLayout(LayoutKind.Sequential)]
   public struct ObjectDatas {
     public BlobArray<Weapon> WeaponProps;

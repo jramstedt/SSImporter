@@ -1,11 +1,10 @@
-﻿using UnityEngine;
-using System.Collections;
-using UnityEngine.ResourceManagement.ResourceProviders;
-using System;
-using UnityEngine.ResourceManagement.ResourceLocations;
-using System.Runtime.InteropServices;
+﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using Unity.Collections;
+using UnityEngine;
+using UnityEngine.ResourceManagement.ResourceLocations;
+using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace SS.Resources {
   public class PaletteProvider : ResourceProviderBase {

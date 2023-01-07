@@ -1,14 +1,14 @@
-using UnityEngine;
+using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
 using Unity.Mathematics;
-using SS.Resources;
-using Random = Unity.Mathematics.Random;
+using UnityEngine;
 using static Unity.Mathematics.math;
-using static SS.System.AnimationData;
+using EventType = SS.Resources.EventType;
+using Random = Unity.Mathematics.Random;
 
 namespace SS.System {
   [BurstCompile]
@@ -31,7 +31,7 @@ namespace SS.System {
 
     [ReadOnly] public BlobAssetReference<BlobArray<Entity>> TileMapBlobAsset;
     [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
-    
+
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookup;
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Trigger> TriggerLookup;
@@ -58,11 +58,11 @@ namespace SS.System {
           _ => trigger.Comparator
         };
 
-        if (comparatorCheck(comparator, entity, out byte specialCode))
-          processTrigger(entity);
+        if (ComparatorCheck(comparator, entity, out byte specialCode))
+          ProcessTrigger(entity);
 
         return true;
-      } else if(InterfaceLookup.HasComponent(entity)) {
+      } else if (InterfaceLookup.HasComponent(entity)) {
         var instance = InstanceLookup[entity];
         var fixture = InterfaceLookup[entity];
 
@@ -72,8 +72,8 @@ namespace SS.System {
           _ => fixture.Comparator
         };
 
-        if (comparatorCheck(comparator, entity, out byte specialCode))
-          processTrigger(entity);
+        if (ComparatorCheck(comparator, entity, out byte specialCode))
+          ProcessTrigger(entity);
 
         return true;
       }
@@ -81,34 +81,34 @@ namespace SS.System {
       return false;
     }
 
-    private unsafe void processTrigger(in Entity entity) {
+    private unsafe void ProcessTrigger(in Entity entity) {
       if (!TriggerLookup.HasComponent(entity)) return;
 
       var instance = InstanceLookup[entity];
       var trigger = TriggerLookup[entity]; // TODO interfaces
-      
+
       var actionParam1 = trigger.ActionParam1;
       var actionParam2 = trigger.ActionParam2;
       var actionParam3 = trigger.ActionParam3;
       var actionParam4 = trigger.ActionParam4;
 
       if (trigger.ActionType == ActionType.Propagate) {
-        timedMulti(actionParam1);
-        timedMulti(actionParam2);
-        timedMulti(actionParam3);
-        timedMulti(actionParam4);
+        TimedMulti(actionParam1);
+        TimedMulti(actionParam2);
+        TimedMulti(actionParam3);
+        TimedMulti(actionParam4);
       } else if (trigger.ActionType == ActionType.Lighting) {
         // Debug.Log($"Light e:{entity.Index} o:{trigger.Link.ObjectIndex} ap3:{trigger.ActionParam3}");
 
         if ((actionParam3 & 0x10000) == 0x10000 || (actionParam3 & 0x20000) == 0x20000)
-          changeLighting(ref instance, ref trigger, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+          ChangeLighting(ref instance, ref trigger, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
         if ((actionParam3 & 0x10000) != 0x10000)
-          changeLighting(ref instance, ref trigger, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+          ChangeLighting(ref instance, ref trigger, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
 
         if ((actionParam2 & 0xFFFF) != 0) {
           var steps = (actionParam2 >> 16) & 0xFFF;
           trigger.ActionParam2 &= 0xF000FFFF; // clear step count
-          
+
           if (steps < NUM_LIGHT_STEPS) {
             trigger.ActionParam2 |= ++steps << 16;
 
@@ -140,10 +140,10 @@ namespace SS.System {
 
           var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
 
-          var timeUnits = questDataParse((ushort)actionParam2);
+          var timeUnits = QuestDataParse((ushort)actionParam2);
           var timeStamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + (TimeUtils.CIT_CYCLE * timeUnits) / TRAP_TIME_UNIT)) + 1);
 
-          var randomTime = questDataParse((ushort)actionParam4);
+          var randomTime = QuestDataParse((ushort)actionParam4);
           if (randomTime != 0) {
             var random = Randoms[threadIndex];
             timeStamp += (ushort)random.NextUInt((uint)randomTime);
@@ -155,7 +155,7 @@ namespace SS.System {
             Type = EventType.Trap
           };
           *((TrapScheduleEvent*)scheduleEvent.Data) = new TrapScheduleEvent {
-            TargetObjectIndex = questDataParse((ushort)actionParam1),
+            TargetObjectIndex = QuestDataParse((ushort)actionParam1),
             SourceObjectIndex = (short)trigger.Link.ObjectIndex
           };
 
@@ -173,22 +173,22 @@ namespace SS.System {
         var maxPhase = actionParam3 == 0 ? 1 : 2;
 
         if (phase == 0)
-          timedMulti((uint)questDataParse((ushort)actionParam1));
+          TimedMulti((uint)QuestDataParse((ushort)actionParam1));
         else if (phase == 1)
-          timedMulti((uint)questDataParse((ushort)actionParam2));
+          TimedMulti((uint)QuestDataParse((ushort)actionParam2));
         else if (phase == 2)
-          timedMulti((uint)questDataParse((ushort)actionParam3));
+          TimedMulti((uint)QuestDataParse((ushort)actionParam3));
 
         if (++phase > maxPhase)
           phase = 0;
 
-        setTrapData(triggerIndex, 4, phase);
+        SetTrapData(triggerIndex, 4, phase);
       } else if (trigger.ActionType == ActionType.ChangeClassData) {
-        changeInstance((ushort)questDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4);
-        changeInstance((ushort)questDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4);
+        ChangeInstance((ushort)QuestDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4);
+        ChangeInstance((ushort)QuestDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4);
       } else if (trigger.ActionType == ActionType.ChangeAnimation) {
-        changeAnimation((ushort)questDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4 != 0);
-        changeAnimation((ushort)questDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4 != 0);
+        ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4 != 0);
+        ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4 != 0);
       } else {
         Debug.LogWarning($"Not supported e:{entity.Index} o:{trigger.Link.ObjectIndex} at:{trigger.ActionType}");
       }
@@ -200,13 +200,13 @@ namespace SS.System {
 
       TriggerLookup[entity] = trigger;
     }
-    
+
     // TODO interfaces
-    private unsafe void changeLighting (ref ObjectInstance instance, ref ObjectInstance.Trigger trigger, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) {
+    private unsafe void ChangeLighting(ref ObjectInstance instance, ref ObjectInstance.Trigger trigger, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) {
       var transitionType = actionParam2 & 0xFFFF;
       var numSteps = transitionType != 0 ? (int)((actionParam2 >> 16) & 0xFFF) : -1;
       byte lightState = (byte)(actionParam2 >> 28); // Are we turning on or off. Last nibble.
-      
+
       var values = stackalloc byte[] {
         (byte)(actionParam4 & 0xFF),
         (byte)((actionParam4 >> 8) & 0xFF),
@@ -218,14 +218,14 @@ namespace SS.System {
 
       int2 rectMin, rectMax;
       if (actionParam3 == 3) { // Radial
-        short radius = questDataParse((ushort)(actionParam1 & 0xFFFF));
+        short radius = QuestDataParse((ushort)(actionParam1 & 0xFFFF));
         rectMin = int2(instance.Location.TileX - radius, instance.Location.TileY - radius);
         rectMax = int2(instance.Location.TileX + radius, instance.Location.TileY + radius);
       } else {
         if (values[0] > 0x0F || values[1] > 0x0F || values[2] > 0x0F || values[3] > 0x0F) return;
 
-        var firstObjID = questDataParse((ushort)(actionParam1 & 0xFFFF));
-        var secondObjID = questDataParse((ushort)(actionParam1 >> 16));
+        var firstObjID = QuestDataParse((ushort)(actionParam1 & 0xFFFF));
+        var secondObjID = QuestDataParse((ushort)(actionParam1 >> 16));
         if (firstObjID == 0 || secondObjID == 0) return;
 
         var firstEntity = ObjectInstancesBlobAsset.Value[firstObjID];
@@ -260,10 +260,10 @@ namespace SS.System {
 
         deltaShade = 0;
       } else {
-        startShade =        lightState != 0 ? values[0] : values[2];
+        startShade = lightState != 0 ? values[0] : values[2];
         var startShadeEnd = lightState != 0 ? values[2] : values[0];
 
-        endShade =        lightState != 0 ? values[1] : values[3];
+        endShade = lightState != 0 ? values[1] : values[3];
         var endShadeEnd = lightState != 0 ? values[3] : values[1];
 
         if (numSteps >= 0 && numSteps < NUM_LIGHT_STEPS) {
@@ -284,7 +284,7 @@ namespace SS.System {
         for (var x = rectMin.x; x <= rectMax.x; ++x) {
           var mapEntity = TileMapBlobAsset.Value[y * LevelInfo.Width + x];
           var mapElement = MapElementLookup[mapEntity];
-          
+
           if (actionParam3 == 3) { // Radial
             var delta = length(float2(
               (x << 8 - instance.Location.X) / 255f,
@@ -292,14 +292,14 @@ namespace SS.System {
             ));
             var radius = (float)(actionParam1 & 0xFFFF);
             if (delta <= radius)
-              tempLight = (byte)(startShade + (delta/radius) * deltaShade);
+              tempLight = (byte)(startShade + (delta / radius) * deltaShade);
             else
               tempLight = floor ? mapElement.ShadeFloorModifier : mapElement.ShadeCeilingModifier;
 
             if (tempLight > MAX_LIGHT_VAL)
               tempLight = MAX_LIGHT_VAL;
           } else if (actionParam3 == 1) { // EW Smooth
-            if (x == rectMax.x-1) // end
+            if (x == rectMax.x - 1) // end
               tempLight = endShade;
             else
               tempLight += deltaShade;
@@ -320,7 +320,7 @@ namespace SS.System {
         if (actionParam3 == 1) { // EW Smooth
           tempLight = startShade;
         } else if (actionParam3 == 2) { // NS Smooth
-          if (y == rectMax.y-1)
+          if (y == rectMax.y - 1)
             tempLight = endShade;
           else
             tempLight += deltaShade;
@@ -334,7 +334,7 @@ namespace SS.System {
     /// <param name="objectIndex"></param>
     /// <param name="parameterNumber">From 1 to 4</param>
     /// <param name="value"></param>
-    private void setTrapData(ushort objectIndex, byte parameterNumber, uint value) {
+    private void SetTrapData(ushort objectIndex, byte parameterNumber, uint value) {
       if (parameterNumber < 1 || parameterNumber > 4) return;
       if (objectIndex == 0) return;
 
@@ -348,7 +348,7 @@ namespace SS.System {
         if (parameterNumber == 4) trigger.ActionParam4 = value;
 
         TriggerLookup[entity] = trigger;
-      } else if(InterfaceLookup.HasComponent(entity)) { 
+      } else if (InterfaceLookup.HasComponent(entity)) {
         var fixture = InterfaceLookup[entity];
 
         if (parameterNumber == 1) fixture.ActionParam1 = value;
@@ -360,7 +360,7 @@ namespace SS.System {
       }
     }
 
-    private void changeInstance(ushort objectIndex, uint actionParam2, uint actionParam3, uint actionParam4) {
+    private void ChangeInstance(ushort objectIndex, uint actionParam2, uint actionParam3, uint actionParam4) {
       if (objectIndex == 0) return;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
@@ -388,12 +388,12 @@ namespace SS.System {
           }
           DoorLookup[entity] = door;
         } else if (instance.Class == ObjectClass.Interface || instance.Class == ObjectClass.Trigger) {
-          setTrapData(objectIndex, (byte)actionParam2, actionParam3);
+          SetTrapData(objectIndex, (byte)actionParam2, actionParam3);
         }
       }
     }
 
-    public void changeAnimation(ushort objectIndex, uint actionParam2, uint actionParam3, bool removeAnimation) {
+    public void ChangeAnimation(ushort objectIndex, uint actionParam2, uint actionParam3, bool removeAnimation) {
       if (objectIndex == 0) return;
 
       byte frames = 0;
@@ -416,7 +416,7 @@ namespace SS.System {
           var cycle = (actionParam3 & 0x10000) == 0x10000; // 1 << 16
 
           if ((actionParam3 & 0xF0000000) > 0) frames = (byte)(actionParam3 >> 28);
-          changeInstance(objectIndex, frames, uint.MaxValue, actionParam3 & 0x7FFF);
+          ChangeInstance(objectIndex, frames, uint.MaxValue, actionParam3 & 0x7FFF);
           instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
           instance.Info.TimeRemaining = 0;
 
@@ -426,10 +426,10 @@ namespace SS.System {
           var cycle = (actionParam2 & 0x10000) == 0x10000; // 1 << 16
 
           if ((actionParam2 & 0xF0000000) > 0) frames = (byte)(actionParam2 >> 28);
-          changeInstance(objectIndex, frames, uint.MaxValue, actionParam2 & 0x7FFF);
+          ChangeInstance(objectIndex, frames, uint.MaxValue, actionParam2 & 0x7FFF);
           instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
           instance.Info.TimeRemaining = 0;
-          
+
           if (actionParam3 != 0)
             animationList.addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
           else
@@ -440,7 +440,7 @@ namespace SS.System {
       }
     }
 
-    public void multi(short objectIndex) {
+    public void Multi(short objectIndex) {
       if (objectIndex == 0) return;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
@@ -454,7 +454,7 @@ namespace SS.System {
       }
     }
 
-    public unsafe void timedMulti(uint param) {
+    public unsafe void TimedMulti(uint param) {
       uint timeUnits = param >> 16; // 0.1 seconds per unit
       if (timeUnits != 0) {
         var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
@@ -464,7 +464,7 @@ namespace SS.System {
           Type = EventType.Trap
         };
         *((TrapScheduleEvent*)scheduleEvent.Data) = new TrapScheduleEvent {
-          TargetObjectIndex = questDataParse((ushort)(param & 0xFFFF)),
+          TargetObjectIndex = QuestDataParse((ushort)(param & 0xFFFF)),
           SourceObjectIndex = -1
         };
 
@@ -473,16 +473,16 @@ namespace SS.System {
         var entity = CommandBuffer.CreateEntity(unfilteredChunkIndex, TriggerEventArchetype);
         CommandBuffer.SetComponent(unfilteredChunkIndex, entity, scheduleEvent);
       } else {
-        multi(questDataParse((ushort)(param & 0xFFFF)));
+        Multi(QuestDataParse((ushort)(param & 0xFFFF)));
       }
     }
 
-    private bool comparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
+    private bool ComparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
       specialCode = 0;
       return true;
     }
 
-    private unsafe short questDataParse(ushort qdata) {
+    private unsafe short QuestDataParse(ushort qdata) {
       short contents = (short)(qdata & 0xFFF);
       if ((qdata & 0x1000) == 0x1000) {
         if (contents >= Shodan.FIRST_SHODAN_QUEST_VAR && (contents <= Shodan.FIRST_SHODAN_QUEST_VAR + Shodan.NUM_SHODAN_LEVELS)) {

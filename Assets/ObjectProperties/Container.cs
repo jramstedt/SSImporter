@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Unity.Entities;
 
 namespace SS.ObjectProperties {
   [Serializable]
@@ -15,7 +14,7 @@ namespace SS.ObjectProperties {
     public const int NUM_OTHER_CORPSE_CONTAINER = 8;
 
     public const int NUM_CONTAINER = NUM_ACTUAL_CONTAINER + NUM_WASTE_CONTAINER + NUM_LIQUID_CONTAINER + NUM_MUTANT_CORPSE_CONTAINER + NUM_ROBOT_CORPSE_CONTAINER + NUM_CYBORG_CORPSE_CONTAINER + NUM_OTHER_CORPSE_CONTAINER;
-    
+
     private short Contents;
     private byte NumContents;
 

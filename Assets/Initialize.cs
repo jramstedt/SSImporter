@@ -1,17 +1,6 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using SS.System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.ResourceLocations;
-using UnityEngine.SceneManagement;
-using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
   public static class Initialize {
@@ -24,7 +13,7 @@ namespace SS.Resources {
       Debug.Log(@"AddressablesInitializeCompleted");
       InitializeResourceManager();
     }
-    
+
     private async static void InitializeResourceManager() {
       // Tests:
       var audioOp = Addressables.LoadAssetAsync<AudioClip>(0x00C9);

@@ -1,3 +1,4 @@
+using SS.Resources;
 using System;
 using System.Runtime.InteropServices;
 

@@ -1,11 +1,11 @@
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Collections;
-using Unity.Entities;
-using Unity.Jobs.LowLevel.Unsafe;
-using static SS.System.AnimationData;
-using Unity.Jobs;
-using UnityEngine;
 using Unity.Burst;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
+using Unity.Jobs;
+using Unity.Jobs.LowLevel.Unsafe;
+using UnityEngine;
+using static SS.System.AnimationData;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -17,7 +17,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      EntityManager.AddComponentData<AnimateObjectSystemData>(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.MaxJobThreadCount, Allocator.TempJob) });
+      EntityManager.AddComponentData(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.MaxJobThreadCount, Allocator.TempJob) });
 
       animationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {

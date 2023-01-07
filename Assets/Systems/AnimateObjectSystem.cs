@@ -1,20 +1,19 @@
-using System.Linq;
-using System.Runtime.InteropServices;
 using SS.Resources;
+using System;
+using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using Random = Unity.Mathematics.Random;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
-using static SS.System.AnimationData;
-using System;
-using Unity.Jobs;
+using Random = Unity.Mathematics.Random;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
@@ -39,10 +38,13 @@ namespace SS.System {
 
     private EntityArchetype triggerEventArchetype;
 
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
+      RequireForUpdate<LevelInfo>();
+      RequireForUpdate<Hacker>();
+      RequireForUpdate<AsyncLoadTag>();
 
       entityTypeHandle = GetEntityTypeHandle();
       animationTypeHandle = GetComponentTypeHandle<AnimationData>();
@@ -69,13 +71,25 @@ namespace SS.System {
         typeof(ScheduleEvent)
       );
 
-      // TODO Make better somehow. Don't load specific file and scan trough.
-      var artResources = await Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res").Task;
-      this.blockCounts = new (artResources.ResourceEntries.Count, Allocator.Persistent);
-      foreach (var (id, resourceInfo) in artResources.ResourceEntries)
-        this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
+      var objectPropertiesOp = Services.ObjectProperties;
+      var artResourcesOp = Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res");
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
+      var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { objectPropertiesOp, artResourcesOp });
+      loadOp.Completed += op => {
+        if (op.Status != AsyncOperationStatus.Succeeded)
+          throw op.OperationException;
+
+        var artResources = artResourcesOp.Result;
+
+        // TODO Make better somehow. Don't load specific file and scan trough.
+        this.blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
+        foreach (var (id, resourceInfo) in artResources.ResourceEntries)
+          this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
+
+        objectProperties = objectPropertiesOp.Result;
+
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+      };
     }
 
     protected override void OnUpdate() {
@@ -105,7 +119,7 @@ namespace SS.System {
       var animateJob = new AnimateAnimationJob {
         entityTypeHandle = entityTypeHandle,
         animationTypeHandle = animationTypeHandle,
-        
+
         ObjectInstancesBlobAsset = level.ObjectInstances,
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
         TimeData = SystemAPI.Time,
@@ -270,7 +284,7 @@ namespace SS.System {
 
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
                     ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-                  
+
                   CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
                 }
               }
@@ -310,32 +324,34 @@ namespace SS.System {
           }
         } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
           if ((userData & 0x20000) == 0x20000) { // 1 << 17
-            Processor.multi((short)(userData & 0x7FFF));
+            Processor.Multi((short)(userData & 0x7FFF));
           } else {
             Debug.Log($"AnimationData.Callback.Animate changeAnimation");
 
-            Processor.changeAnimation(animation.ObjectIndex, 0, userData, false);
+            Processor.ChangeAnimation(animation.ObjectIndex, 0, userData, false);
           }
         } else {
           Debug.LogWarning($"Not supported e:{entity.Index} o:{animation.ObjectIndex} t:{animation.CallbackType} op:{animation.CallbackOperation}");
         }
       }
     }
+
+    private struct AsyncLoadTag : IComponentData { }
   }
 
-  #pragma warning disable CS0282
+#pragma warning disable CS0282
   [BurstCompile]
   public partial struct CollectAnimationDataJob : IJobEntity {
     [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
 
     public void Execute([EntityIndexInQuery] int entityInQueryIndex, in Entity entity, in AnimationData animationData) {
-        CachedAnimations[entityInQueryIndex] = (entity, animationData);
+      CachedAnimations[entityInQueryIndex] = (entity, animationData);
     }
   }
-  #pragma warning restore CS0282
+#pragma warning restore CS0282
 
 
-  public struct AnimatedTag : IComponentData  { }
+  public struct AnimatedTag : IComponentData { }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct AnimationData : IComponentData {
@@ -343,9 +359,9 @@ namespace SS.System {
 
     [Flags]
     public enum AnimationFlags : byte {
-        Repeat = 0x01,
-        Reversing = 0x02,
-        Cyclic = 0x04 // Ping Pong
+      Repeat = 0x01,
+      Reversing = 0x02,
+      Cyclic = 0x04 // Ping Pong
     }
 
     public enum AnimationCallbackType : ushort {

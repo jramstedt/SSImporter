@@ -1,19 +1,18 @@
+using SS.Data;
 using SS.ObjectProperties;
 using SS.Resources;
-using SS.Data;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
-using Unity.Burst;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using static Unity.Mathematics.math;
 using static SS.TextureUtils;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
@@ -35,7 +34,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      RequireForUpdate<SpriteSystemInitializedTag>();
+      RequireForUpdate<AsyncLoadTag>();
 
       this.spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
       this.spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
@@ -131,7 +130,7 @@ namespace SS.System {
           ++artIndex; // Skip editor icon
         }
 
-        EntityManager.AddComponent<SpriteSystemInitializedTag>(this.SystemHandle);
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
     }
 
@@ -182,7 +181,7 @@ namespace SS.System {
           var viewPart = commandBuffer.Instantiate(entityInQueryIndex, prototype);
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new SpritePart { CurrentFrame = currentFrame });
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale) );
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale));
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f / scale) } });
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new MaterialMeshInfo {
             MeshID = spriteMesh.Mesh,
@@ -214,13 +213,13 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    public SpriteMesh GetSprite (Triple triple, int frame = 0) {
+    public SpriteMesh GetSprite(Triple triple, int frame = 0) {
       var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(triple)];
       return spriteMeshes[startIndex + frame];
     }
 
     // TODO almost identical to one in FlatTextureSystem
-    private void BuildSpriteMesh (Mesh mesh, BitmapDesc bitmapDescription) {
+    private void BuildSpriteMesh(Mesh mesh, BitmapDesc bitmapDescription) {
       var pivot = bitmapDescription.AnchorPoint;
 
       var width = bitmapDescription.Size.x;
@@ -231,14 +230,14 @@ namespace SS.System {
         pivot.y = height - 1;
       }
 
-      mesh.SetVertexBufferParams(4, 
+      mesh.SetVertexBufferParams(4,
         new VertexAttributeDescriptor(VertexAttribute.Position),
         new VertexAttributeDescriptor(VertexAttribute.Normal),
         new VertexAttributeDescriptor(VertexAttribute.Tangent),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       );
-      
+
       mesh.SetVertexBufferData(new[] {
         new Vertex { pos = float3(-pivot.x, pivot.y, 0f),                 uv = half2(half(0f), half(1f)), light = 1f },
         new Vertex { pos = float3(-pivot.x, -(height-pivot.y), 0f),       uv = half2(half(0f), half(0f)), light = 0f },
@@ -258,7 +257,7 @@ namespace SS.System {
       mesh.UploadMeshData(true);
     }
 
-    struct SpriteSystemInitializedTag : IComponentData { }
+    private struct AsyncLoadTag : IComponentData { }
   }
 
   public struct SpriteMesh {

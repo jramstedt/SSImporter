@@ -1,24 +1,20 @@
-﻿using UnityEngine;
-using System.Collections;
-using System.IO;
-using System;
-using UnityEngine.ResourceManagement.ResourceLocations;
-using System.Collections.Generic;
-using UnityEngine.AddressableAssets;
-using System.Threading.Tasks;
-using Unity.Entities;
-using Unity.Collections;
-using Unity.Transforms;
+﻿using SS.ObjectProperties;
 using SS.System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Assertions;
-using SS.ObjectProperties;
-using UnityEngine.ResourceManagement.AsyncOperations;
+using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
+using Unity.Transforms;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using Unity.Properties;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -26,7 +22,7 @@ namespace SS.Resources {
     private const ushort ModelResourceIdBase = 2300;
     private const ushort NumResourceIdsPerLevel = 100;
 
-    private static ushort ResourceIdFromLevel (byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
+    private static ushort ResourceIdFromLevel(byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
 
     public static async Task<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
       var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
@@ -150,10 +146,10 @@ namespace SS.Resources {
         materials.Add(i, material);
         materialIds.Add(i, entitiesGraphicsSystem.RegisterMaterial(material));
       }
-      
+
       var mapSystem = world.GetOrCreateSystemManaged<MapElementBuilderSystem>();
       mapSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
-      
+
       var specialMeshSystem = world.GetOrCreateSystemManaged<SpecialMeshSystem>();
       specialMeshSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
@@ -244,10 +240,10 @@ namespace SS.Resources {
           } else if (baseData.DrawType == DrawType.TranslucentPolygon ||
                      baseData.DrawType == DrawType.FlatTexture ||
                      baseData.DrawType == DrawType.TerrainPolygon) {
-            
+
             // TODO add cube collider
           }
-          
+
         }
         #endregion
 
@@ -279,7 +275,7 @@ namespace SS.Resources {
               rep += instanceData.Info.CurrentFrame;
           }
         }
-        
+
         if (instanceData.Class == ObjectClass.Decoration && instanceData.SubClass == 1 /* BIGSTUFF_SUBCLASS_FURNISHING */ && decorationInstances[instanceData.SpecIndex].Data2 == 0) { // Furniture
           const int SECRET_FURNITURE_DEFAULT_O3DREP = 0x80;
           rep = SECRET_FURNITURE_DEFAULT_O3DREP;
@@ -341,7 +337,7 @@ namespace SS.Resources {
               SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               Color = decorationInstanceData.Data2,
               Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT
-          });
+            });
           } else if (instanceData.Triple == 0x70700 /* BRIDGE_TRIPLE */ || instanceData.Triple == 0x70701 /* CATWALK_TRIPLE */ || instanceData.Triple == 0x70706 /* PILLAR_TRIPLE */) {
             var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
 
@@ -372,7 +368,7 @@ namespace SS.Resources {
         }
         #endregion
       }
-      
+
       var surveillanceSourceEntities = new NativeArray<Entity>(TextureUtils.NUM_HACK_CAMERAS, Allocator.Temp);
       for (var i = 0; i < surveillanceSourceEntities.Length; ++i) {
         //var objIndex = surveillanceSources[i];
@@ -396,7 +392,7 @@ namespace SS.Resources {
         entityManager.AddComponentData(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
         entityManager.AddComponentData(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
       }
-      
+
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       entityManager.SetComponentData(levelInfoEntity, levelInfo);
@@ -407,7 +403,7 @@ namespace SS.Resources {
         ObjectInstances = BuildBlob(objectInstanceEntities),
         SurveillanceCameras = BuildBlob(surveillanceSourceEntities)
       };
-      
+
       var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
       using (var mapElementEntities = entityManager.CreateEntity(mapElementArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp)) {
         for (int x = 0; x < levelInfo.Width; ++x) {
@@ -426,9 +422,9 @@ namespace SS.Resources {
 
         level.TileMap = BuildBlob(mapElementEntities);
       }
-      
+
       entityManager.SetComponentData(levelInfoEntity, level);
-      
+
       var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
       var hackerEntity = entityManager.CreateEntity(hackerArchetype);
       hackerState.Initialize(); // TODO FIXME only on new game
@@ -437,7 +433,7 @@ namespace SS.Resources {
         if (hackerState.initialShodanSecurityLevels[hackerState.currentLevel] == -1)
           hackerState.initialShodanSecurityLevels[hackerState.currentLevel] = hackerState.GetQuestVar(Shodan.GetShodanQuestVar(hackerState.currentLevel));
       }
-      
+
       entityManager.SetComponentData(hackerEntity, hackerState);
 
       //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
@@ -446,7 +442,7 @@ namespace SS.Resources {
       return world;
     }
 
-    private static unsafe BlobAssetReference<BlobArray<Entity>> BuildBlob (in NativeArray<Entity> entities) {
+    private static unsafe BlobAssetReference<BlobArray<Entity>> BuildBlob(in NativeArray<Entity> entities) {
       using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp)) {
         ref var tileArrayAsset = ref blobBuilder.ConstructRoot<BlobArray<Entity>>();
         var tileArray = blobBuilder.Allocate(ref tileArrayAsset, entities.Length);
@@ -457,15 +453,15 @@ namespace SS.Resources {
 
     private static MapElement[,] ReadMapElements(byte[] rawData, in LevelInfo levelInfo) {
       using (MemoryStream ms = new MemoryStream(rawData)) {
-          BinaryReader msbr = new BinaryReader(ms);
+        BinaryReader msbr = new BinaryReader(ms);
 
-          MapElement[,] mapElements = new MapElement[levelInfo.Width, levelInfo.Height];
+        MapElement[,] mapElements = new MapElement[levelInfo.Width, levelInfo.Height];
 
-          for (uint y = 0; y < levelInfo.Height; ++y)
-              for (uint x = 0; x < levelInfo.Width; ++x)
-                  mapElements[x, y] = msbr.Read<MapElement>();
+        for (uint y = 0; y < levelInfo.Height; ++y)
+          for (uint x = 0; x < levelInfo.Width; ++x)
+            mapElements[x, y] = msbr.Read<MapElement>();
 
-          return mapElements;
+        return mapElements;
       }
     }
 

@@ -2,7 +2,6 @@ using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Core;
 using Unity.Entities;
 using UnityEngine;
 
@@ -11,7 +10,7 @@ using UnityEngine;
 namespace SS.System {
   [BurstCompile]
   [UpdateAfter(typeof(UpdateWorldTimeSystem))]
-  [UpdateInGroup (typeof(InitializationSystemGroup))]
+  [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial struct RootTriggerSystem : ISystem, ISystemStartStop {
     private const double NextContinuousSeconds = 5.0;
 
@@ -87,7 +86,7 @@ namespace SS.System {
       [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
-      
+
       public bool TrggerContinuous;
       public bool TriggerLevelEnter;
 

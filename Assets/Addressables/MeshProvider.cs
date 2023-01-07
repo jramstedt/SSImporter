@@ -1,15 +1,10 @@
-﻿using UnityEngine;
-using System.Collections;
-using UnityEngine.ResourceManagement;
-using System;
-using System.IO;
-using Unity.Mathematics;
+﻿using System;
+using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Collections;
-using Unity.Entities;
-using System.Collections.Generic;
 
 namespace SS.Resources {
   public unsafe class MeshProvider : ResourceProviderBase {

@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Unity.Entities;
 
 namespace SS.ObjectProperties {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -21,7 +20,7 @@ namespace SS.ObjectProperties {
     public byte ProjectileOffset;
     public int Flags;
     [MarshalAs(UnmanagedType.U1)] public bool Mirror;
-    
+
     public EightOf<byte> Frames;
     public byte AnimSpeed;
 
@@ -70,7 +69,7 @@ namespace SS.ObjectProperties {
     public struct Boss {
       private byte Dummy;
     }
-    
+
     [Flags]
     public enum DefenceFlags : byte {
       IgnoreGravity = 0x01,

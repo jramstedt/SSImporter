@@ -3,7 +3,6 @@ using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Rendering;
 using UnityEngine;
 using static Unity.Mathematics.math;
 
@@ -18,7 +17,7 @@ namespace SS.System {
       base.OnCreate();
 
       RequireForUpdate<LevelInfo>();
-      RequireForUpdate<LightmapBuilderSystemInitializedTag>();
+      RequireForUpdate<AsyncLoadTag>();
 
       mapElementQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -32,7 +31,7 @@ namespace SS.System {
       lightmapOp.Completed += op => {
         lightmap = lightmapOp.Result;
 
-        EntityManager.AddComponent<LightmapBuilderSystemInitializedTag>(this.SystemHandle);
+        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
     }
 
@@ -54,11 +53,11 @@ namespace SS.System {
       CompleteDependency();
 
       EntityManager.RemoveComponent<LightmapRebuildTag>(mapElementQuery);
-      
+
       lightmap.Apply(false, false);
     }
-    
-    struct LightmapBuilderSystemInitializedTag : IComponentData { }
+
+    private struct AsyncLoadTag : IComponentData { }
   }
 
   [BurstCompile]
@@ -80,7 +79,7 @@ namespace SS.System {
         var pixelIndex = (tileLocation.Y * levelInfo.Width + tileLocation.X) * stride;
 
         lightmap[pixelIndex] = (byte)(clamp(mapElement.ShadeFloor - mapElement.ShadeFloorModifier, 0, 0x0F));
-        lightmap[pixelIndex+1] = (byte)(clamp(mapElement.ShadeCeiling - mapElement.ShadeCeilingModifier, 0, 0x0F));
+        lightmap[pixelIndex + 1] = (byte)(clamp(mapElement.ShadeCeiling - mapElement.ShadeCeilingModifier, 0, 0x0F));
       }
     }
   }
