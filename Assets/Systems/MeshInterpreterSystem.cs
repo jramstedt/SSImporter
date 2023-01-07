@@ -35,11 +35,11 @@ namespace SS.System {
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     #region Dynamic mesh job variables
-    private VertexState[] vertexBuffer = new VertexState[1000];
+    private readonly VertexState[] vertexBuffer = new VertexState[1000];
 
-    private byte[] vertexColor = new byte[32];
+    private readonly byte[] vertexColor = new byte[32];
 
-    unsafe private byte* parameterData = (byte*)UnsafeUtility.Malloc(4 * 100, 4, Allocator.Persistent);
+    private readonly unsafe byte* parameterData = (byte*)UnsafeUtility.Malloc(4 * 100, 4, Allocator.Persistent);
 
     private DrawState drawState;
     private NativeList<Vertex> subMeshVertices;
@@ -113,15 +113,15 @@ namespace SS.System {
       };
 
       this.renderMeshDescription = new RenderMeshDescription(
-        shadowCastingMode: ShadowCastingMode.On,
-        receiveShadows: true,
-        staticShadowCaster: true
+        shadowCastingMode: ShadowCastingMode.Off,
+        receiveShadows: false,
+        staticShadowCaster: false
       );
 
       this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
       this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion();
+      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
     }
 
     protected override void OnDestroy() {
@@ -270,7 +270,6 @@ namespace SS.System {
           renderMeshDescription,
           new RenderMeshArray(new Material[0], new Mesh[0])
         );
-        EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
         var level = SystemAPI.GetSingleton<Level>();
 

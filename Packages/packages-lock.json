@@ -14,15 +14,6 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.unity.ai.navigation": {
-      "version": "1.1.1",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {
-        "com.unity.modules.ai": "1.0.0"
-      },
-      "url": "https://packages.unity.com"
-    },
     "com.unity.burst": {
       "version": "1.8.2",
       "depth": 1,
@@ -43,7 +34,7 @@
     },
     "com.unity.collections": {
       "version": "2.1.0-pre.2",
-      "depth": 1,
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.7.4",
@@ -55,7 +46,7 @@
     },
     "com.unity.entities": {
       "version": "1.0.0-pre.15",
-      "depth": 0,
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.7.4",
@@ -117,7 +108,7 @@
     },
     "com.unity.nuget.mono-cecil": {
       "version": "1.11.4",
-      "depth": 1,
+      "depth": 2,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -131,7 +122,7 @@
     },
     "com.unity.profiling.core": {
       "version": "1.0.2",
-      "depth": 1,
+      "depth": 2,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -175,7 +166,7 @@
     },
     "com.unity.serialization": {
       "version": "3.0.0-pre.1",
-      "depth": 1,
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.collections": "2.1.0-pre.2",
@@ -217,7 +208,7 @@
     },
     "com.unity.test-framework.performance": {
       "version": "2.8.0-preview",
-      "depth": 1,
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.1.0",

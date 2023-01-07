@@ -38,7 +38,6 @@ namespace SS.Resources {
 
       #region Load archive.dat
       Debug.Log(@"Load archive.dat");
-      await Task.Yield();
       await SaveLoader.LoadMap(1, Initialization.rootPath + @"\DATA", @"ARCHIVE.DAT");
       #endregion
     }

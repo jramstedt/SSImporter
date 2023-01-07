@@ -49,7 +49,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
         {
             Name "Unlit"
 
-            // -------------------------------------
+                        // -------------------------------------
             // Render State Commands
             AlphaToMask[_AlphaToMask]
 

@@ -1,27 +1,24 @@
-using System.Collections.Generic;
 using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
-using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 using static SS.TextureUtils;
+using SS.Data;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class FlatTextureSystem : SystemBase {
-    private NativeParallelHashMap<BatchMaterialID, MaterialMeshInfo> resourceMaterialMeshInfos;
+    private NativeParallelHashMap<(BatchMaterialID, ushort), MaterialMeshInfo> resourceMaterialMeshInfos;
 
     private EntityQuery newFlatTextureQuery;
     private EntityQuery activeFlatTextureQuery;
@@ -81,9 +78,9 @@ namespace SS.System {
       );
 
       this.renderMeshDescription = new RenderMeshDescription(
-        shadowCastingMode: ShadowCastingMode.On,
-        receiveShadows: true,
-        staticShadowCaster: true
+        shadowCastingMode: ShadowCastingMode.Off,
+        receiveShadows: false,
+        staticShadowCaster: false
       );
 
       this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
@@ -93,7 +90,7 @@ namespace SS.System {
       this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
       this.spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion();
+      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
     }
 
     protected override void OnUpdate() {
@@ -109,9 +106,8 @@ namespace SS.System {
         var animatedEntities = activeFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         using var instanceDatas = activeFlatTextureQuery.ToComponentDataArray<ObjectInstance>(Allocator.TempJob);
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
-        var entityRefWidth = new NativeArray<float>(animatedEntities.Length, Allocator.TempJob);
 
-        processEntities(level, animatedEntities, instanceDatas, entityMeshInfo, entityRefWidth);
+        ProcessEntities(level, animatedEntities, instanceDatas, entityMeshInfo);
 
         // GetBufferLookup<Child>(true);
 
@@ -124,8 +120,8 @@ namespace SS.System {
 
             var viewPart = children[0].Value;
 
-            commandBuffer.SetComponent(viewPart, LocalTransform.FromScale(1f / entityRefWidth[index]));
-            commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * entityRefWidth[index]) } });
+            commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
+            commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f) } });
             commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
           }
         }
@@ -135,9 +131,8 @@ namespace SS.System {
         var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         using var instanceDatas = newFlatTextureQuery.ToComponentDataArray<ObjectInstance>(Allocator.TempJob);
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.TempJob);
-        var entityRefWidth = new NativeArray<float>(newEntities.Length, Allocator.TempJob);
 
-        processEntities(level, newEntities, instanceDatas, entityMeshInfo, entityRefWidth);
+        ProcessEntities(level, newEntities, instanceDatas, entityMeshInfo);
 
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
         RenderMeshUtility.AddComponents(
@@ -146,7 +141,6 @@ namespace SS.System {
           renderMeshDescription,
           new RenderMeshArray(new Material[0], new Mesh[0])
         );
-        EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
         var createSpriteEntitiesJob = new CreateSpriteEntitiesJob() {
           commandBuffer = commandBuffer.AsParallelWriter(),
@@ -154,8 +148,7 @@ namespace SS.System {
           prototype = prototype,
 
           entities = newEntities,
-          meshInfo = entityMeshInfo,
-          refWidth = entityRefWidth
+          meshInfo = entityMeshInfo
         };
 
         Dependency = createSpriteEntitiesJob.Schedule(newEntities.Length, 64, Dependency);
@@ -167,15 +160,12 @@ namespace SS.System {
       // Dependency.Complete();
     }
 
-    private void processEntities(Level level, NativeArray<Entity> newEntities, NativeArray<ObjectInstance> instanceDatas, NativeArray<MaterialMeshInfo> entityMeshInfo, NativeArray<float> entityRefWidth) {
+    private void ProcessEntities(Level level, NativeArray<Entity> newEntities, NativeArray<ObjectInstance> instanceDatas, NativeArray<MaterialMeshInfo> entityMeshInfo) {
       for (int entityIndex = 0; entityIndex < newEntities.Length; ++entityIndex) {
         var entity = newEntities[entityIndex];
         var instanceData = instanceDatas[entityIndex];
 
-        float refWidth = 64f;
-        var materialID = GetResource(entity, instanceData, level, ref refWidth);
-
-        entityRefWidth[entityIndex] = refWidth;
+        var materialID = GetResource(entity, instanceData, level, out ushort refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
@@ -183,12 +173,12 @@ namespace SS.System {
           materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true);
         }
 
-        if (resourceMaterialMeshInfos.TryGetValue(materialID, out var materialMeshInfo)) {
+        if (resourceMaterialMeshInfos.TryGetValue((materialID, refWidthOverride), out var materialMeshInfo)) {
           entityMeshInfo[entityIndex] = materialMeshInfo;
           continue; // Sprite already built. Skip loading.
         }
 
-        Mesh mesh = new Mesh();
+        var mesh = new Mesh();
 
         // TODO ref count and remove & unregister unneeded resources?
 
@@ -201,7 +191,7 @@ namespace SS.System {
         entityMeshInfo[entityIndex] = materialMeshInfo;
 
         var isDoubleSided = instanceData.Class == ObjectClass.DoorAndGrating;
-        if (resourceMaterialMeshInfos.TryAdd(materialID, materialMeshInfo)) {
+        if (resourceMaterialMeshInfos.TryAdd((materialID, refWidthOverride), materialMeshInfo)) {
           var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
           loadOp.Completed += loadOp => {
             if (loadOp.Status != AsyncOperationStatus.Succeeded)
@@ -209,7 +199,11 @@ namespace SS.System {
 
             var bitmapDesc = loadOp.Result;
 
-            BuildPlaneMesh(mesh, float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 2f, isDoubleSided);
+            float scale = 1f;
+            if (refWidthOverride > 0)
+              scale = refWidthOverride / bitmapDesc.Size.x;
+
+            BuildPlaneMesh(mesh, scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 128f, isDoubleSided);
           };
         }
       }
@@ -221,8 +215,10 @@ namespace SS.System {
       resourceMaterialMeshInfos.Dispose();
     }
 
-    private BatchMaterialID GetResource(in Entity entity, in ObjectInstance instanceData, in Level level, ref float refWidth) {
+    private BatchMaterialID GetResource(in Entity entity, in ObjectInstance instanceData, in Level level, out ushort refWidthOverride) {
       var baseProperties = objectProperties.BasePropertyData(instanceData);
+
+      refWidthOverride = 0;
 
       if (baseProperties.DrawType == DrawType.TerrainPolygon) {
         const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
@@ -234,23 +230,27 @@ namespace SS.System {
           var textureData = CalculateTextureData(instanceData, decorationData, level, instanceLookup, decorationLookup);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
-            refWidth = 128f;
+            refWidthOverride = 128;
 
             unsafe {
               return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true);
             }
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidth = 64f;
+            refWidthOverride = 128; // 1 << 7
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidth = 32f;
+            refWidthOverride = 64; // 1 << 6
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidth = 64f;
+            refWidthOverride = 32; // 1 << 5
             return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else {
+            var materialID = materialProviderSystem.ParseTextureData(textureData, true, out var textureType, out var scale);
+            refWidthOverride = (ushort)(1 << scale);
+            return materialID;
           }
         }
       } else if (baseProperties.DrawType == DrawType.FlatTexture) {
@@ -311,13 +311,6 @@ namespace SS.System {
     }
   }
 
-  public enum TextureType {
-    Alt, // TPOLY_TYPE_ALT_TMAP
-    Custom, // TPOLY_TYPE_CUSTOM_MAT
-    Text, // TPOLY_TYPE_TEXT_BITMAP
-    ScrollText // TPOLY_TYPE_SCROLL_TEXT
-  }
-
   [BurstCompile]
   struct CreateSpriteEntitiesJob : IJobParallelFor {
     public EntityCommandBuffer.ParallelWriter commandBuffer;
@@ -326,7 +319,6 @@ namespace SS.System {
 
     [ReadOnly, DeallocateOnJobCompletion] public NativeArray<Entity> entities;
     [ReadOnly, DeallocateOnJobCompletion] public NativeArray<MaterialMeshInfo> meshInfo;
-    [ReadOnly, DeallocateOnJobCompletion] public NativeArray<float> refWidth;
     
     public void Execute(int index) {
       var entity = entities[index];
@@ -335,8 +327,8 @@ namespace SS.System {
 
       commandBuffer.SetComponent(index, viewPart, new FlatTexturePart { CurrentFrame = 0 }); // TODO FIXME
       commandBuffer.SetComponent(index, viewPart, new Parent { Value = entity });
-      commandBuffer.SetComponent(index, viewPart, LocalTransform.FromScale(1f / refWidth[index]));
-      commandBuffer.SetComponent(index, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f * refWidth[index]) } });
+      commandBuffer.SetComponent(index, viewPart, LocalTransform.Identity);
+      commandBuffer.SetComponent(index, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f) } });
       commandBuffer.SetComponent(index, viewPart, meshInfo[index]);
 
       commandBuffer.AddComponent<FlatTextureAddedTag>(index, entity);

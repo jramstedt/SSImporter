@@ -17,6 +17,8 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using Unity.Properties;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -30,10 +32,10 @@ namespace SS.Resources {
       var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
       var saveData = await loadOp.Task;
 
-      var palette = Services.Palette.WaitForCompletion();
-      var shadetable = Services.ShadeTable.WaitForCompletion();
-      var allTextureProperties = Services.TextureProperties.WaitForCompletion();
-      var objectProperties = Services.ObjectProperties.WaitForCompletion();
+      var palette = await Services.Palette.Task;
+      var shadetable = await Services.ShadeTable.Task;
+      var allTextureProperties = await Services.TextureProperties.Task;
+      var objectProperties = await Services.ObjectProperties.Task;
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
@@ -103,12 +105,13 @@ namespace SS.Resources {
 
       var entitiesGraphicsSystem = world.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-      world.GetOrCreateSystem<PaletteEffectSystem>();
+      // world.GetOrCreateSystem<PaletteEffectSystem>();
 
-      var clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
-      var lightmap = Services.LightmapTexture.WaitForCompletion();
+      var clutTexture = await Services.ColorLookupTableTexture.Task;
+      var lightmap = await Services.LightmapTexture.Task;
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
+      // TODO FIXME move material creations to own system with signleton entity access to material IDs
 
       var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
       var textureProperties = new TextureProperties[TextureMap.NUM_LOADED_TEXTURES];
@@ -131,30 +134,28 @@ namespace SS.Resources {
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
         material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
         material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
-        material.DisableKeyword(@"_SPECGLOSSMAP");
-        material.DisableKeyword(@"_SPECULAR_COLOR");
-        material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-        material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+        material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+        material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+        material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
 
         material.EnableKeyword(@"LINEAR");
         if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
         else material.DisableKeyword(@"TRANSPARENCY_ON");
 
-        material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+        material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+        material.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+        material.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
         material.enableInstancing = true;
 
         materials.Add(i, material);
         materialIds.Add(i, entitiesGraphicsSystem.RegisterMaterial(material));
       }
-
+      
       var mapSystem = world.GetOrCreateSystemManaged<MapElementBuilderSystem>();
       mapSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
-
+      
       var specialMeshSystem = world.GetOrCreateSystemManaged<SpecialMeshSystem>();
       specialMeshSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
-
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
       var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent); // Don't dispose.
       var animateTexturesSystem = world.GetOrCreateSystemManaged<AnimateTexturesSystem>();
@@ -251,6 +252,39 @@ namespace SS.Resources {
         #endregion
 
         #region Rendering
+        // ?? compute_3drep
+
+        var rep = -1;
+        if (instanceData.Class == ObjectClass.Decoration &&
+            (baseData.DrawType == DrawType.TexturedPolygon || instanceData.Triple == 0x70206 /*SCREEN_TRIPLE*/ || instanceData.Triple == 0x70208 /*SUPERSCREEN_TRIPLE*/ || instanceData.Triple == 0x70209 /*BIGSCREEN_TRIPLE*/) &&
+            (decorationInstances[instanceData.SpecIndex].Data2 != 0 /* || is animating */ )) {
+
+          const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
+          const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
+
+          var data = decorationInstances[instanceData.SpecIndex].Data2;
+          if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
+            var newObjId = data & INDIRECTED_STUFF_DATA_MASK;
+            var dataObj = objectInstances[newObjId];
+            rep = (int)decorationInstances[dataObj.SpecIndex].Data2 + dataObj.Info.CurrentFrame;
+          } else {
+            rep = (int)decorationInstances[instanceData.SpecIndex].Data2 + instanceData.Info.CurrentFrame;
+          }
+        } else {
+          if (baseData.DrawType == DrawType.TerrainPolygon || baseData.DrawType == DrawType.TexturedPolygon) {
+            rep = 0;
+          } else {
+            rep = (baseData.Bitmap & 0x3FF) + ((baseData.Bitmap & 0x8000) >> 5);
+            if (baseData.DrawType != DrawType.Voxel && instanceData.Class != ObjectClass.DoorAndGrating && instanceData.Info.CurrentFrame != -1)
+              rep += instanceData.Info.CurrentFrame;
+          }
+        }
+        
+        if (instanceData.Class == ObjectClass.Decoration && instanceData.SubClass == 1 /* BIGSTUFF_SUBCLASS_FURNISHING */ && decorationInstances[instanceData.SpecIndex].Data2 == 0) { // Furniture
+          const int SECRET_FURNITURE_DEFAULT_O3DREP = 0x80;
+          rep = SECRET_FURNITURE_DEFAULT_O3DREP;
+        }
+
         if (baseData.DrawType == DrawType.TexturedPolygon) {
           var modelOp = Addressables.LoadAssetAsync<MeshInfo>($"{ModelResourceIdBase + baseData.MfdId}");
           modelOp.Completed += op => {
@@ -338,7 +372,7 @@ namespace SS.Resources {
         }
         #endregion
       }
-
+      
       var surveillanceSourceEntities = new NativeArray<Entity>(TextureUtils.NUM_HACK_CAMERAS, Allocator.Temp);
       for (var i = 0; i < surveillanceSourceEntities.Length; ++i) {
         //var objIndex = surveillanceSources[i];
@@ -350,19 +384,19 @@ namespace SS.Resources {
 
         entityManager.AddComponentData(entity, new SurveillanceSource() {
           CameraIndex = i
-      });
+        });
       }
 
       var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
       using (var paletteEffects = entityManager.CreateEntity(paletteEffectArchetype, 6, Allocator.Temp)) {
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[0], new PaletteEffect { First = 0x03, Last = 0x07, FrameTime = 68, TimeRemaining = 0 });
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[1], new PaletteEffect { First = 0x0B, Last = 0x0F, FrameTime = 40, TimeRemaining = 0 });
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[2], new PaletteEffect { First = 0x10, Last = 0x14, FrameTime = 20, TimeRemaining = 0 });
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[3], new PaletteEffect { First = 0x15, Last = 0x17, FrameTime = 108, TimeRemaining = 0 });
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
-        entityManager.AddComponentData<PaletteEffect>(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[0], new PaletteEffect { First = 0x03, Last = 0x07, FrameTime = 68, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[1], new PaletteEffect { First = 0x0B, Last = 0x0F, FrameTime = 40, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[2], new PaletteEffect { First = 0x10, Last = 0x14, FrameTime = 20, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[3], new PaletteEffect { First = 0x15, Last = 0x17, FrameTime = 108, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[4], new PaletteEffect { First = 0x18, Last = 0x1A, FrameTime = 84, TimeRemaining = 0 });
+        entityManager.AddComponentData(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
       }
-
+      
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       entityManager.SetComponentData(levelInfoEntity, levelInfo);
@@ -373,7 +407,7 @@ namespace SS.Resources {
         ObjectInstances = BuildBlob(objectInstanceEntities),
         SurveillanceCameras = BuildBlob(surveillanceSourceEntities)
       };
-
+      
       var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
       using (var mapElementEntities = entityManager.CreateEntity(mapElementArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp)) {
         for (int x = 0; x < levelInfo.Width; ++x) {
@@ -392,7 +426,7 @@ namespace SS.Resources {
 
         level.TileMap = BuildBlob(mapElementEntities);
       }
-
+      
       entityManager.SetComponentData(levelInfoEntity, level);
       
       var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
@@ -447,7 +481,7 @@ namespace SS.Resources {
       complete.filterMode = tex128x128.Result.Texture.filterMode;
       complete.wrapMode = tex128x128.Result.Texture.wrapMode;
 
-      if (SystemInfo.copyTextureSupport.HasFlag(UnityEngine.Rendering.CopyTextureSupport.Basic)) {
+      if (SystemInfo.copyTextureSupport.HasFlag(CopyTextureSupport.Basic)) {
         Graphics.CopyTexture(tex128x128.Result.Texture, 0, 0, complete, 0, 0);
         Graphics.CopyTexture(tex64x64.Result.Texture, 0, 0, complete, 0, 1);
         Graphics.CopyTexture(tex32x32.Result.Texture, 0, 0, complete, 0, 2);
@@ -472,13 +506,5 @@ namespace SS.Resources {
 
       return result;
     }
-  }
-
-  public struct Level : IComponentData {
-    public byte Id;
-    public TextureMap TextureMap;
-    public BlobAssetReference<BlobArray<Entity>> TileMap;
-    public BlobAssetReference<BlobArray<Entity>> ObjectInstances;
-    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras;
   }
 }

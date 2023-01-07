@@ -1,11 +1,13 @@
 using SS.ObjectProperties;
 using SS.Resources;
+using SS.Data;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
+using Unity.Burst;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
@@ -23,9 +25,7 @@ namespace SS.System {
 
     private EntityArchetype viewPartArchetype;
 
-    private Resources.ObjectProperties objectProperties;
-    private EntitiesGraphicsSystem entitiesGraphicsSystem;
-    private MaterialProviderSystem materialProviderSystem;
+    private BlobAssetReference<ObjectDatas> objectProperties;
     private RenderMeshDescription renderMeshDescription;
 
     private NativeArray<ushort> spriteBase;
@@ -34,6 +34,8 @@ namespace SS.System {
 
     protected override void OnCreate() {
       base.OnCreate();
+
+      RequireForUpdate<SpriteSystemInitializedTag>();
 
       this.spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
       this.spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
@@ -70,60 +72,67 @@ namespace SS.System {
       );
 
       this.renderMeshDescription = new RenderMeshDescription(
-        shadowCastingMode: ShadowCastingMode.On,
-        receiveShadows: true,
-        staticShadowCaster: true
+        shadowCastingMode: ShadowCastingMode.Off,
+        receiveShadows: false,
+        staticShadowCaster: false
       );
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion();
+      var objectPropertiesOp = Services.ObjectProperties;
+      objectPropertiesOp.Completed += op => {
+        if (op.Status != AsyncOperationStatus.Succeeded)
+          throw op.OperationException;
 
-      this.entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+        var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+        var materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+        objectProperties = objectPropertiesOp.Result.ObjectDatasBlobAsset;
 
-      ushort bitmapIndex = 1;
-      ushort artIndex = 1;
-      for (var i = 0; i < Base.NUM_OBJECT; ++i) {
-        var baseData = objectProperties.BasePropertyData(i);
-        var frameCount = baseData.BitmapFrameCount + 1;
+        ushort bitmapIndex = 1;
+        ushort artIndex = 1;
+        for (var i = 0; i < Base.NUM_OBJECT; ++i) {
+          var baseData = objectProperties.Value.BasePropertyData(i);
+          var frameCount = baseData.BitmapFrameCount + 1;
 
-        spriteBase[i] = bitmapIndex;
+          spriteBase[i] = bitmapIndex;
 
-        ++artIndex; // Skip 2D icon
+          ++artIndex; // Skip 2D icon
 
-        for (var j = 0; j < frameCount; ++j) {
-          var materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{artIndex}", true);
-          Mesh mesh = new Mesh();
+          for (var j = 0; j < frameCount; ++j) {
+            var materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{artIndex}", true);
+            var mesh = new Mesh();
 
-          spriteMeshes[bitmapIndex] = new SpriteMesh {
-            Material = materialID,
-            Mesh = entitiesGraphicsSystem.RegisterMesh(mesh),
-            AnchorPoint = default
-          };
-          
-          spriteIndices[bitmapIndex] = artIndex;
+            spriteMeshes[bitmapIndex] = new SpriteMesh {
+              Material = materialID,
+              Mesh = entitiesGraphicsSystem.RegisterMesh(mesh),
+              AnchorPoint = default
+            };
 
-          var currentBitmapIndex = bitmapIndex; // cache for load op
-          var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
-          loadOp.Completed += loadOp => {
-            if (loadOp.Status != AsyncOperationStatus.Succeeded)
-              throw loadOp.OperationException;
-            
-            var bitmapDesc = loadOp.Result;
+            spriteIndices[bitmapIndex] = artIndex;
 
-            BuildSpriteMesh(mesh, bitmapDesc);
+            var currentBitmapIndex = bitmapIndex; // cache for load op
+            var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
+            loadOp.Completed += loadOp => {
+              if (loadOp.Status != AsyncOperationStatus.Succeeded)
+                throw loadOp.OperationException;
 
-            unsafe {
-              ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), currentBitmapIndex); //ref spriteMeshes[currentBitmapIndex];
-              spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
-            }
-          };
+              var bitmapDesc = loadOp.Result;
 
-          ++artIndex;
-          ++bitmapIndex;
+              BuildSpriteMesh(mesh, bitmapDesc);
+
+              unsafe {
+                ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), currentBitmapIndex); //ref spriteMeshes[currentBitmapIndex];
+                spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
+              }
+            };
+
+            ++artIndex;
+            ++bitmapIndex;
+          }
+
+          ++artIndex; // Skip editor icon
         }
 
-        ++artIndex; // Skip editor icon
-      }
+        EntityManager.AddComponent<SpriteSystemInitializedTag>(this.SystemHandle);
+      };
     }
 
     protected override void OnDestroy() {
@@ -136,7 +145,6 @@ namespace SS.System {
 
     protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
-      var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
       RenderMeshUtility.AddComponents(
@@ -145,16 +153,22 @@ namespace SS.System {
         renderMeshDescription,
         new RenderMeshArray(new Material[0], new Mesh[0])
       );
-      EntityManager.RemoveComponent<RenderMeshArray>(prototype);
+
+      var objectProperties = this.objectProperties;
+      var spriteBase = this.spriteBase;
+      var spriteMeshes = this.spriteMeshes;
+      var commandBuffer = ecbSystem.CreateCommandBuffer().AsParallelWriter();
 
       Entities
         .WithAll<SpriteInfo, ObjectInstance>()
         .WithNone<SpriteAddedTag>()
-        .ForEach((Entity entity, in ObjectInstance instanceData) => {
+        .WithReadOnly(spriteBase)
+        .WithReadOnly(spriteMeshes)
+        .ForEach((Entity entity, int entityInQueryIndex, in ObjectInstance instanceData) => {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
-          var spriteMesh = GetSprite(instanceData, currentFrame);
-
-          var baseData = objectProperties.BasePropertyData(instanceData);
+          var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(instanceData)];
+          var spriteMesh = spriteMeshes[startIndex + currentFrame];
+          var baseData = objectProperties.Value.BasePropertyData(instanceData);
 
           var scale = (float)(2048 / 3) / (float)ushort.MaxValue;
           var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
@@ -165,42 +179,43 @@ namespace SS.System {
           if (baseData.IsDoubleSize)
             scale *= 2f;
 
-          var viewPart = commandBuffer.Instantiate(prototype);
-          commandBuffer.SetComponent(viewPart, new SpritePart { CurrentFrame = currentFrame });
-          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale) );
-          commandBuffer.SetComponent(viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f / scale) } });
-          commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
+          var viewPart = commandBuffer.Instantiate(entityInQueryIndex, prototype);
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new SpritePart { CurrentFrame = currentFrame });
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale) );
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f / scale) } });
+          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new MaterialMeshInfo {
             MeshID = spriteMesh.Mesh,
             MaterialID = spriteMesh.Material,
             Submesh = 0
           });
 
-          commandBuffer.AddComponent<SpriteAddedTag>(entity);
+          commandBuffer.AddComponent<SpriteAddedTag>(entityInQueryIndex, entity);
         })
-        .WithoutBurst()
-        .Run();
+        .ScheduleParallel();
 
       var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
 
       Entities
         .WithAll<SpritePart, LocalTransform>()
-        .ForEach((ref LocalTransform localTransform) => {
-          localTransform.Rotation = towardsCameraRotation;
+        .ForEach((ref LocalTransform localTransform, in ParentTransform parentTransform) => {
+          localTransform.Rotation = math.mul(towardsCameraRotation, math.inverse(parentTransform.Rotation));
         })
-        .Run();
+        .ScheduleParallel();
 
       var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
       finalizeCommandBuffer.DestroyEntity(prototype);
     }
 
+    [BurstCompile]
     public ushort GetSpriteIndex(Triple triple, int frame = 0) {
-      var startIndex = spriteBase[objectProperties.BasePropertyIndex(triple)];
+      var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(triple)];
       return spriteIndices[startIndex + frame];
     }
 
+    [BurstCompile]
     public SpriteMesh GetSprite (Triple triple, int frame = 0) {
-      var startIndex = spriteBase[objectProperties.BasePropertyIndex(triple)];
+      var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(triple)];
       return spriteMeshes[startIndex + frame];
     }
 
@@ -242,6 +257,8 @@ namespace SS.System {
       mesh.RecalculateBounds();
       mesh.UploadMeshData(true);
     }
+
+    struct SpriteSystemInitializedTag : IComponentData { }
   }
 
   public struct SpriteMesh {
@@ -250,7 +267,7 @@ namespace SS.System {
     public Vector2Int AnchorPoint;
   }
 
-  public struct SpriteInfo : IComponentData {}
+  public struct SpriteInfo : IComponentData { }
 
   public struct SpritePart : IComponentData {
     public int CurrentFrame;

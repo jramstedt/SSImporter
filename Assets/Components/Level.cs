@@ -1,12 +1,23 @@
 using System;
 using System.Runtime.InteropServices;
-using SS.Resources;
-using SS.System;
 using Unity.Entities;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-namespace SS {
+namespace SS.Resources {
+  public struct Level : IComponentData {
+    public byte Id;
+    public TextureMap TextureMap;
+    public BlobAssetReference<BlobArray<Entity>> TileMap;
+    public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
+    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras;
+  }
+
+  public struct TileLocation : IComponentData {
+    public byte X;
+    public byte Y;
+  }
+
   /**
    * FullMap
    */
@@ -146,7 +157,7 @@ namespace SS {
     public byte SlopeSteepnessFactor;
     public ushort IndexFirstObject;
     public TextureInfoMask TextureInfo;
-    
+
     public Flag1Mask Flag1;
     public Flag2Mask Flag2;
     public Flag3Mask Flag3;
@@ -187,7 +198,7 @@ namespace SS {
 
     // Flag 3
     public byte ShadeFloor => (byte)(Flag3 & Flag3Mask.ShadeFloor);
-    public byte ShadeFloorModifier { 
+    public byte ShadeFloorModifier {
       get => (byte)(Templight & 0x0F);
       set => Templight = (byte)((Templight & 0xF0) | value);
     }
@@ -199,8 +210,8 @@ namespace SS {
       set => Templight = (byte)((Templight & 0x0F) | (value << 4));
     }
 
-    public int FloorCornerHeight (int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
-    public int CeilingCornerHeight (int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
+    public int FloorCornerHeight(int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
+    public int CeilingCornerHeight(int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
 
     public static readonly bool4[] slopeAffectsCorner = new bool4[] {
       bool4( false, false, false, false ),
@@ -240,8 +251,8 @@ namespace SS {
   public struct TextureProperties {
     [Flags]
     public enum StartfieldControlMask : byte {
-        Stars = 0x01,
-        StarsOnEmpty = 0x02
+      Stars = 0x01,
+      StarsOnEmpty = 0x02
     }
 
     public byte Family;
@@ -258,7 +269,7 @@ namespace SS {
     /// <summary>Offset from texture to start of the group.</summary>
     public byte GroupPosition;
 
-    public ushort BaseTextureId (int textureId) => (ushort)(textureId - GroupPosition);
+    public ushort BaseTextureId(int textureId) => (ushort)(textureId - GroupPosition);
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -271,8 +282,8 @@ namespace SS {
     public byte StartZ;
     public byte TotalSteps;
     public byte CurrentSteps;
-    
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = NUM_PATH_STEPS/4)]
+
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = NUM_PATH_STEPS / 4)]
     public byte[] Moves;
   }
 

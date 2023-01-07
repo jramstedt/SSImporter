@@ -9,6 +9,6 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a8148ae4da49c3b4180a77e7b8acde03, type: 3}
+  m_Script: {fileID: 11500000, guid: 6f601462df25e324bb6d39037767adbd, type: 3}
   m_Name: SystemShockInitializationObject
   m_EditorClassIdentifier: 

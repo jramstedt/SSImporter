@@ -30,7 +30,7 @@ namespace SS {
     private static readonly BlobAssetReference<ObjectDatas> objectProperties;
 
     static TextureUtils () {
-      objectProperties = Services.ObjectProperties.WaitForCompletion().ObjectDatasBlobAsset;
+      objectProperties = Services.ObjectProperties.WaitForCompletion().ObjectDatasBlobAsset; // TODO FIXME
     }
 
     [BurstCompile]
@@ -77,5 +77,12 @@ namespace SS {
 
       return textureData;
     }
+  }
+
+  public enum TextureType {
+    Alt, // TPOLY_TYPE_ALT_TMAP
+    Custom, // TPOLY_TYPE_CUSTOM_MAT
+    Text, // TPOLY_TYPE_TEXT_BITMAP
+    ScrollText // TPOLY_TYPE_SCROLL_TEXT
   }
 }

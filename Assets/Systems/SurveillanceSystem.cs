@@ -46,8 +46,9 @@ namespace SS.System {
         .WithAll<SurveillanceSource>()
         .WithNone<CameraAdded>()
         .ForEach((Entity entity, in SurveillanceSource surveillanceSource) => {
-          var gameObject = new GameObject();
-          gameObject.name = $"Surveillance Camera {surveillanceSource.CameraIndex}";
+          var gameObject = new GameObject {
+            name = $"Surveillance Camera {surveillanceSource.CameraIndex}"
+          };
 
           var camera = gameObject.AddComponent<Camera>();
           var urpCameraData = gameObject.AddComponent<UniversalAdditionalCameraData>();
@@ -66,11 +67,9 @@ namespace SS.System {
 
       Entities
         .ForEach((Camera camera, in WorldTransform transform) => {
-          camera.transform.position = transform.Position;
-          camera.transform.rotation = transform.Rotation;
+          camera.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
         })
         .WithoutBurst()
-        .WithStructuralChanges()
         .Run();
 
       Entities

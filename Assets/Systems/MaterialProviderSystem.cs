@@ -19,6 +19,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using Hash128 = UnityEngine.Hash128;
 using Random = Unity.Mathematics.Random;
 using static SS.TextureUtils;
+using UnityEngine.Rendering.Universal;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
@@ -46,6 +47,9 @@ namespace SS.System {
     private AsyncOperationHandle<BitmapDesc>[] cameraSetLoaders;
     private RenderTexture[] cameraRenderTextures;
 
+    private AsyncOperationHandle<Texture2D> clutTextureOp;
+    private AsyncOperationHandle<Texture2D> lightmapOp;
+
     protected override void OnCreate() {
       base.OnCreate();
 
@@ -59,45 +63,38 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      var clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
-      var lightmap = Services.LightmapTexture.WaitForCompletion();
+      this.clutTextureOp = Services.ColorLookupTableTexture;
+      this.lightmapOp = Services.LightmapTexture;
 
       lightmapMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
-      lightmapMaterialTemplate.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
-      lightmapMaterialTemplate.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-      lightmapMaterialTemplate.DisableKeyword(@"_SPECGLOSSMAP");
-      lightmapMaterialTemplate.DisableKeyword(@"_SPECULAR_COLOR");
-      lightmapMaterialTemplate.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-      lightmapMaterialTemplate.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
       lightmapMaterialTemplate.EnableKeyword(@"LINEAR");
-      lightmapMaterialTemplate.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-      lightmapMaterialTemplate.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-      lightmapMaterialTemplate.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+      lightmapMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      lightmapMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      lightmapMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
       lightmapMaterialTemplate.enableInstancing = true;
 
       unlitMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-      unlitMaterialTemplate.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-      unlitMaterialTemplate.DisableKeyword(@"_SPECGLOSSMAP");
-      unlitMaterialTemplate.DisableKeyword(@"_SPECULAR_COLOR");
-      unlitMaterialTemplate.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-      unlitMaterialTemplate.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
       unlitMaterialTemplate.EnableKeyword(@"LINEAR");
-      unlitMaterialTemplate.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-      unlitMaterialTemplate.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-      unlitMaterialTemplate.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+      unlitMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      unlitMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      unlitMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
       unlitMaterialTemplate.enableInstancing = true;
 
       var colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
-      colorMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTexture);
-      colorMaterial.DisableKeyword(@"_SPECGLOSSMAP");
-      colorMaterial.DisableKeyword(@"_SPECULAR_COLOR");
-      colorMaterial.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-      colorMaterial.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+      colorMaterial.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      colorMaterial.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      colorMaterial.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
       colorMaterial.EnableKeyword(@"LINEAR");
       colorMaterial.DisableKeyword(@"TRANSPARENCY_ON");
-      colorMaterial.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-      colorMaterial.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-      colorMaterial.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+      colorMaterial.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      colorMaterial.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      colorMaterial.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
       colorMaterial.enableInstancing = true;
 
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(colorMaterial);
@@ -121,6 +118,14 @@ namespace SS.System {
         this.noiseBitmapSet = createOp;
       }
 
+      clutTextureOp.Completed += op => {
+        if (op.Status != AsyncOperationStatus.Succeeded)
+          throw op.OperationException;
+
+        colorMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTextureOp.Result);
+        this.noiseMaterial.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTextureOp.Result);
+      };
+
       {
         this.cameraSetLoaders = new AsyncOperationHandle<BitmapDesc>[NUM_HACK_CAMERAS];
         this.cameraMaterialsIDs = new BatchMaterialID[NUM_HACK_CAMERAS];
@@ -140,7 +145,7 @@ namespace SS.System {
           var cameraMaterial = new Material(colorMaterial);
           this.cameraMaterialsIDs[i] = entitiesGraphicsSystem.RegisterMaterial(cameraMaterial);
 
-          RenderTexture cameraTexture = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16));
+          var cameraTexture = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16));
           cameraMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), cameraTexture);
 
           cameraTexture.name = @"Camera";
@@ -214,10 +219,12 @@ namespace SS.System {
       if (materials.TryAdd(hash, batchMaterialID)) {
         materialIDToBitmapResource[batchMaterialID] = hash;
 
-        if (!bitmapSetLoaders.TryGetValue(hash, out var loadOp)) {  // Check if BitmapSet already loaded.
-          loadOp = Addressables.LoadAssetAsync<BitmapSet>(resource);
-          bitmapSetLoaders.TryAdd(hash, loadOp);
+        if (!bitmapSetLoaders.TryGetValue(hash, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
+          bitmapSetLoadOp = Addressables.LoadAssetAsync<BitmapSet>(resource);
+          bitmapSetLoaders.TryAdd(hash, bitmapSetLoadOp);
         }
+
+        var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { this.clutTextureOp, this.lightmapOp, bitmapSetLoadOp });
 
         loadOp.Completed += loadOp => {
           if (loadOp.Status != AsyncOperationStatus.Succeeded) {
@@ -225,7 +232,12 @@ namespace SS.System {
             return;
           }
 
-          var bitmapSet = loadOp.Result;
+          material.SetTexture(Shader.PropertyToID(@"_CLUT"), this.clutTextureOp.Result);
+
+          if (lightmapped)
+            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), this.lightmapOp.Result);
+
+          var bitmapSet = bitmapSetLoadOp.Result;
           material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
           if (bitmapSet.Description.Transparent) {
             material.EnableKeyword(@"TRANSPARENCY_ON");

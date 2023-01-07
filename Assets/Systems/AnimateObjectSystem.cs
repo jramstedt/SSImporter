@@ -75,7 +75,7 @@ namespace SS.System {
       foreach (var (id, resourceInfo) in artResources.ResourceEntries)
         this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
 
-      objectProperties = Services.ObjectProperties.WaitForCompletion();
+      objectProperties = Services.ObjectProperties.WaitForCompletion(); // TODO FIXME
     }
 
     protected override void OnUpdate() {
@@ -152,6 +152,7 @@ namespace SS.System {
       this.blockCounts.Dispose();
       randoms.Dispose();
     }
+
 
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
@@ -231,20 +232,20 @@ namespace SS.System {
               if (instanceData.Info.CurrentFrame < 0) {
                 if (animation.IsCyclic) {
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   animation.Flags &= ~AnimationData.AnimationFlags.Reversing;
                   instanceData.Info.CurrentFrame = 0;
                 } else if (animation.IsRepeat) {
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
                 } else { // Remove
                   instanceData.Info.CurrentFrame = 0;
 
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
                 }
@@ -255,20 +256,20 @@ namespace SS.System {
               if (instanceData.Info.CurrentFrame >= frameCount) {
                 if (animation.IsCyclic) {
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   animation.Flags |= AnimationData.AnimationFlags.Reversing;
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
                 } else if (animation.IsRepeat) {
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
 
                   instanceData.Info.CurrentFrame = 0;
                 } else { // Remove
                   instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
 
                   if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
-                    processCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
+                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
                   
                   CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
                 }
@@ -285,7 +286,7 @@ namespace SS.System {
         Processor.animationList.commands.EndForEachIndex();
       }
 
-      private void processCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {
+      private void ProcessCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {
         var userData = animation.UserData;
 
         if (animation.CallbackOperation == AnimationData.Callback.UnShodanize) {

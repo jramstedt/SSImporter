@@ -18,6 +18,8 @@ using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static Unity.Mathematics.math;
 using static SS.TextureUtils;
+using UnityEngine.Rendering.Universal;
+using SS.Data;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
@@ -32,9 +34,6 @@ namespace SS.System {
     private EntityArchetype viewPartArchetype;
 
     private NativeArray<BatchMaterialID> materials;
-
-    private Texture clutTexture;
-    private Texture2D lightmap;
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
@@ -73,50 +72,43 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      clutTexture = Services.ColorLookupTableTexture.WaitForCompletion();
-      lightmap = Services.LightmapTexture.WaitForCompletion();
+      var clutTextureOp = Services.ColorLookupTableTexture;
+      var lightmapOp = Services.LightmapTexture;
 
       var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-      materials = new(64, Allocator.Persistent);
+      materials = new(15, Allocator.Persistent);
 
       // TODO FIXME should be accessible from Services.
-      for (var i = 0; i < materials.Length; ++i) { // FIXME wrong length
+      for (var i = 0; i < materials.Length; ++i) {
         var materialIndex = i;
 
-        var checkOp = Addressables.LoadResourceLocationsAsync($"{CustomTextureIdBase + materialIndex}:{0}", typeof(BitmapSet));
-        checkOp.Completed += op => {
-          if (op.Status == AsyncOperationStatus.Succeeded && op.Result.Count > 0) {
-            var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>(op.Result[0]);
-            bitmapSetOp.Completed += op => {
-              if (op.Status == AsyncOperationStatus.Succeeded) {
-                var bitmapSet = op.Result;
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
+        material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+        material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+        material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
+        material.EnableKeyword(@"LINEAR");
+        material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+        material.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+        material.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+        material.enableInstancing = true;
 
-                var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
-                material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-                material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-                material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
-                material.DisableKeyword(@"_SPECGLOSSMAP");
-                material.DisableKeyword(@"_SPECULAR_COLOR");
-                material.DisableKeyword(@"_GLOSSINESS_FROM_BASE_ALPHA");
-                material.DisableKeyword(@"_ALPHAPREMULTIPLY_ON");
+        materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
 
-                material.EnableKeyword(@"LINEAR");
-                if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-                else material.DisableKeyword(@"TRANSPARENCY_ON");
+        var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>($"{CustomTextureIdBase + materialIndex}:{0}");
+        var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { clutTextureOp, lightmapOp, bitmapSetOp });
+        loadOp.Completed += op => {
+          if (op.Status == AsyncOperationStatus.Succeeded) {
+            var bitmapSet = bitmapSetOp.Result;
 
-                material.SetFloat(@"_BlendOp", (float)UnityEngine.Rendering.BlendOp.Add);
-                material.SetFloat(@"_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-                material.SetFloat(@"_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-                material.enableInstancing = true;
+            material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+            material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTextureOp.Result);
+            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmapOp.Result);
 
-                materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
-              } else {
-                Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
-              }
-            };
+            if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
+            else material.DisableKeyword(@"TRANSPARENCY_ON");
           } else {
-            Debug.LogWarning($"{CustomTextureIdBase + materialIndex} not found.");
+            Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
           }
         };
       }
@@ -130,9 +122,9 @@ namespace SS.System {
       };
 
       this.renderMeshDescription = new RenderMeshDescription(
-        shadowCastingMode: ShadowCastingMode.On,
-        receiveShadows: true,
-        staticShadowCaster: true
+        shadowCastingMode: ShadowCastingMode.Off,
+        receiveShadows: false,
+        staticShadowCaster: false
       );
     }
 

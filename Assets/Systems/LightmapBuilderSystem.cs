@@ -3,6 +3,7 @@ using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Rendering;
 using UnityEngine;
 using static Unity.Mathematics.math;
 
@@ -17,8 +18,7 @@ namespace SS.System {
       base.OnCreate();
 
       RequireForUpdate<LevelInfo>();
-
-      lightmap = Services.LightmapTexture.WaitForCompletion();
+      RequireForUpdate<LightmapBuilderSystemInitializedTag>();
 
       mapElementQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -27,6 +27,13 @@ namespace SS.System {
           ComponentType.ReadOnly<LightmapRebuildTag>()
         }
       });
+
+      var lightmapOp = Services.LightmapTexture;
+      lightmapOp.Completed += op => {
+        lightmap = lightmapOp.Result;
+
+        EntityManager.AddComponent<LightmapBuilderSystemInitializedTag>(this.SystemHandle);
+      };
     }
 
     protected override void OnUpdate() {
@@ -50,6 +57,8 @@ namespace SS.System {
       
       lightmap.Apply(false, false);
     }
+    
+    struct LightmapBuilderSystemInitializedTag : IComponentData { }
   }
 
   [BurstCompile]

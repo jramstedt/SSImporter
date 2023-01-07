@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using SS.Data;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.CompilerServices;
@@ -76,9 +77,9 @@ namespace SS.System {
       };
 
       this.renderMeshDescription = new RenderMeshDescription(
-        shadowCastingMode: ShadowCastingMode.On,
-        receiveShadows: true,
-        staticShadowCaster: true
+        shadowCastingMode: ShadowCastingMode.Off,
+        receiveShadows: false,
+        staticShadowCaster: false
       );
     }
 
@@ -177,7 +178,6 @@ namespace SS.System {
         renderMeshDescription,
         new RenderMeshArray(new Material[0], new Mesh[0])
       );
-      EntityManager.RemoveComponent<RenderMeshArray>(prototype);
 
       for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
         var entity = entities[entityIndex];
@@ -600,19 +600,6 @@ namespace SS.System {
     }
   }
 
-  public struct TileLocation : IComponentData {
-    public byte X;
-    public byte Y;
-  }
-
   public struct LevelViewPart : IComponentData { }
   public struct LevelViewPartRebuildTag : IComponentData { }
-
-  internal struct Vertex {
-    public float3 pos;
-    public float3 normal;
-    public float3 tangent;
-    public half2 uv;
-    public float light;
-  }
 }

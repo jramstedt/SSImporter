@@ -1,10 +1,11 @@
+using UnityEngine;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
+using SS.Resources;
 using Random = Unity.Mathematics.Random;
 using static Unity.Mathematics.math;
 using static SS.System.AnimationData;

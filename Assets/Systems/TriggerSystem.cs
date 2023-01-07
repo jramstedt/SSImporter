@@ -30,7 +30,6 @@ namespace SS.System {
 
     private EntityQuery triggerQuery;
     private EntityArchetype triggerEventArchetype;
-    private EntityArchetype animationArchetype;
 
     public void OnCreate(ref SystemState state) {
       state.RequireForUpdate<Level>();
@@ -59,10 +58,6 @@ namespace SS.System {
 
       triggerEventArchetype = state.EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
-      );
-
-      animationArchetype = state.EntityManager.CreateArchetype(
-        typeof(AnimationData)
       );
     }
 
