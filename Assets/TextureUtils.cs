@@ -1,7 +1,9 @@
 using SS.ObjectProperties;
 using SS.Resources;
+using SS.System;
 using Unity.Burst;
 using Unity.Entities;
+using UnityEngine.Rendering;
 
 namespace SS {
   public static class TextureUtils {
@@ -68,6 +70,72 @@ namespace SS {
       }
 
       return textureData;
+    }
+
+    public static BatchMaterialID GetResource(
+      in Entity entity,
+      in ObjectInstance instanceData,
+      in Level level,
+      in BlobAssetReference<ObjectDatas> objectProperties,
+      in MaterialProviderSystem materialProviderSystem,
+      in ComponentLookup<ObjectInstance> instanceLookup,
+      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      out ushort refWidthOverride
+      ) {
+      var baseProperties = objectProperties.Value.BasePropertyData(instanceData);
+
+      refWidthOverride = 0;
+
+      if (baseProperties.DrawType == DrawType.TerrainPolygon) {
+        const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
+
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+          var textureData = CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup);
+
+          if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
+            refWidthOverride = 128;
+
+            unsafe {
+              return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true);
+            }
+          } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 128; // 1 << 7
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 64; // 1 << 6
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 32; // 1 << 5
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+          } else {
+            var materialID = materialProviderSystem.ParseTextureData(textureData, true, out var textureType, out var scale);
+            refWidthOverride = (ushort)(1 << scale);
+            return materialID;
+          }
+        }
+      } else if (baseProperties.DrawType == DrawType.FlatTexture) {
+        if (instanceData.Class == ObjectClass.Decoration) {
+          if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
+            // TODO
+            return BatchMaterialID.Null;
+          } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
+            return materialProviderSystem.GetMaterial($"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
+            return materialProviderSystem.GetMaterial($"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
+            return materialProviderSystem.GetMaterial($"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+          }
+        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
+          return materialProviderSystem.GetMaterial($"{DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}", true);
+        }
+      }
+
+      return BatchMaterialID.Null;
     }
   }
 

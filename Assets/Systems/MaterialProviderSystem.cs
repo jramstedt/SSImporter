@@ -248,6 +248,8 @@ namespace SS.System {
         return batchMaterialID;
       }
 
+      Debug.LogWarning($"GetMaterial failed for {resource}.");
+
       return BatchMaterialID.Null;
     }
 
@@ -268,6 +270,18 @@ namespace SS.System {
         return cameraSetLoaders[cameraIndex];
       else
         return Addressables.ResourceManager.CreateChainOperation(bitmapSetLoaders[materialIDToBitmapResource[materialID]], op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null));
+    }
+
+    public AsyncOperationHandle<BitmapSet> GetBitmapSet(BatchMaterialID materialID) {
+      var cameraIndex = Array.IndexOf(cameraMaterialsIDs, materialID);
+
+      if (materialID == noiseMaterialID)
+        return noiseBitmapSet;
+      
+      if (cameraIndex != -1)
+        return noiseBitmapSet; // TODO FIXME
+
+      return bitmapSetLoaders[materialIDToBitmapResource[materialID]];
     }
 
     public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, out TextureType type, out int scale) {
