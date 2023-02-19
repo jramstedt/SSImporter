@@ -130,6 +130,7 @@ namespace SS.System {
           if (childLookup.TryGetBuffer(entity, out DynamicBuffer<Child> children)) {
             var viewPart = children[0].Value;
             commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
+            commandBuffer.RemoveComponent<AnimatedTag>(entity);
           }
         }
       }

@@ -102,7 +102,11 @@ namespace SS.System {
       var level = SystemAPI.GetSingleton<Level>();
 
       {
-        foreach (var (instanceData, entity) in SystemAPI.Query<ObjectInstance>().WithAll<FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>().WithEntityAccess()) {
+        foreach (var (instanceData, entity) in
+          SystemAPI.Query<ObjectInstance>()
+          .WithAll<FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>()
+          .WithEntityAccess()) {
+
           if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
           var materialID = GetResource(
@@ -122,8 +126,11 @@ namespace SS.System {
             materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, true);
           }
 
-          if (resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector))
+          if (resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
             UpdateProjector(decalProjector, materialID, refWidthOverride);
+
+            commandBuffer.RemoveComponent<AnimatedTag>(entity);
+          }
         }
       }
 

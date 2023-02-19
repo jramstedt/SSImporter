@@ -37,7 +37,13 @@ half DepthOnlyFragment(Varyings input) : SV_TARGET
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
     float index = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).r;
-    half alpha = index < 1.0/255.0 ? 0.0 : 1.0;
+
+    #if defined(TRANSPARENCY_ON)
+      half alpha = index < 1.0/255.0 ? 0.0 : 1.0;
+    #else
+      half alpha = 1.0;
+    #endif
+
     AlphaDiscard(alpha, _Cutoff);
 
 #ifdef LOD_FADE_CROSSFADE
