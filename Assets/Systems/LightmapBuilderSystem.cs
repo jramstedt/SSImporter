@@ -78,8 +78,8 @@ namespace SS.System {
 
         var pixelIndex = (tileLocation.Y * levelInfo.Width + tileLocation.X) * stride;
 
-        lightmap[pixelIndex] = (byte)(clamp(mapElement.ShadeFloor - mapElement.ShadeFloorModifier, 0, 0x0F));
-        lightmap[pixelIndex + 1] = (byte)(clamp(mapElement.ShadeCeiling - mapElement.ShadeCeilingModifier, 0, 0x0F));
+        lightmap[pixelIndex] = (byte)(clamp(mapElement.ShadeFloor - mapElement.ShadeFloorModifier, 0, 0x0F) << 4);
+        lightmap[pixelIndex + 1] = (byte)(clamp(mapElement.ShadeCeiling - mapElement.ShadeCeilingModifier, 0, 0x0F) << 4);
       }
     }
   }

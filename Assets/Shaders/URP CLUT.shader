@@ -3,8 +3,6 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
     Properties
     {
         [MainTexture] _BaseMap("Texture", 2D) = "white" {}
-        [MainColor] _BaseColor("Color", Color) = (1, 1, 1, 1)
-        [NonModifiableTextureData] _CLUT("Color Lookup Table", 2D) = "white" {}
         _Cutoff("AlphaCutout", Range(0.0, 1.0)) = 0.5
 
         // BlendMode
@@ -69,6 +67,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
             #pragma multi_compile _ TRANSPARENCY_ON
             #pragma multi_compile _ LINEAR
+            #pragma multi_compile _ LIGHTGRID
 
             // -------------------------------------
             // Unity defined keywords
@@ -99,10 +98,20 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
+            #if defined(LIGHTGRID)
+            TEXTURE2D(_LightGrid);
+            SAMPLER(sampler_LightGrid);
+            uniform float4 _LightGrid_TexelSize;
+            #endif
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
+
+                #if defined(LIGHTGRID)
+                half lightblend : TEXCOORD1;
+                #endif
 
                 #if defined(DEBUG_DISPLAY)
                 float3 normalOS : NORMAL;
@@ -115,6 +124,11 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             struct Varyings
             {
                 float2 uv : TEXCOORD0;
+
+                #if defined(LIGHTGRID)
+                float3 uvwLight : TEXCOORD1;
+                #endif
+
                 float fogCoord : TEXCOORD2;
                 float4 positionCS : SV_POSITION;
 
@@ -161,6 +175,11 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
                 output.positionCS = vertexInput.positionCS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+
+                #if defined(LIGHTGRID)
+                output.uvwLight = float3((vertexInput.positionWS.x + 0.5) * _LightGrid_TexelSize.x, (vertexInput.positionWS.z + 0.5) * _LightGrid_TexelSize.y, input.lightblend);
+                #endif
+
                 #if defined(_FOG_FRAGMENT)
                 output.fogCoord = vertexInput.positionVS.z;
                 #else
@@ -183,13 +202,13 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 return output;
             }
 
-            half4 clut(float index, float shade) {
+            half4 clut(half index, half shade) {
               #if defined(LINEAR)
-                half4 c = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade)); //float2(floor(index * 255.0) / 256.0, floor(shade * 15.0) / 16.0));
+                half4 c = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, half2(index, shade));
               #else
                 shade -= 0.5 / 16.0;
-                half4 uc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade));
-                half4 lc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, float2(index, shade + (1.0 / 16.0)));
+                half4 uc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, half2(index, shade));
+                half4 lc = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, half2(index, shade + (1.0 / 16.0)));
                 half4 c = lerp(uc, lc, frac(shade * 16.0));
               #endif
 
@@ -200,7 +219,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
               return c;
             }
 
-            half4 texture2D_bilinear(TEXTURE2D_PARAM(textureName, samplerName), float2 uv, float4 texelSize, float shade) {
+            half4 texture2D_bilinear(TEXTURE2D_PARAM(textureName, samplerName), float2 uv, float4 texelSize, half shade) {
               #if defined(LINEAR)
                 return clut(SAMPLE_TEXTURE2D(textureName, samplerName, uv).r, shade);
               #else
@@ -235,8 +254,15 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
+            #if defined(LIGHTGRID)
+                half2 lightmap = SAMPLE_TEXTURE2D(_LightGrid, sampler_LightGrid, input.uvwLight.xy).rg;
+                half shade = lerp(lightmap.r, lightmap.g, input.uvwLight.z);
+            #else
+                half shade = 0.0;
+            #endif
+
                 half2 uv = input.uv;
-                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, 0.0);
+                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, shade);
                 half3 color = texColor.rgb;
                 half alpha = texColor.a;
 
@@ -326,7 +352,8 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             // Includes
             #include "Input.hlsl"
             //#include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            #include "DepthOnlyPass.hlsl"
+            //#include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
 
@@ -402,7 +429,8 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             // Includes
             #include "Input.hlsl"
             // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitMetaPass.hlsl"
+            #include "UnlitMetaPass.hlsl"
+            // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitMetaPass.hlsl"
             ENDHLSL
         }
     }

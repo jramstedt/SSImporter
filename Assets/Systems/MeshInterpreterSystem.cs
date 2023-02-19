@@ -39,7 +39,7 @@ namespace SS.System {
 
     private DrawState drawState;
     private NativeList<Vertex> subMeshVertices;
-    private NativeMultiHashMap<ushort, ushort> subMeshIndices;
+    private NativeParallelMultiHashMap<ushort, ushort> subMeshIndices;
     #endregion
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
@@ -183,7 +183,7 @@ namespace SS.System {
 
         var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
 
-        subMeshIndices = new NativeMultiHashMap<ushort, ushort>(256, Allocator.Temp);
+        subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp);
         subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp);
 
         var textureIdAccumulator = 0;
@@ -312,12 +312,12 @@ namespace SS.System {
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
-              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup), true, out var textureType, out var scale),
+              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup), true, false, out var textureType, out var scale),
               _ => BatchMaterialID.Null
             };
 
             if (materialID == BatchMaterialID.Null)
-              materialID = materialProviderSystem.GetMaterial($"{ModelTextureIdBase + textureId}:{0}", true);
+              materialID = materialProviderSystem.GetMaterial($"{ModelTextureIdBase + textureId}:{0}", true, false);
 
             commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
             commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {

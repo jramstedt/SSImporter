@@ -96,7 +96,7 @@ namespace SS.System {
           ++artIndex; // Skip 2D icon
 
           for (var j = 0; j < frameCount; ++j) {
-            var materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{artIndex}", true);
+            var materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{artIndex}", true, false);
             var mesh = new Mesh();
 
             spriteMeshes[bitmapIndex] = new SpriteMesh {

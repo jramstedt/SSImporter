@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.Resources {
@@ -7,6 +8,10 @@ namespace SS.Resources {
     [RuntimeInitializeOnLoadMethod]
     private static void Init() {
       Addressables.InitializeAsync().Completed += AddressablesInitializeCompleted;
+
+      // TODO Settings
+      var linear = GlobalKeyword.Create(@"LINEAR");
+      Shader.EnableKeyword(linear);
     }
 
     private static void AddressablesInitializeCompleted(AsyncOperationHandle<UnityEngine.AddressableAssets.ResourceLocators.IResourceLocator> obj) {

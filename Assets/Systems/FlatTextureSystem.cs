@@ -181,12 +181,13 @@ namespace SS.System {
           materialProviderSystem,
           instanceLookup,
           decorationLookup,
+          false,
           out ushort refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-          materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true);
+          materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, false);
         }
 
         if (resourceMaterialMeshInfos.TryGetValue((materialID, refWidthOverride), out var materialMeshInfo)) {

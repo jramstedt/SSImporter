@@ -23,6 +23,10 @@ namespace SS.System {
   public partial class MaterialProviderSystem : SystemBase {
     private NativeParallelHashMap<Hash128, BatchMaterialID> lightmappedMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
     private NativeParallelHashMap<Hash128, BatchMaterialID> unlitMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
+
+    private NativeParallelHashMap<Hash128, BatchMaterialID> decalLightmappedMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
+    private NativeParallelHashMap<Hash128, BatchMaterialID> decalUnlitMaterials; // TODO FIXME instead of hash, create resource reference struct? Addressables toString?
+
     private NativeParallelHashMap<BatchMaterialID, Hash128> materialIDToBitmapResource;
     private readonly Dictionary<Hash128, AsyncOperationHandle<BitmapSet>> bitmapSetLoaders = new();
 
@@ -33,8 +37,8 @@ namespace SS.System {
     private BatchMaterialID colorMaterialID;
     private BatchMaterialID noiseMaterialID;
 
-    private Material lightmapMaterialTemplate;
-    private Material unlitMaterialTemplate;
+    private Material clutMaterialTemplate;
+    private Material decalClutMaterialTemplate;
 
     private Material noiseMaterial;
     private AsyncOperationHandle<BitmapSet> noiseBitmapSet;
@@ -44,13 +48,16 @@ namespace SS.System {
     private RenderTexture[] cameraRenderTextures;
 
     private AsyncOperationHandle<Texture2D> clutTextureOp;
-    private AsyncOperationHandle<Texture2D> lightmapOp;
 
     protected override void OnCreate() {
       base.OnCreate();
 
       lightmappedMaterials = new(1024, Allocator.Persistent);
       unlitMaterials = new(1024, Allocator.Persistent);
+
+      decalLightmappedMaterials = new(1024, Allocator.Persistent);
+      decalUnlitMaterials = new(1024, Allocator.Persistent);
+
       materialIDToBitmapResource = new(1024, Allocator.Persistent);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
@@ -60,33 +67,23 @@ namespace SS.System {
         randoms[i] = Random.CreateFromIndex((uint)i);
 
       this.clutTextureOp = Services.ColorLookupTableTexture;
-      this.lightmapOp = Services.LightmapTexture;
 
-      lightmapMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
-      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      lightmapMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      lightmapMaterialTemplate.EnableKeyword(@"LINEAR");
-      lightmapMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      lightmapMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      lightmapMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      lightmapMaterialTemplate.enableInstancing = true;
+      clutMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
+      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
+      clutMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      clutMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      clutMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+      clutMaterialTemplate.enableInstancing = true;
 
-      unlitMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      unlitMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      unlitMaterialTemplate.EnableKeyword(@"LINEAR");
-      unlitMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      unlitMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      unlitMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      unlitMaterialTemplate.enableInstancing = true;
+      decalClutMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
+      decalClutMaterialTemplate.enableInstancing = true;
 
       var colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
       colorMaterial.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
       colorMaterial.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
       colorMaterial.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      colorMaterial.EnableKeyword(@"LINEAR");
       colorMaterial.DisableKeyword(@"TRANSPARENCY_ON");
       colorMaterial.SetFloat(@"_BlendOp", (float)BlendOp.Add);
       colorMaterial.SetFloat(@"_SrcBlend", (float)BlendMode.One);
@@ -96,7 +93,7 @@ namespace SS.System {
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(colorMaterial);
 
       {
-        this.noiseMaterial = new Material(unlitMaterialTemplate);
+        this.noiseMaterial = new Material(clutMaterialTemplate);
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
 
         var createOp = Addressables.ResourceManager.StartOperation(new CreateNoiseTexture(), default);
@@ -109,6 +106,7 @@ namespace SS.System {
           noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
           noiseMaterial.DisableKeyword(@"TRANSPARENCY_ON");
           noiseMaterial.DisableKeyword(@"_ALPHATEST_ON");
+          noiseMaterial.DisableKeyword(@"LIGHTGRID");
         };
 
         this.noiseBitmapSet = createOp;
@@ -118,8 +116,9 @@ namespace SS.System {
         if (op.Status != AsyncOperationStatus.Succeeded)
           throw op.OperationException;
 
+        // TODO FIXME create correct shader
+
         colorMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTextureOp.Result);
-        this.noiseMaterial.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTextureOp.Result);
       };
 
       {
@@ -184,68 +183,102 @@ namespace SS.System {
 
       lightmappedMaterials.Dispose();
       unlitMaterials.Dispose();
+
+      decalLightmappedMaterials.Dispose();
+      decalUnlitMaterials.Dispose();
+
       materialIDToBitmapResource.Dispose();
 
       randoms.Dispose();
     }
 
-    public Material LightmapMaterial => lightmapMaterialTemplate;
-    public Material UnlitMaterial => unlitMaterialTemplate;
+    public Material ClutMaterialTemplate => clutMaterialTemplate;
     public BatchMaterialID ColorMaterialID => colorMaterialID;
     public BatchMaterialID NoiseMaterialID => noiseMaterialID;
 
-    public BatchMaterialID GetMaterial(string resource, bool lightmapped) {
+    public BatchMaterialID GetMaterial(string resource, bool lightmapped, bool decal) {
       var hash = Hash128.Compute(resource);
 
-      var materials = lightmapped switch {
-        true => lightmappedMaterials,
-        false => unlitMaterials
+      var materials = (lightmapped, decal) switch {
+        (true, false) => lightmappedMaterials,
+        (false, false) => unlitMaterials,
+        (true, true) => decalLightmappedMaterials,
+        (false, true) => decalUnlitMaterials
       };
 
       if (materials.TryGetValue(hash, out var batchMaterialID))
         return batchMaterialID; // Res already loaded. Skip loading.
 
-      Material material = lightmapped switch {
-        true => new Material(lightmapMaterialTemplate),
-        false => new Material(unlitMaterialTemplate)
-      };
+      if (decal) {
+        Material material = new Material(decalClutMaterialTemplate);
+        if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
+        else material.DisableKeyword(@"LIGHTGRID");
 
-      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+        batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
-      if (materials.TryAdd(hash, batchMaterialID)) {
-        materialIDToBitmapResource[batchMaterialID] = hash;
+        if (materials.TryAdd(hash, batchMaterialID)) {
+          materialIDToBitmapResource[batchMaterialID] = hash;
 
-        if (!bitmapSetLoaders.TryGetValue(hash, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
-          bitmapSetLoadOp = Addressables.LoadAssetAsync<BitmapSet>(resource);
-          bitmapSetLoaders.TryAdd(hash, bitmapSetLoadOp);
+          if (!bitmapSetLoaders.TryGetValue(hash, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
+            bitmapSetLoadOp = Addressables.LoadAssetAsync<BitmapSet>(resource);
+            bitmapSetLoaders.TryAdd(hash, bitmapSetLoadOp);
+          }
+
+          bitmapSetLoadOp.Completed += loadOp => {
+            /* TODO FIXME
+            if (loadOp.Status != AsyncOperationStatus.Succeeded) {
+              material.CopyPropertiesFromMaterial(noiseMaterial);
+              return;
+            }
+            */
+
+            var bitmapSet = bitmapSetLoadOp.Result;
+            material.SetTexture(Shader.PropertyToID(@"Base_Map"), bitmapSet.Texture);
+
+            if (bitmapSet.Description.Transparent)
+              material.EnableKeyword(@"TRANSPARENCY_ON");
+            else
+              material.DisableKeyword(@"TRANSPARENCY_ON");
+          };
+
+          return batchMaterialID;
         }
+      } else {
+        Material material = new Material(clutMaterialTemplate);
+        if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
+        else material.DisableKeyword(@"LIGHTGRID");
 
-        var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { this.clutTextureOp, this.lightmapOp, bitmapSetLoadOp });
+        batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
-        loadOp.Completed += loadOp => {
-          if (loadOp.Status != AsyncOperationStatus.Succeeded) {
-            material.CopyPropertiesFromMaterial(noiseMaterial);
-            return;
+        if (materials.TryAdd(hash, batchMaterialID)) {
+          materialIDToBitmapResource[batchMaterialID] = hash;
+
+          if (!bitmapSetLoaders.TryGetValue(hash, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
+            bitmapSetLoadOp = Addressables.LoadAssetAsync<BitmapSet>(resource);
+            bitmapSetLoaders.TryAdd(hash, bitmapSetLoadOp);
           }
 
-          material.SetTexture(Shader.PropertyToID(@"_CLUT"), this.clutTextureOp.Result);
+          bitmapSetLoadOp.Completed += loadOp => {
+            if (loadOp.Status != AsyncOperationStatus.Succeeded) {
+              material.CopyPropertiesFromMaterial(noiseMaterial);
+              return;
+            }
 
-          if (lightmapped)
-            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), this.lightmapOp.Result);
+            var bitmapSet = bitmapSetLoadOp.Result;
+            material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
 
-          var bitmapSet = bitmapSetLoadOp.Result;
-          material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-          if (bitmapSet.Description.Transparent) {
-            material.EnableKeyword(@"TRANSPARENCY_ON");
-            material.EnableKeyword(@"_ALPHATEST_ON");
-            material.renderQueue = 2450;
-          } else {
-            material.DisableKeyword(@"TRANSPARENCY_ON");
-            material.DisableKeyword(@"_ALPHATEST_ON");
-          }
-        };
+            if (bitmapSet.Description.Transparent) {
+              material.EnableKeyword(@"TRANSPARENCY_ON");
+              material.EnableKeyword(@"_ALPHATEST_ON");
+              material.renderQueue = 2450;
+            } else {
+              material.DisableKeyword(@"TRANSPARENCY_ON");
+              material.DisableKeyword(@"_ALPHATEST_ON");
+            }
+          };
 
-        return batchMaterialID;
+          return batchMaterialID;
+        }
       }
 
       Debug.LogWarning($"GetMaterial failed for {resource}.");
@@ -272,19 +305,7 @@ namespace SS.System {
         return Addressables.ResourceManager.CreateChainOperation(bitmapSetLoaders[materialIDToBitmapResource[materialID]], op => Addressables.ResourceManager.CreateCompletedOperation(op.Result.Description, null));
     }
 
-    public AsyncOperationHandle<BitmapSet> GetBitmapSet(BatchMaterialID materialID) {
-      var cameraIndex = Array.IndexOf(cameraMaterialsIDs, materialID);
-
-      if (materialID == noiseMaterialID)
-        return noiseBitmapSet;
-      
-      if (cameraIndex != -1)
-        return noiseBitmapSet; // TODO FIXME
-
-      return bitmapSetLoaders[materialIDToBitmapResource[materialID]];
-    }
-
-    public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, out TextureType type, out int scale) {
+    public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, bool decal, out TextureType type, out int scale) {
       const int DATA_MASK = 0xFFF;
 
       const int FIRST_CAMERA_TMAP = 0x78;
@@ -300,7 +321,7 @@ namespace SS.System {
       var style = (textureData & STYLE_MASK) == STYLE_MASK ? 2 : 3;
 
       if (type == TextureType.Alt) {
-        return GetMaterial($"{SmallTextureIdBase + index}", lightmapped);
+        return GetMaterial($"{SmallTextureIdBase + index}", lightmapped, decal);
       } else if (type == TextureType.Custom) {
         if (index >= FIRST_CAMERA_TMAP && index <= (FIRST_CAMERA_TMAP + NUM_HACK_CAMERAS)) {
           var cameraIndex = index - FIRST_CAMERA_TMAP;
@@ -312,11 +333,11 @@ namespace SS.System {
         } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
           return noiseMaterialID;
         } else if (index >= FIRST_AUTOMAP_MAGIC_COOKIE && index <= (FIRST_AUTOMAP_MAGIC_COOKIE + NUM_AUTOMAP_MAGIC_COOKIES)) {
-          return GetMaterial($"{CustomTextureIdBase}", lightmapped); // TODO FIXME PLACEHOLDER
+          return GetMaterial($"{CustomTextureIdBase}", lightmapped, decal); // TODO FIXME PLACEHOLDER
           // ret automap bitmap
         }
 
-        var defaultMaterial = GetMaterial($"{CustomTextureIdBase + index}", lightmapped);
+        var defaultMaterial = GetMaterial($"{CustomTextureIdBase + index}", lightmapped, decal);
 
         if (defaultMaterial == BatchMaterialID.Null)
           return noiseMaterialID;

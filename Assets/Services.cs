@@ -52,9 +52,10 @@ namespace SS {
           var palette = paletteOp.Result;
           var shadeTable = shadeTableOp.Result;
 
-          Texture2D clut = new Texture2D(256, 16, TextureFormat.RGBA32, false, false);
-          clut.filterMode = FilterMode.Point;
-          clut.wrapMode = TextureWrapMode.Clamp;
+          Texture2D clut = new(256, 16, TextureFormat.RGBA32, false, false) {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
+          };
 
           var textureData = clut.GetRawTextureData<Color32>();
 
@@ -62,6 +63,8 @@ namespace SS {
             textureData[i] = palette[shadeTable[i]];
 
           clut.Apply(false, false);
+
+          Shader.SetGlobalTexture(Shader.PropertyToID(@"_CLUT"), clut);
 
           Complete(clut, true, null);
         }
@@ -88,6 +91,8 @@ namespace SS {
         }
 
         lightmap.name = @"Lightmap";
+
+        Shader.SetGlobalTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
 
         Complete(lightmap, true, null);
       }

@@ -80,6 +80,7 @@ namespace SS {
       in MaterialProviderSystem materialProviderSystem,
       in ComponentLookup<ObjectInstance> instanceLookup,
       in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in bool decal,
       out ushort refWidthOverride
       ) {
       var baseProperties = objectProperties.Value.BasePropertyData(instanceData);
@@ -97,22 +98,22 @@ namespace SS {
             refWidthOverride = 128;
 
             unsafe {
-              return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true);
+              return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true, decal);
             }
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidthOverride = 128; // 1 << 7
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidthOverride = 64; // 1 << 6
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
           } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidthOverride = 32; // 1 << 5
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, out var textureType, out var scale);
+            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
           } else {
-            var materialID = materialProviderSystem.ParseTextureData(textureData, true, out var textureType, out var scale);
+            var materialID = materialProviderSystem.ParseTextureData(textureData, true, decal, out var textureType, out var scale);
             refWidthOverride = (ushort)(1 << scale);
             return materialID;
           }
@@ -123,15 +124,15 @@ namespace SS {
             // TODO
             return BatchMaterialID.Null;
           } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
-            return materialProviderSystem.GetMaterial($"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+            return materialProviderSystem.GetMaterial($"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
           } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
-            return materialProviderSystem.GetMaterial($"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+            return materialProviderSystem.GetMaterial($"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
           } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
-            return materialProviderSystem.GetMaterial($"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}", true);
+            return materialProviderSystem.GetMaterial($"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
           }
         } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
           // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
-          return materialProviderSystem.GetMaterial($"{DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}", true);
+          return materialProviderSystem.GetMaterial($"{DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}", true, decal);
         }
       }
 

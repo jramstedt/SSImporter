@@ -7,12 +7,11 @@ TEXTURE2D(_BaseMap);
 SAMPLER(sampler_BaseMap);
 TEXTURE2D(_CLUT);
 SAMPLER(sampler_CLUT);
-TEXTURE2D(_LightGrid);
-SAMPLER(sampler_LightGrid);
 
 ///////////////////////////////////////////////////////////////////////////////
 //                      Material Property Helpers                            //
 ///////////////////////////////////////////////////////////////////////////////
+/*
 half Alpha(half albedoAlpha, half4 color, half cutoff)
 {
 #if !defined(_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A) && !defined(_GLOSSINESS_FROM_BASE_ALPHA)
@@ -26,10 +25,12 @@ half Alpha(half albedoAlpha, half4 color, half cutoff)
     return alpha;
 }
 
+/*
 half4 SampleAlbedoAlpha(float2 uv, TEXTURE2D_PARAM(albedoAlphaMap, sampler_albedoAlphaMap))
 {
     return half4(SAMPLE_TEXTURE2D(albedoAlphaMap, sampler_albedoAlphaMap, uv));
 }
+*/
 
 half3 SampleNormal(float2 uv, TEXTURE2D_PARAM(bumpMap, sampler_bumpMap), half scale = half(1.0))
 {

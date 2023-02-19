@@ -66,9 +66,6 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      var clutTextureOp = Services.ColorLookupTableTexture;
-      var lightmapOp = Services.LightmapTexture;
-
       var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
       materials = new(15, Allocator.Persistent);
@@ -77,11 +74,11 @@ namespace SS.System {
       for (var i = 0; i < materials.Length; ++i) {
         var materialIndex = i;
 
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
         material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
         material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
         material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-        material.EnableKeyword(@"LINEAR");
+        material.EnableKeyword(@"LIGHTGRID");
         material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
         material.SetFloat(@"_SrcBlend", (float)BlendMode.One);
         material.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
@@ -90,14 +87,11 @@ namespace SS.System {
         materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
 
         var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>($"{CustomTextureIdBase + materialIndex}:{0}");
-        var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { clutTextureOp, lightmapOp, bitmapSetOp });
-        loadOp.Completed += op => {
+        bitmapSetOp.Completed += op => {
           if (op.Status == AsyncOperationStatus.Succeeded) {
             var bitmapSet = bitmapSetOp.Result;
 
             material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-            material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTextureOp.Result);
-            material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmapOp.Result);
 
             if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
             else material.DisableKeyword(@"TRANSPARENCY_ON");

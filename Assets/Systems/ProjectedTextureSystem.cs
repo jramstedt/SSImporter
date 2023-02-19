@@ -102,9 +102,40 @@ namespace SS.System {
       var level = SystemAPI.GetSingleton<Level>();
 
       {
+        foreach (var (instanceData, entity) in SystemAPI.Query<ObjectInstance>().WithAll<FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>().WithEntityAccess()) {
+          if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
+
+          var materialID = GetResource(
+           entity,
+           instanceData,
+           level,
+           objectProperties.ObjectDatasBlobAsset,
+           materialProviderSystem,
+           instanceLookup,
+           decorationLookup,
+           true,
+           out ushort refWidthOverride);
+
+          if (materialID == BatchMaterialID.Null) {
+            var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
+            var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
+            materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, true);
+          }
+
+          if (resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector))
+            UpdateProjector(decalProjector, materialID, refWidthOverride);
+        }
+      }
+
+      {
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
 
-        foreach (var (instanceData, entity) in SystemAPI.Query<ObjectInstance>().WithAll<FlatTextureInfo>().WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>().WithEntityAccess()) {
+        foreach (var (instanceData, entity) in 
+          SystemAPI.Query<ObjectInstance>()
+          .WithAll<FlatTextureInfo>()
+          .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
+          .WithEntityAccess()) {
+
           if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
           var materialID = GetResource(
@@ -115,12 +146,13 @@ namespace SS.System {
             materialProviderSystem,
             instanceLookup,
             decorationLookup,
+            true,
             out ushort refWidthOverride);
 
           if (materialID == BatchMaterialID.Null) {
             var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
             var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-            materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true);
+            materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, true);
           }
 
           if (!resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
@@ -132,9 +164,6 @@ namespace SS.System {
             decalProjector.startAngleFade = 0.0f;
             decalProjector.endAngleFade = 5.0f;
 
-            var material = new Material(Shader.Find(@"Shader Graphs/Decal 2"));
-            decalProjector.material = material;
-
             var viewPart = commandBuffer.Instantiate(prototype);
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
             commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
@@ -145,23 +174,7 @@ namespace SS.System {
             resourceDecalProjectors.Add(entity, decalProjector);
           }
 
-          var loadOp = materialProviderSystem.GetBitmapSet(materialID);
-          loadOp.Completed += loadOp => {
-            if (loadOp.Status != AsyncOperationStatus.Succeeded)
-              throw loadOp.OperationException;
-
-            var bitmapset = loadOp.Result;
-            var bitmapDesc = bitmapset.Description;
-
-            float scale = 1f;
-            if (refWidthOverride > 0)
-              scale = refWidthOverride / bitmapDesc.Size.x;
-
-            var realSize = scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 64f;
-
-            decalProjector.size = new() { x = realSize.x, y = realSize.y, z = 0.2f };
-            decalProjector.material.SetTexture(Shader.PropertyToID(@"Base_Map"), bitmapset.Texture);
-          };
+          UpdateProjector(decalProjector, materialID, refWidthOverride);
         }
 
         var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
@@ -175,6 +188,26 @@ namespace SS.System {
         })
         .WithoutBurst()
         .Run();
+    }
+
+    void UpdateProjector (DecalProjector decalProjector, in BatchMaterialID materialID, ushort refWidthOverride) {
+      decalProjector.material = entitiesGraphicsSystem.GetMaterial(materialID);
+
+      var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
+      loadOp.Completed += loadOp => {
+        if (loadOp.Status != AsyncOperationStatus.Succeeded)
+          throw loadOp.OperationException;
+
+        var bitmapDesc = loadOp.Result;
+
+        float scale = 1f;
+        if (refWidthOverride > 0)
+          scale = refWidthOverride / bitmapDesc.Size.x;
+
+        var realSize = scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 64f;
+
+        decalProjector.size = new() { x = realSize.x, y = realSize.y, z = 0.2f };
+      };
     }
 
     private struct AsyncLoadTag : IComponentData { }

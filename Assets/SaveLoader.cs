@@ -126,15 +126,13 @@ namespace SS.Resources {
         var bitmapSet = await CreateMipmapTexture(textureIndex); // TODO instead of await, run parallel
         textures[i] = bitmapSet;
 
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/Lightmap CLUT"));
+        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-        material.SetTexture(Shader.PropertyToID(@"_CLUT"), clutTexture);
-        material.SetTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
         material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
         material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
         material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
 
-        material.EnableKeyword(@"LINEAR");
+        material.EnableKeyword(@"LIGHTGRID");
         if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
         else material.DisableKeyword(@"TRANSPARENCY_ON");
 
