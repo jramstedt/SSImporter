@@ -12,6 +12,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
@@ -51,6 +52,7 @@ namespace SS.System {
     private MaterialProviderSystem materialProviderSystem;
 
     private Resources.ObjectProperties objectProperties;
+    private ShadeTableData shadeTable;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -110,11 +112,15 @@ namespace SS.System {
       this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
       var objectPropertiesOp = Services.ObjectProperties;
-      objectPropertiesOp.Completed += op => {
+      var shadeTableOp = Services.ShadeTable;
+
+      var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { objectPropertiesOp, shadeTableOp });
+      loadOp.Completed += op => {
         if (op.Status != AsyncOperationStatus.Succeeded)
           throw op.OperationException;
 
         objectProperties = objectPropertiesOp.Result;
+        shadeTable = shadeTableOp.Result;
 
         EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
@@ -394,7 +400,8 @@ namespace SS.System {
           ushort vertexCount = count;
 
           var vertexIndices = new NativeArray<ushort>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-          var colorUV = new half2(new((drawState.color & 0xFF) / 255f), new((drawState.color >> 8) / 255f));
+          // var colorUV = new half2(new((drawState.color & 0xFF) / 255f), new((drawState.color >> 8) / 255f));
+          var colorUV = new half2(new((drawState.color & 0xFF) / 255f), half.zero);
 
           if (drawState.gouraud != Gouraud.normal)
             Debug.LogWarning($"Non implemented drawState.gouraud {drawState.gouraud}");
@@ -597,7 +604,7 @@ namespace SS.System {
         } else if (command == OpCode.getvscolor) {
           ushort colorIndex = msbr.ReadUInt16();
           ushort shade = msbr.ReadUInt16();
-          drawState.color = (ushort)((shade << 8) | vertexColor[colorIndex]);
+          drawState.color = this.shadeTable[(shade << 8) | vertexColor[colorIndex]];
         } else if (command == OpCode.rgbshades) {
           ushort count = msbr.ReadUInt16();
           while (count-- > 0) {
@@ -619,9 +626,9 @@ namespace SS.System {
           drawState.color = *(parameterData + msbr.ReadUInt16());
           drawState.gouraud = Gouraud.normal;
         } else if (command == OpCode.getpscolor) {
-          ushort colorIndex = msbr.ReadUInt16();
+          ushort colorIndex = *(parameterData + msbr.ReadUInt16());
           ushort shade = msbr.ReadUInt16();
-          drawState.color = (ushort)((shade << 8) | vertexColor[colorIndex]);
+          drawState.color = this.shadeTable[(shade << 8) | (colorIndex & 0xFF)];
         } else if (command == OpCode.scaleres) {
           break;
         } else if (command == OpCode.vpnt_p) {
@@ -797,7 +804,7 @@ namespace SS.System {
     }
 
     internal struct DrawState {
-      public ushort color; // SSCC, SS = shade, CC = color index
+      public byte color;
       public bool wire;
       public bool check;
       public Gouraud gouraud;

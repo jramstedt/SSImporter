@@ -133,8 +133,15 @@ namespace SS.Resources {
         material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
 
         material.EnableKeyword(@"LIGHTGRID");
-        if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-        else material.DisableKeyword(@"TRANSPARENCY_ON");
+        if (bitmapSet.Description.Transparent) {
+          material.SetFloat("_AlphaClip", 1);
+          material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+          material.renderQueue = (int)RenderQueue.AlphaTest;
+        } else {
+          material.SetFloat("_AlphaClip", 0);
+          material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+          material.renderQueue = (int)RenderQueue.Geometry;
+        }
 
         material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
         material.SetFloat(@"_SrcBlend", (float)BlendMode.One);

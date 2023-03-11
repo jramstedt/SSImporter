@@ -6,6 +6,8 @@ using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -54,8 +56,15 @@ namespace SS.System {
         var newBitmapSet = textures[Mathf.Min(textureIndex + newTextureOffset, textures.Length - 1)]; // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
 
         material.SetTexture(Shader.PropertyToID(@"_BaseMap"), newBitmapSet.Texture);
-        if (newBitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-        else material.DisableKeyword(@"TRANSPARENCY_ON");
+        if (newBitmapSet.Description.Transparent) {
+          material.SetFloat("_AlphaClip", 1);
+          material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+          material.renderQueue = (int)RenderQueue.AlphaTest;
+        } else {
+          material.SetFloat("_AlphaClip", 0);
+          material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+          material.renderQueue = (int)RenderQueue.Geometry;
+        }
       }
     }
 

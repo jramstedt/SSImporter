@@ -1,4 +1,4 @@
-Shader "Universal Render Pipeline/System Shock/CLUT"
+Shader "Universal Render Pipeline/System Shock/CLUT Color"
 {
     Properties
     {
@@ -47,7 +47,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
         {
             Name "Unlit"
 
-            // -------------------------------------
+                        // -------------------------------------
             // Render State Commands
             AlphaToMask[_AlphaToMask]
 
@@ -122,7 +122,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
 
             struct Varyings
             {
-                float2 uv : TEXCOORD0;
+                float color : TEXCOORD0;
 
                 #if defined(LIGHTGRID)
                 float3 uvwLight : TEXCOORD1;
@@ -173,7 +173,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
 
                 output.positionCS = vertexInput.positionCS;
-                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.color = input.uv.x;
 
                 #if defined(LIGHTGRID)
                 output.uvwLight = float3((vertexInput.positionWS.x + 0.5) * _LightGrid_TexelSize.x, (vertexInput.positionWS.z + 0.5) * _LightGrid_TexelSize.y, input.lightblend);
@@ -218,30 +218,6 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
               return c;
             }
 
-            half4 texture2D_bilinear(TEXTURE2D_PARAM(textureName, samplerName), float2 uv, float4 texelSize, half shade) {
-              #if defined(LINEAR)
-                return clut(SAMPLE_TEXTURE2D(textureName, samplerName, uv).r, shade);
-              #else
-                uv -= texelSize.xy / 2.0;
-                
-                half tli = SAMPLE_TEXTURE2D(textureName, samplerName, uv).r;
-                half tri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(texelSize.x, 0.0)).r;
-                half bli = SAMPLE_TEXTURE2D(textureName, samplerName, uv + float2(0.0, texelSize.y)).r;
-                half bri = SAMPLE_TEXTURE2D(textureName, samplerName, uv + texelSize.xy).r;
-
-                half4 tl = clut(tli, shade);
-                half4 tr = clut(tri, shade);
-                half4 bl = clut(bli, shade);
-                half4 br = clut(bri, shade);
-
-                float2 f = frac(uv * texelSize.zw);
-
-                half4 tA = lerp(tl, tr, f.x);
-                half4 tB = lerp(bl, br, f.x);
-                return lerp(tA, tB, f.y);
-              #endif
-            }
-
             void UnlitPassFragment(
                 Varyings input
                 , out half4 outColor : SV_Target0
@@ -260,8 +236,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
                 half shade = 0.0;
             #endif
 
-                half2 uv = input.uv;
-                half4 texColor = texture2D_bilinear(TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap), uv, _BaseMap_TexelSize, shade);
+                half4 texColor = clut(input.color, shade);
                 half3 color = texColor.rgb;
                 half alpha = texColor.a;
 
@@ -395,8 +370,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT"
             // Includes
             #include "Input.hlsl"
             // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
-            #include "UnlitDepthNormalsPass.hlsl"
-            // #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"
             ENDHLSL
         }
 

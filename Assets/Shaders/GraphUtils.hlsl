@@ -23,7 +23,7 @@ half4 clut(UnityTexture2D CLUT, half index, half shade) {
     half4 c = lerp(uc, lc, frac(shade * 16.0));
   #endif
 
-  #if defined(TRANSPARENCY_ON)
+  #if defined(_ALPHATEST_ON)
     c.a = index < 1.0/255.0 ? 0.0 : 1.0;
   #endif
 

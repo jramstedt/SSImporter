@@ -93,8 +93,15 @@ namespace SS.System {
 
             material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
 
-            if (bitmapSet.Description.Transparent) material.EnableKeyword(@"TRANSPARENCY_ON");
-            else material.DisableKeyword(@"TRANSPARENCY_ON");
+            if (bitmapSet.Description.Transparent) {
+              material.SetFloat("_AlphaClip", 1);
+              material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+              material.renderQueue = (int)RenderQueue.AlphaTest;
+            } else {
+              material.SetFloat("_AlphaClip", 0);
+              material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+              material.renderQueue = (int)RenderQueue.Geometry;
+            }
           } else {
             Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
           }

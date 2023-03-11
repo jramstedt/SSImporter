@@ -8,6 +8,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Rendering;
+using UnityEditor.Rendering.Universal;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
@@ -35,18 +36,17 @@ namespace SS.System {
     private BatchMaterialID noiseMaterialID;
 
     private Material clutMaterialTemplate;
-    private Material decalClutMaterialTemplate;
+    private Material clutDecalMaterialTemplate;
+    private Material clutColorMaterialTemplate;
 
-    private Material colorMaterialTemplate;
     private Material decalMaterialTemplate;
+    private Material cameraMaterialTemplate;
 
     private Material noiseMaterial;
     private AsyncOperationHandle<BitmapSet> noiseBitmapSet;
 
     private AsyncOperationHandle<BitmapDesc>[] cameraSetLoaders;
     private RenderTexture[] cameraRenderTextures;
-
-    private AsyncOperationHandle<Texture2D> clutTextureOp;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -62,8 +62,6 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      this.clutTextureOp = Services.ColorLookupTableTexture;
-
       clutMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
       clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
       clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
@@ -73,23 +71,32 @@ namespace SS.System {
       clutMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
       clutMaterialTemplate.enableInstancing = true;
 
-      decalClutMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
-      decalClutMaterialTemplate.enableInstancing = true;
+      clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
+      clutDecalMaterialTemplate.enableInstancing = true;
+
+      clutColorMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT Color"));
+      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
+      clutColorMaterialTemplate.EnableKeyword(@"LIGHTGRID");
+      clutColorMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      clutColorMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      clutColorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+      clutColorMaterialTemplate.enableInstancing = true;
 
       decalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP Decal"));
       decalMaterialTemplate.enableInstancing = true;
 
-      colorMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
-      colorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      colorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      colorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      colorMaterialTemplate.DisableKeyword(@"TRANSPARENCY_ON");
-      colorMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      colorMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      colorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      colorMaterialTemplate.enableInstancing = true;
+      cameraMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
+      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
+      cameraMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
+      cameraMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
+      cameraMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+      cameraMaterialTemplate.enableInstancing = true;
 
-      colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(colorMaterialTemplate);
+      colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(clutColorMaterialTemplate);
 
       {
         this.noiseMaterial = new Material(clutMaterialTemplate);
@@ -103,22 +110,13 @@ namespace SS.System {
           var bitmapSet = op.Result;
 
           noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-          noiseMaterial.DisableKeyword(@"TRANSPARENCY_ON");
           noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
           noiseMaterial.DisableKeyword(@"LIGHTGRID");
+          noiseMaterial.renderQueue = (int)RenderQueue.Geometry;
         };
 
         this.noiseBitmapSet = createOp;
       }
-
-      clutTextureOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
-
-        // TODO FIXME create correct shader
-
-        colorMaterialTemplate.SetTexture(Shader.PropertyToID(@"_BaseMap"), clutTextureOp.Result);
-      };
 
       {
         this.cameraSetLoaders = new AsyncOperationHandle<BitmapDesc>[NUM_HACK_CAMERAS];
@@ -183,7 +181,7 @@ namespace SS.System {
     }
 
     public Material ClutMaterialTemplate => clutMaterialTemplate;
-    public Material DecalClutMaterialTemplate => decalClutMaterialTemplate;
+    public Material DecalClutMaterialTemplate => clutDecalMaterialTemplate;
 
     public BatchMaterialID ColorMaterialID => colorMaterialID;
     public BatchMaterialID NoiseMaterialID => noiseMaterialID;
@@ -194,7 +192,7 @@ namespace SS.System {
       if (textureMaterials.TryGetValue((hash, lightmapped, decal), out var batchMaterialID))
         return batchMaterialID; // Res already loaded. Skip loading.
 
-      Material material = new(decal ? decalClutMaterialTemplate : clutMaterialTemplate);
+      Material material = new(decal ? clutDecalMaterialTemplate : clutMaterialTemplate);
       if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
       else material.DisableKeyword(@"LIGHTGRID");
 
@@ -220,11 +218,13 @@ namespace SS.System {
           material.SetTexture(textureName, bitmapSet.Texture);
 
           if (bitmapSet.Description.Transparent) {
-            material.EnableKeyword(@"TRANSPARENCY_ON");
-            material.EnableKeyword(@"_ALPHATEST_ON");
+            material.SetFloat("_AlphaClip", 1);
+            material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+            material.renderQueue = (int)RenderQueue.AlphaTest;
           } else {
-            material.DisableKeyword(@"TRANSPARENCY_ON");
-            material.DisableKeyword(@"_ALPHATEST_ON");
+            material.SetFloat("_AlphaClip", 0);
+            material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+            material.renderQueue = (int)RenderQueue.Geometry;
           }
         };
 
@@ -240,7 +240,7 @@ namespace SS.System {
       if (cameraMaterials.TryGetValue((cameraIndex, lightmapped, decal), out var batchMaterialID))
         return batchMaterialID; // Res already loaded. Skip loading.
 
-      Material material = new(decal ? decalMaterialTemplate : colorMaterialTemplate);
+      Material material = new(decal ? decalMaterialTemplate : cameraMaterialTemplate);
       if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
       else material.DisableKeyword(@"LIGHTGRID");
 

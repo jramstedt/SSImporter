@@ -38,7 +38,7 @@ half DepthOnlyFragment(Varyings input) : SV_TARGET
 
     float index = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).r;
 
-    #if defined(TRANSPARENCY_ON)
+    #if defined(_ALPHATEST_ON)
       half alpha = index < 1.0/255.0 ? 0.0 : 1.0;
     #else
       half alpha = 1.0;
