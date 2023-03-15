@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics.Authoring;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
@@ -440,6 +441,19 @@ namespace SS.Resources {
       }
 
       entityManager.SetComponentData(hackerEntity, hackerState);
+
+      var physicsConfigEntity = entityManager.CreateEntity();
+      entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
+        DrawColliders = 0,
+        DrawColliderEdges = 0,
+        DrawColliderAabbs = 0,
+        DrawBroadphase = 0,
+        DrawMassProperties = 0,
+        DrawContacts = 0,
+        DrawCollisionEvents = 0,
+        DrawTriggerEvents = 0,
+        DrawJoints = 0
+      });
 
       //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
       //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);

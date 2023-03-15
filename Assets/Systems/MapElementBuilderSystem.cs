@@ -10,11 +10,15 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
+using MeshCollider = Unity.Physics.MeshCollider;
+using Collider = Unity.Physics.Collider;
+using static UnityEngine.Mesh;
 
 namespace SS.System {
   [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -22,6 +26,8 @@ namespace SS.System {
     public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
 
     private EntityArchetype viewPartArchetype;
+    private EntityArchetype physicsArchetype;
+
     private EntityQuery mapElementQuery;
     private EntityQuery viewPartQuery;
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
@@ -50,6 +56,20 @@ namespace SS.System {
         typeof(RenderBounds),
 
         typeof(FrozenRenderSceneTag)
+      );
+
+      physicsArchetype = EntityManager.CreateArchetype(
+        typeof(LocalTransform),
+        typeof(WorldTransform),
+
+        typeof(Parent),
+        typeof(ParentTransform),
+
+        typeof(PhysicsCollider),
+        typeof(PhysicsWorldIndex),
+
+        typeof(LocalToWorld),
+        typeof(RenderBounds)
       );
 
       mapElementQuery = GetEntityQuery(new EntityQueryDesc {
@@ -106,7 +126,11 @@ namespace SS.System {
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
       using var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
 
+      var colliderArray = new NativeArray<BlobAssetReference<Collider>>(entityCount, Allocator.TempJob);
+
       #region Clean up old view parts that are going to be replaced
+      // TODO cleanup old collider blob references!
+
       var cleanJob = new DestroyOldViewPartsJob {
         entityTypeHandle = GetEntityTypeHandle(),
         parentTypeHandle = GetComponentTypeHandle<Parent>(true),
@@ -133,6 +157,8 @@ namespace SS.System {
         vertexAttributes = vertexAttributes,
         meshDataArray = meshDataArray,
         submeshTextureIndex = submeshTextureIndex,
+
+        colliderArray = colliderArray,
       };
 
       Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
@@ -175,8 +201,12 @@ namespace SS.System {
         prototype,
         EntityManager,
         renderMeshDescription,
-        new RenderMeshArray(new Material[0], new Mesh[0])
+        new RenderMeshArray(new UnityEngine.Material[0], new Mesh[0])
       );
+
+      var physicsPrototype = EntityManager.CreateEntity(physicsArchetype); // Sync point
+      EntityManager.SetComponentData(physicsPrototype, LocalTransform.Identity);
+      EntityManager.SetSharedComponentManaged(physicsPrototype, new PhysicsWorldIndex { Value = 0 });
 
       for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
         var entity = entities[entityIndex];
@@ -208,6 +238,11 @@ namespace SS.System {
           sceneTileTag.SectionIndex = entityIndex;
           commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
         }
+
+        var bodyPart = commandBuffer.Instantiate(physicsPrototype);
+        commandBuffer.SetComponent(bodyPart, new Parent { Value = entity });
+        commandBuffer.SetComponent(bodyPart, renderBounds);
+        commandBuffer.SetComponent(bodyPart, new PhysicsCollider { Value = colliderArray[entityIndex] });
       }
 
       var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
@@ -256,12 +291,12 @@ namespace SS.System {
     [NativeDisableParallelForRestriction] public Mesh.MeshDataArray meshDataArray;
     [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<byte> submeshTextureIndex;
 
+    [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<BlobAssetReference<Collider>> colliderArray;
+
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var entities = chunk.GetNativeArray(entityTypeHandle);
       var tileLocations = chunk.GetNativeArray(ref tileLocationTypeHandle);
       var mapElements = chunk.GetNativeArray(ref mapElementTypeHandle);
-
-      // Mesh.ApplyAndDisposeWritableMeshData()
 
       int baseEntityIndex = ChunkBaseEntityIndices[unfilteredChunkIndex];
 
@@ -276,7 +311,9 @@ namespace SS.System {
 
         var textureIndices = new NativeSlice<byte>(submeshTextureIndex, realIndex * 6, 6);
 
-        BuildMesh(tileLocation, mapElement, ref meshData, ref textureIndices);
+        BuildMesh(entity, tileLocation, mapElement, ref meshData, ref textureIndices, out BlobAssetReference<Collider> collider);
+
+        colliderArray[realIndex] = collider;
       }
     }
 
@@ -313,9 +350,10 @@ namespace SS.System {
       UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
     }
 
-    private void BuildMesh(in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices) {
+    private void BuildMesh(in Entity entity, in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, out BlobAssetReference<Collider> compoundCollider) {
       if (tile.TileType == TileType.Solid) {
         mesh.subMeshCount = 0;
+        compoundCollider = default;
         return;
       }
 
@@ -331,10 +369,12 @@ namespace SS.System {
       ClearIndexArray(mesh);
       ClearVertexArray(mesh);
 
+      var colliderBlobs = new NativeArray<BlobAssetReference<Collider>>(mesh.subMeshCount, Allocator.Temp);
+
       var subMeshAccumulator = 0;
 
-      subMeshAccumulator += this.CreatePlane(tile, mesh, ref textureIndices, subMeshAccumulator, false);
-      subMeshAccumulator += this.CreatePlane(tile, mesh, ref textureIndices, subMeshAccumulator, true);
+      subMeshAccumulator += this.CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, false);
+      subMeshAccumulator += this.CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, true);
 
       #region North Wall
       {
@@ -344,11 +384,11 @@ namespace SS.System {
         var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
         if (tile.TileType == TileType.OpenDiagonalSE)
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip, true);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 0, 2, ref adjacentTile, 0, 2, flip, true);
         else if (tile.TileType == TileType.OpenDiagonalSW)
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 1, 3, ref adjacentTile, 1, 3, flip, true);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 1, 3, ref adjacentTile, 1, 3, flip, true);
         else
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 1, 2, ref adjacentTile, 0, 3, flip, adjacentTile.TileType == TileType.OpenDiagonalNE || adjacentTile.TileType == TileType.OpenDiagonalNW);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 1, 2, ref adjacentTile, 0, 3, flip, adjacentTile.TileType == TileType.OpenDiagonalNE || adjacentTile.TileType == TileType.OpenDiagonalNW);
       }
       #endregion
 
@@ -358,7 +398,7 @@ namespace SS.System {
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).x;
-        subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, adjacentTile.TileType == TileType.OpenDiagonalNE || adjacentTile.TileType == TileType.OpenDiagonalSE);
+        subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, adjacentTile.TileType == TileType.OpenDiagonalNE || adjacentTile.TileType == TileType.OpenDiagonalSE);
       }
       #endregion
 
@@ -370,11 +410,11 @@ namespace SS.System {
         var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
         if (tile.TileType == TileType.OpenDiagonalNE)
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip, true);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 3, 1, ref adjacentTile, 3, 1, flip, true);
         else if (tile.TileType == TileType.OpenDiagonalNW)
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 2, 0, ref adjacentTile, 2, 0, flip, true);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 2, 0, ref adjacentTile, 2, 0, flip, true);
         else
-          subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 3, 0, ref adjacentTile, 2, 1, flip, adjacentTile.TileType == TileType.OpenDiagonalSE || adjacentTile.TileType == TileType.OpenDiagonalSW);
+          subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 3, 0, ref adjacentTile, 2, 1, flip, adjacentTile.TileType == TileType.OpenDiagonalSE || adjacentTile.TileType == TileType.OpenDiagonalSW);
       }
       #endregion
 
@@ -384,12 +424,24 @@ namespace SS.System {
         MapElement adjacentTile = allMapElements[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).x;
-        subMeshAccumulator += CreateWall(tile, mesh, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, adjacentTile.TileType == TileType.OpenDiagonalNW || adjacentTile.TileType == TileType.OpenDiagonalSW);
+        subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, adjacentTile.TileType == TileType.OpenDiagonalNW || adjacentTile.TileType == TileType.OpenDiagonalSW);
       }
       #endregion
+
+      var colliderBlobInstances = new NativeArray<CompoundCollider.ColliderBlobInstance>(subMeshAccumulator, Allocator.Temp);
+      for (int index = 0; index < subMeshAccumulator; ++index) {
+        colliderBlobInstances[index] = new CompoundCollider.ColliderBlobInstance {
+          Collider = colliderBlobs[index],
+          CompoundFromChild = Unity.Mathematics.RigidTransform.identity,
+          Entity = entity,
+        };
+      }
+      compoundCollider = CompoundCollider.Create(colliderBlobInstances);
+      colliderBlobInstances.Dispose();
+      colliderBlobs.Dispose();
     }
 
-    private int CreatePlane(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
+    private int CreatePlane(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
       var vertices = mesh.GetVertexData<Vertex>();
       var indices = mesh.GetIndexData<ushort>();
 
@@ -462,10 +514,23 @@ namespace SS.System {
 
       mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
 
+      #region Collider
+      var colliderVertices = new NativeArray<float3>(4, Allocator.Temp);
+      for (var i = 0; i < colliderVertices.Length; ++i) colliderVertices[i] = vertices[vertexStart + i].pos;
+
+      var colliderTriangles = new NativeArray<int3>(indicesTemplate.Length / 3, Allocator.Temp);
+      for (int i = 0, triangleIndex = 0; i < indicesTemplate.Length; i += 3, ++triangleIndex) colliderTriangles[triangleIndex] = int3(indicesTemplate[i], indicesTemplate[i + 1], indicesTemplate[i + 2]);
+
+      colliderBlobs[subMeshIndex] = MeshCollider.Create(colliderVertices, colliderTriangles);
+
+      colliderVertices.Dispose();
+      colliderTriangles.Dispose();
+      #endregion
+
       return 1;
     }
 
-    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
+    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
       var vertices = mesh.GetVertexData<Vertex>();
       var index = mesh.GetIndexData<ushort>();
 
@@ -531,6 +596,20 @@ namespace SS.System {
 
         mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, faceIndices.Length, MeshTopology.Triangles));
         textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
+
+        #region Collider
+        var colliderVertices = new NativeArray<float3>(4, Allocator.Temp);
+        for (var i = 0; i < colliderVertices.Length; ++i) colliderVertices[i] = vertices[vertexStart + i].pos;
+
+        var colliderTriangles = new NativeArray<int3>(faceIndices.Length / 3, Allocator.Temp);
+        for (int i = 0, triangleIndex = 0; i < faceIndices.Length; i += 3, ++triangleIndex) colliderTriangles[triangleIndex] = int3(faceIndices[i], faceIndices[i + 1], faceIndices[i + 2]);
+
+        colliderBlobs[subMeshIndex] = MeshCollider.Create(colliderVertices, colliderTriangles);
+
+        colliderVertices.Dispose();
+        colliderTriangles.Dispose();
+        #endregion
+
         return 1;
       } else { // Possibly two part wall
         ReadOnlySpan<int> portalPoints = stackalloc int[] {
@@ -591,6 +670,22 @@ namespace SS.System {
         if (indexCount > 0) {
           mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(originalIndexStart, indexCount, MeshTopology.Triangles));
           textureIndices[subMeshIndex] = tile.UseAdjacentTexture ? adjacent.WallTexture : tile.WallTexture;
+
+          #region Collider
+          var colliderVertices = new NativeArray<float3>(vertexStart - originalVertexStart, Allocator.Temp);
+          for (var i = 0; i < colliderVertices.Length; ++i)
+            colliderVertices[i] = vertices[originalVertexStart + i].pos;
+
+          var colliderTriangles = new NativeArray<int3>(indexCount / 3, Allocator.Temp);
+          for (int i = 0, triangleIndex = 0; i < indexCount; i += 3, ++triangleIndex)
+            colliderTriangles[triangleIndex] = int3(index[originalIndexStart + i] - originalVertexStart, index[originalIndexStart + i + 1] - originalVertexStart, index[originalIndexStart + i + 2] - originalVertexStart);
+
+          colliderBlobs[subMeshIndex] = MeshCollider.Create(colliderVertices, colliderTriangles);
+
+          colliderVertices.Dispose();
+          colliderTriangles.Dispose();
+          #endregion
+
           return 1;
         }
 
