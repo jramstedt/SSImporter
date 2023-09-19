@@ -6,6 +6,7 @@ using Unity.Entities;
 using UnityEngine.Rendering;
 
 namespace SS {
+  [BurstCompile]
   public static class TextureUtils {
     public const ushort CustomTextureIdBase = 2180;
     public const ushort ArtResourceIdBase = 1350;
@@ -30,7 +31,7 @@ namespace SS {
     public const int NUM_HACK_CAMERAS = 8;
 
     [BurstCompile]
-    public static int CalculateTextureData(in Base baseProperties, in ObjectInstance instanceData, in ObjectInstance.Decoration decorationData, in Level level, in ComponentLookup<ObjectInstance> instanceLookup, in ComponentLookup<ObjectInstance.Decoration> decorationLookup) {
+    public static int CalculateTextureData(in Entity entity, in Base baseProperties, in ObjectInstance instanceData, in Level level, in ComponentLookup<ObjectInstance> instanceLookup, in ComponentLookup<ObjectInstance.Decoration> decorationLookup) {
       var textureData = 0;
 
       var isIndirectable = instanceData.Class == ObjectClass.Decoration &&
@@ -42,6 +43,8 @@ namespace SS {
       //instanceData.Triple == 0x70206; // SCREEN_TRIPLE
 
       if (isIndirectable) { // Must be ObjectClass.Decoration
+        var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+
         var data = decorationData.Data2;
 
         const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
@@ -91,8 +94,8 @@ namespace SS {
         const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
 
         if (instanceData.Class == ObjectClass.Decoration) {
-          var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
-          var textureData = CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup);
+          var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
+          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;

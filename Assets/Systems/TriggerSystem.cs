@@ -44,7 +44,7 @@ namespace SS.System {
       decorationLookup = state.GetComponentLookup<ObjectInstance.Decoration>();
       doorLookup = state.GetComponentLookup<ObjectInstance.DoorAndGrating>();
 
-      randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+      randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
@@ -126,8 +126,6 @@ namespace SS.System {
 
     [BurstCompile]
     private struct TriggerJob : IJobChunk {
-      [NativeSetThreadIndex] internal readonly int threadIndex;
-
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
@@ -141,9 +139,8 @@ namespace SS.System {
         var instances = chunk.GetNativeArray(ref instanceTypeHandle);
         var triggers = chunk.GetNativeArray(ref triggerTypeHandle);
 
-        Processor.threadIndex = threadIndex;
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
-        Processor.animationList.commands.BeginForEachIndex(threadIndex);
+        Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];

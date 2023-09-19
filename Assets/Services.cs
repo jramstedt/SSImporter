@@ -1,6 +1,7 @@
 using SS.Resources;
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement;
@@ -64,6 +65,8 @@ namespace SS {
 
           clut.Apply(false, false);
 
+          clut.name = @"Color lookup table";
+
           Shader.SetGlobalTexture(Shader.PropertyToID(@"_CLUT"), clut);
 
           Complete(clut, true, null);
@@ -82,9 +85,9 @@ namespace SS {
       protected override void Execute() {
         Texture2D lightmap;
         if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16)) {
-          lightmap = new Texture2D(64, 64, TextureFormat.RG16, false, true);
+          lightmap = new(64, 64, TextureFormat.RG16, false, true);
         } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
-          lightmap = new Texture2D(64, 64, TextureFormat.RGBA32, false, true);
+          lightmap = new(64, 64, TextureFormat.RGBA32, false, true);
         } else {
           Complete(null, false, new Exception("No supported TextureFormat found."));
           return;
@@ -95,6 +98,25 @@ namespace SS {
         Shader.SetGlobalTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
 
         Complete(lightmap, true, null);
+      }
+    }
+
+    private class CreateInversePaletteLookupTable : AsyncOperationBase<Texture2D> {
+      protected override void Execute() {
+        // TODO SupportsTextureFormat
+
+        Texture2D inverseLookup = new(256, 3, TextureFormat.R8, false, false) {
+          filterMode = FilterMode.Point,
+          wrapMode = TextureWrapMode.Clamp
+        };
+
+        var textureData = inverseLookup.GetRawTextureData<byte>();
+
+        var red = textureData.GetSubArray(0, 256);
+        var green = textureData.GetSubArray(256, 256);
+        var blue = textureData.GetSubArray(512, 256);
+
+
       }
     }
   }

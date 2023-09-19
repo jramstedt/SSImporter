@@ -47,10 +47,7 @@ namespace SS.System {
         typeof(LevelViewPart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds),
@@ -60,10 +57,7 @@ namespace SS.System {
 
       physicsArchetype = EntityManager.CreateArchetype(
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(PhysicsCollider),
         typeof(PhysicsWorldIndex),
@@ -219,7 +213,7 @@ namespace SS.System {
         if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
           continue;
 
-        var textureIndices = new NativeSlice<byte>(submeshTextureIndex, entityIndex * 6, 6);
+        var textureIndices = submeshTextureIndex.GetSubArray(entityIndex * 6, 6);
 
         var renderBounds = new RenderBounds { Value = mesh.bounds.ToAABB() };
 
@@ -309,7 +303,7 @@ namespace SS.System {
         var tileLocation = tileLocations[i];
         var mapElement = mapElements[i];
 
-        var textureIndices = new NativeSlice<byte>(submeshTextureIndex, realIndex * 6, 6);
+        var textureIndices = submeshTextureIndex.GetSubArray(realIndex * 6, 6);
 
         BuildMesh(entity, tileLocation, mapElement, ref meshData, ref textureIndices, out BlobAssetReference<Collider> collider);
 
@@ -350,7 +344,7 @@ namespace SS.System {
       UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
     }
 
-    private void BuildMesh(in Entity entity, in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeSlice<byte> textureIndices, out BlobAssetReference<Collider> compoundCollider) {
+    private void BuildMesh(in Entity entity, in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeArray<byte> textureIndices, out BlobAssetReference<Collider> compoundCollider) {
       if (tile.TileType == TileType.Solid) {
         mesh.subMeshCount = 0;
         compoundCollider = default;
@@ -441,7 +435,7 @@ namespace SS.System {
       colliderBlobs.Dispose();
     }
 
-    private int CreatePlane(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
+    private int CreatePlane(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeArray<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
       var vertices = mesh.GetVertexData<Vertex>();
       var indices = mesh.GetIndexData<ushort>();
 
@@ -530,7 +524,7 @@ namespace SS.System {
       return 1;
     }
 
-    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeSlice<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
+    private int CreateWall(in MapElement tile, in Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeArray<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, [AssumeRange(0, 3)] int leftCorner, [AssumeRange(0, 3)] int rightCorner, ref MapElement adjacent, [AssumeRange(0, 3)] int adjacentLeftCorner, [AssumeRange(0, 3)] int adjacentRightCorner, bool flip, bool forceSolid) {
       var vertices = mesh.GetVertexData<Vertex>();
       var index = mesh.GetIndexData<ushort>();
 

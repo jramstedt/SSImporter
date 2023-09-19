@@ -57,7 +57,7 @@ namespace SS.System {
       decorationLookup = GetComponentLookup<ObjectInstance.Decoration>();
       doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>();
 
-      randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+      randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
@@ -170,8 +170,6 @@ namespace SS.System {
 
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
-      [NativeSetThreadIndex] internal readonly int threadIndex;
-
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
       public ComponentTypeHandle<AnimationData> animationTypeHandle;
 
@@ -196,9 +194,8 @@ namespace SS.System {
         var animationEntities = chunk.GetNativeArray(entityTypeHandle);
         var animationDatas = chunk.GetNativeArray(ref animationTypeHandle);
 
-        Processor.threadIndex = threadIndex;
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
-        Processor.animationList.commands.BeginForEachIndex(threadIndex);
+        Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
 

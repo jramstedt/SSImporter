@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
+using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static Unity.Mathematics.math;
@@ -18,7 +19,6 @@ namespace SS.System {
 
     private const byte TRAP_TIME_UNIT = 10;
 
-    [NativeSetThreadIndex] public int threadIndex;
     public int unfilteredChunkIndex;
 
     [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
@@ -145,6 +145,7 @@ namespace SS.System {
 
           var randomTime = QuestDataParse((ushort)actionParam4);
           if (randomTime != 0) {
+            var threadIndex = JobsUtility.ThreadIndex;
             var random = Randoms[threadIndex];
             timeStamp += (ushort)random.NextUInt((uint)randomTime);
             Randoms[threadIndex] = random;

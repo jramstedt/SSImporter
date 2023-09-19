@@ -57,4 +57,14 @@ void colorLookup_float(UnityTexture2D CLUT, UnityTexture2D indexTexture, half2 u
   #endif
 }
 
+void translucency_float(half3 background, half opacity, half purity, half3 color, out half3 output) {
+  half3 base = color * opacity;
+
+  half density = (1.0 - opacity) * purity;
+  half clarity = 1.0 - opacity - density;
+
+  half3 filter = clarity + ((color * density) / 64.0);
+  output = background * filter + base;
+}
+
 #endif //GRAPH_UTILS_INCLUDED

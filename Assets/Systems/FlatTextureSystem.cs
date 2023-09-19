@@ -71,10 +71,7 @@ namespace SS.System {
         typeof(FlatTexturePart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds)

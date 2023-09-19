@@ -4,6 +4,7 @@ using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Jobs.LowLevel.Unsafe;
 using UnityEngine;
 using static SS.TextureUtils;
 
@@ -59,8 +60,6 @@ namespace SS.System {
   struct CheckNearbyJob : IJobChunk {
     private const int STOCHASTIC_SHODAN_MASK = 0xF;
 
-    [NativeSetThreadIndex] internal readonly int threadIndex;
-
     [ReadOnly] public Hacker Player;
     [ReadOnly] public Level Level;
 
@@ -79,7 +78,7 @@ namespace SS.System {
       var playerIndex = Player.playerObjectIndex;
       var playerEntity = Level.ObjectInstances.Value[playerIndex];
 
-      animationList.commands.BeginForEachIndex(threadIndex);
+      animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var objectEntity = objectEntities[i];

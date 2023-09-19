@@ -58,7 +58,7 @@ namespace SS.System {
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-      randoms = new NativeArray<Random>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+      randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
@@ -359,8 +359,6 @@ namespace SS.System {
 
     [BurstCompile]
     struct FillNoiseTexture : IJobParallelForBatch {
-      [NativeSetThreadIndex] internal readonly int threadIndex;
-
       [ReadOnly] public byte ColorBase;
       [ReadOnly] public int Stride;
 
@@ -368,6 +366,8 @@ namespace SS.System {
       [NativeDisableContainerSafetyRestriction] public NativeArray<Random> Randoms;
 
       public void Execute(int startIndex, int count) {
+        var threadIndex = JobsUtility.ThreadIndex;
+
         var random = Randoms[threadIndex];
 
         int lastIndex = startIndex + count;

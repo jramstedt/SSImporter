@@ -15,6 +15,7 @@ using static SS.TextureUtils;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
+  [BurstCompile]
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpriteSystem : SystemBase {
@@ -61,10 +62,7 @@ namespace SS.System {
         typeof(SpritePart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds)
@@ -196,8 +194,11 @@ namespace SS.System {
       var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
 
       Entities
-        .WithAll<SpritePart, LocalTransform>()
-        .ForEach((ref LocalTransform localTransform, in ParentTransform parentTransform) => {
+        .WithAll<SpritePart, LocalTransform, Parent>()
+        .ForEach((ref LocalTransform localTransform, in Parent parent) => {
+          if (parent.Value == Entity.Null) return;
+
+          var parentTransform = SystemAPI.GetComponent<LocalToWorld>(parent.Value);
           localTransform.Rotation = math.mul(towardsCameraRotation, math.inverse(parentTransform.Rotation));
         })
         .ScheduleParallel();

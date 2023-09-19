@@ -178,11 +178,26 @@ namespace SS.Resources {
 
       public ActionType ActionType;
       public byte DestroyCount;
-      public uint Comparator; // ?? comparator
+      public uint Comparator;
       public uint ActionParam1;
       public uint ActionParam2;
       public uint ActionParam3;
       public uint ActionParam4;
+
+      public float RepulsorBottom => ActionParam2 / 65536f;
+      public float RepulsorTop => ActionParam3 / 65536f;
+      public Direction RepulsorDirection => (Direction)((ActionParam4 + 1) & 0x7);
+      public bool RepulsorIsFast => (ActionParam4 & 0x8) != 0;
+
+      public enum Direction : byte {
+        Null = 0,
+        Up,
+        Down,
+        North,
+        South,
+        East,
+        West
+      }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

@@ -5,6 +5,7 @@ using Unity.Collections;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
+using static UnityEditor.PlayerSettings.SplashScreen;
 
 namespace SS.Resources {
   public class BitmapProvider : ResourceProviderBase {
@@ -73,9 +74,10 @@ namespace SS.Resources {
         // TODO Make shader so that we don't have to flip textures
 
         if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
-          texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.R8, false, true);
-          texture.filterMode = FilterMode.Point;
-          texture.wrapMode = TextureWrapMode.Repeat;
+          texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.R8, false, true) {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Repeat
+          };
 
           NativeArray<byte> textureData = texture.GetRawTextureData<byte>();
 

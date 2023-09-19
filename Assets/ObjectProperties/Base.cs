@@ -15,8 +15,8 @@ namespace SS.ObjectProperties {
     public byte Hardness; // ?? hardness
     public byte Pep; // ?? ubyte pep; 
     public byte PhysicsX;
-    public byte PhysicsY; // ?? ubyte physics_y;
-    public byte PhysicsZ; // ?? ubyte physics_z;
+    public byte PhysicsY; // unused ubyte physics_y
+    public byte PhysicsZ;
     public int Resistances; // ?? int   resistances
     public byte Defence;
     public byte Toughness;

@@ -69,7 +69,6 @@ namespace SS.System {
         All = new ComponentType[] {
           ComponentType.ReadOnly<MeshInfo>(),
           ComponentType.ReadOnly<ObjectInstance>(),
-          ComponentType.ReadOnly<ObjectInstance.Decoration>(),
           ComponentType.ReadOnly<MeshCachedTag>(),
           // ComponentType.ReadOnly<ModelPartRebuildTag>()
         }
@@ -84,10 +83,7 @@ namespace SS.System {
         typeof(ModelPart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds)
@@ -134,9 +130,6 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      this.instanceLookup.Update(this);
-      this.decorationLookup.Update(this);
-
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
@@ -182,7 +175,6 @@ namespace SS.System {
 
         using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
         using var instanceDatas = activeMeshQuery.ToComponentDataArray<ObjectInstance>(Allocator.Temp);
-        using var decorationDatas = activeMeshQuery.ToComponentDataArray<ObjectInstance.Decoration>(Allocator.Temp);
 
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
         var meshes = new Mesh[entityCount];
@@ -275,11 +267,14 @@ namespace SS.System {
 
         var level = SystemAPI.GetSingleton<Level>();
 
+        // Needs to be updated here, after creating the prototype
+        this.instanceLookup.Update(this);
+        this.decorationLookup.Update(this);
+
         textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
           var instanceData = instanceDatas[entityIndex];
-          var decorationData = decorationDatas[entityIndex];
 
           if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
             continue;
@@ -318,7 +313,7 @@ namespace SS.System {
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
-              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(baseProperties, instanceData, decorationData, level, instanceLookup, decorationLookup), true, false, out var textureType, out var scale),
+              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup), true, false, out var textureType, out var scale),
               _ => BatchMaterialID.Null
             };
 

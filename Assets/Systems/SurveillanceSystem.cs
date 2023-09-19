@@ -66,7 +66,7 @@ namespace SS.System {
         .Run();
 
       Entities
-        .ForEach((Camera camera, in WorldTransform transform) => {
+        .ForEach((Camera camera, in LocalToWorld transform) => {
           camera.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
         })
         .WithoutBurst()

@@ -65,10 +65,7 @@ namespace SS.System {
         typeof(FlatTexturePart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds)
@@ -190,7 +187,7 @@ namespace SS.System {
 
       Entities
         .WithAll<FlatTexturePart>()
-        .ForEach((DecalProjector projector, in WorldTransform transform) => {
+        .ForEach((DecalProjector projector, in LocalToWorld transform) => {
           projector.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
         })
         .WithoutBurst()

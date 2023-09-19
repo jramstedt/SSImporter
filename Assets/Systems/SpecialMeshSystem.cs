@@ -57,10 +57,7 @@ namespace SS.System {
         typeof(SpecialPart),
 
         typeof(LocalTransform),
-        typeof(WorldTransform),
-
         typeof(Parent),
-        typeof(ParentTransform),
 
         typeof(LocalToWorld),
         typeof(RenderBounds)

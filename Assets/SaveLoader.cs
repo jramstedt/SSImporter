@@ -1,4 +1,4 @@
-﻿using SS.ObjectProperties;
+using SS.ObjectProperties;
 using SS.System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Physics.Authoring;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -16,6 +17,8 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
+using static Unity.Physics.Material;
+using Material = UnityEngine.Material;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -221,26 +224,92 @@ namespace SS.Resources {
         if (!instanceData.Active) continue;
         if (instanceData.CrossReferenceTableIndex == 0) continue;
 
-        var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
-
         #region Physics
         if (baseData.TerrainType != Base.TerrainTypes.Ignore) {
+          var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+
           if (baseData.DrawType == DrawType.FlatPolygon ||
               baseData.DrawType == DrawType.AnimatedPolygon ||
               baseData.DrawType == DrawType.TexturedPolygon ||
               baseData.DrawType == DrawType.Bitmap ||
               baseData.DrawType == DrawType.NoObj) {
+
+            BlobAssetReference<Unity.Physics.Collider> collider;
+
+            var physicsTranslation = float3.zero;
+
             var r = radius / 2f;
             var h = baseData.PhysicsZ != 0 ? (float)baseData.PhysicsZ / (float)MapElement.PHYSICS_RADIUS_UNIT : radius;
 
-            if (instanceData.Triple == 0xc000a) { } // TODO FIXME REPULSOR_TRIPLE
-            else if (instanceData.Triple == 0x70507) { // TODO FIXME ENERGY_MINE_TRIPLE
-              // TODO update rendering position only...
-              // y += h / 2f;
-              r = -r;
+            entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
+
+            if (instanceData.Triple == 0xc000a /* REPULSOR_TRIPLE */) {
+              // TODO Update BoxGeometry if triggerInstance changes
+
+              var trigger = triggerInstances[instanceData.SpecIndex];
+
+              // if (ComparatorCheck(trigger.Comparator, Entity.Null, out byte specialCode))
+
+              /*
+               * TODO use these in physics calculations
+              var topLimit = trigger.RepulsorTop;
+              var targetHeight = trigger.RepulsorBottom;
+
+              if (trigger.RepulsorDirection == ObjectInstance.Trigger.Direction.Up) {
+                if (topLimit == 0) targetHeight = 7453f;
+                else targetHeight = trigger.RepulsorTop;
+              }
+              */
+
+              var repulsorHeight = trigger.RepulsorTop - trigger.RepulsorBottom;
+              var repulsorCenter = trigger.RepulsorBottom + (repulsorHeight / 2);
+
+              physicsTranslation = math.float3(-location.FineX / 256f, levelInfo.HeightFactor * -location.Z / 256f, -location.FineY / 256f) + math.float3(0.5f, repulsorCenter, 0.5f);
+
+              collider = Unity.Physics.BoxCollider.Create(
+                new BoxGeometry {
+                  BevelRadius = float.Epsilon,
+                  Center = physicsTranslation, 
+                  Orientation = quaternion.identity,
+                  Size = math.float3(1f, repulsorHeight, 1f)
+                },
+                CollisionFilter.Default,
+                new Unity.Physics.Material {
+                  FrictionCombinePolicy = CombinePolicy.GeometricMean,
+                  RestitutionCombinePolicy = CombinePolicy.GeometricMean,
+                  Friction = 0.5f,
+                  Restitution = 0f,
+                  CollisionResponse = CollisionResponsePolicy.RaiseTriggerEvents
+                }
+              );
+            } else if (instanceData.Triple == 0x70507) { // TODO FIXME ENERGY_MINE_TRIPLE
+              physicsTranslation.y += h / 2f;
+
+              // Sphere collider??
+              // r = -r;
+
+              collider = Unity.Physics.SphereCollider.Create(
+                new SphereGeometry {
+                  Center = physicsTranslation,
+                  Radius = r
+                }
+              );
+            } else {
+              Debug.Log($"h {h} r {r} e {entity}");
+
+              collider = Unity.Physics.CylinderCollider.Create(
+                new CylinderGeometry {
+                  BevelRadius = 0f,
+                  Center = physicsTranslation,
+                  Height = math.max(h, float.Epsilon),
+                  Orientation = quaternion.identity,
+                  Radius = math.max(r, float.Epsilon),
+                  SideCount = 8 // TODO
+                }
+              );
             }
 
-            // TODO add cylinder collider
+            entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
           } else if (baseData.DrawType == DrawType.Special) {
             // TODO add cube collider for special types
           } else if (baseData.DrawType == DrawType.TranslucentPolygon ||

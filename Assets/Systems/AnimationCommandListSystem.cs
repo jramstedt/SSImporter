@@ -17,7 +17,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      EntityManager.AddComponentData(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.MaxJobThreadCount, Allocator.TempJob) });
+      EntityManager.AddComponentData(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
 
       animationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -42,7 +42,7 @@ namespace SS.System {
       Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, Dependency);
 
       var commands = SystemAPI.GetComponent<AnimateObjectSystemData>(this.SystemHandle).commands;
-      SystemAPI.SetComponent(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.MaxJobThreadCount, Allocator.TempJob) });
+      SystemAPI.SetComponent(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
 
       var processAnimationCommands = new ProcessAnimationCommands {
         commands = commands.AsReader(),
