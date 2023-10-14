@@ -1,14 +1,13 @@
-﻿using Mono.Cecil;
-using SS.Resources;
-using System;
+﻿using SS.Resources;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Entities;
+using Unity.IO.LowLevel.Unsafe;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
 
@@ -21,6 +20,7 @@ namespace SS.System {
     private EntityQuery newFlatTextureQuery;
     private EntityQuery activeDecalProjectorQuery;
     private EntityQuery removedDecalProjectoreQuery;
+    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -61,6 +61,10 @@ namespace SS.System {
         None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>() },
       });
 
+      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<AnimationData>()
+        .Build(this);
+
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(FlatTexturePart),
 
@@ -80,9 +84,6 @@ namespace SS.System {
 
       var objectPropertiesOp = Services.ObjectProperties;
       objectPropertiesOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
-
         objectProperties = objectPropertiesOp.Result;
 
         EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
@@ -97,6 +98,8 @@ namespace SS.System {
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var level = SystemAPI.GetSingleton<Level>();
+
+      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
 
       {
         foreach (var (instanceData, entity) in
@@ -114,17 +117,18 @@ namespace SS.System {
            materialProviderSystem,
            instanceLookup,
            decorationLookup,
+           animationData.AsReadOnly(),
            true,
            out ushort refWidthOverride);
 
           if (materialID == BatchMaterialID.Null) {
             var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
             var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-            materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, true);
+            materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true);
           }
 
           if (resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
-            UpdateProjector(decalProjector, materialID, refWidthOverride);
+            UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
 
             commandBuffer.RemoveComponent<AnimatedTag>(entity);
           }
@@ -150,13 +154,14 @@ namespace SS.System {
             materialProviderSystem,
             instanceLookup,
             decorationLookup,
+            animationData.AsReadOnly(),
             true,
             out ushort refWidthOverride);
 
           if (materialID == BatchMaterialID.Null) {
             var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
             var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-            materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, true);
+            materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true);
           }
 
           if (!resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
@@ -178,7 +183,7 @@ namespace SS.System {
             resourceDecalProjectors.Add(entity, decalProjector);
           }
 
-          UpdateProjector(decalProjector, materialID, refWidthOverride);
+          UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
         }
 
         var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
@@ -194,24 +199,18 @@ namespace SS.System {
         .Run();
     }
 
-    void UpdateProjector (DecalProjector decalProjector, in BatchMaterialID materialID, ushort refWidthOverride) {
+    async void UpdateProjectorAsync (DecalProjector decalProjector, BatchMaterialID materialID, ushort refWidthOverride) {
       decalProjector.material = entitiesGraphicsSystem.GetMaterial(materialID);
 
-      var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
-      loadOp.Completed += loadOp => {
-        if (loadOp.Status != AsyncOperationStatus.Succeeded)
-          throw loadOp.OperationException;
+      var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
 
-        var bitmapDesc = loadOp.Result;
+      float scale = 1f;
+      if (refWidthOverride > 0)
+        scale = refWidthOverride / bitmapDesc.Size.x;
 
-        float scale = 1f;
-        if (refWidthOverride > 0)
-          scale = refWidthOverride / bitmapDesc.Size.x;
+      var realSize = scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 64f;
 
-        var realSize = scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 64f;
-
-        decalProjector.size = new() { x = realSize.x, y = realSize.y, z = 0.2f };
-      };
+      decalProjector.size = new() { x = realSize.x, y = realSize.y, z = 0.2f };
     }
 
     private struct AsyncLoadTag : IComponentData { }

@@ -18,7 +18,6 @@ using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
 using MeshCollider = Unity.Physics.MeshCollider;
 using Collider = Unity.Physics.Collider;
-using static UnityEngine.Mesh;
 
 namespace SS.System {
   [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -311,7 +310,7 @@ namespace SS.System {
       }
     }
 
-    private bool2 IsWallTextureFlipped(in TileLocation tileLocation, in MapElement texturing) {
+    private readonly bool2 IsWallTextureFlipped(in TileLocation tileLocation, in MapElement texturing) {
       bool2 flip = default;
 
       if (texturing.TextureAlternate) {

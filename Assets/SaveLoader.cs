@@ -1,4 +1,4 @@
-using SS.ObjectProperties;
+﻿using SS.ObjectProperties;
 using SS.System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,12 +11,10 @@ using Unity.Physics;
 using Unity.Physics.Authoring;
 using Unity.Rendering;
 using Unity.Transforms;
+using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.ResourceLocations;
 using static Unity.Physics.Material;
 using Material = UnityEngine.Material;
 
@@ -28,14 +26,13 @@ namespace SS.Resources {
 
     private static ushort ResourceIdFromLevel(byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
 
-    public static async Task<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
-      var loadOp = Addressables.ResourceManager.ProvideResource<ResourceFile>(new ResourceLocationBase(@"savegame", $"{dataPath}\\{saveGameFile}", typeof(ResourceFileProvider).FullName, typeof(ResourceFile)));
-      var saveData = await loadOp.Task;
+    public static async Awaitable<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
+      var saveData = await Res.Open($"{dataPath}\\{saveGameFile}");
 
-      var palette = await Services.Palette.Task;
-      var shadetable = await Services.ShadeTable.Task;
-      var allTextureProperties = await Services.TextureProperties.Task;
-      var objectProperties = await Services.ObjectProperties.Task;
+      var palette = await Services.Palette;
+      var shadetable = await Services.ShadeTable;
+      var allTextureProperties = await Services.TextureProperties;
+      var objectProperties = await Services.ObjectProperties;
 
       ushort resourceId = ResourceIdFromLevel(mapId);
       var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
@@ -45,6 +42,7 @@ namespace SS.Resources {
       var textureMap = saveData.GetResourceData<TextureMap>((ushort)(0x0007 + resourceId));
 
       var objectInstances = saveData.GetResourceDataArray<ObjectInstance>((ushort)(0x008 + resourceId));
+      var crossReferenceTable = saveData.GetResourceDataArray<ObjectReference>((ushort)(0x009 + resourceId));
       // 0x0009 Cross reference table
 
       var weaponInstances = saveData.GetResourceDataArray<ObjectInstance.Weapon>((ushort)(0x000A + resourceId));
@@ -107,11 +105,11 @@ namespace SS.Resources {
 
       // world.GetOrCreateSystem<PaletteEffectSystem>();
 
-      var clutTexture = await Services.ColorLookupTableTexture.Task;
-      var lightmap = await Services.LightmapTexture.Task;
+      var clutTexture = await Services.ColorLookupTableTexture;
+      var lightmap = await Services.LightmapTexture;
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
-      // TODO FIXME move material creations to own system with signleton entity access to material IDs
+      // TODO FIXME move material creations to own system with singleton entity access to material IDs
 
       var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
       var textureProperties = new TextureProperties[TextureMap.NUM_LOADED_TEXTURES];
@@ -269,7 +267,7 @@ namespace SS.Resources {
               collider = Unity.Physics.BoxCollider.Create(
                 new BoxGeometry {
                   BevelRadius = float.Epsilon,
-                  Center = physicsTranslation, 
+                  Center = physicsTranslation,
                   Orientation = quaternion.identity,
                   Size = math.float3(1f, repulsorHeight, 1f)
                 },
@@ -357,11 +355,9 @@ namespace SS.Resources {
         }
 
         if (baseData.DrawType == DrawType.TexturedPolygon) {
-          var modelOp = Addressables.LoadAssetAsync<MeshInfo>($"{ModelResourceIdBase + baseData.MfdId}");
-          modelOp.Completed += op => {
-            if (op.Status == AsyncOperationStatus.Succeeded)
-              entityManager.AddComponentData(entity, op.Result);
-          };
+          // TODO parallel?
+          var mesInfo = await Res.Load<MeshInfo>((ushort)(ModelResourceIdBase + baseData.MfdId));
+          entityManager.AddComponentData(entity, mesInfo);
         } else if (baseData.DrawType == DrawType.Bitmap) {
           entityManager.AddComponentData(entity, new SpriteInfo { });
         } else if (baseData.DrawType == DrawType.TerrainPolygon) {
@@ -476,7 +472,8 @@ namespace SS.Resources {
         Id = mapId,
         TextureMap = textureMap,
         ObjectInstances = BuildBlob(objectInstanceEntities),
-        SurveillanceCameras = BuildBlob(surveillanceSourceEntities)
+        SurveillanceCameras = BuildBlob(surveillanceSourceEntities),
+        ObjectReferences = BuildBlob(crossReferenceTable)
       };
 
       var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
@@ -515,7 +512,7 @@ namespace SS.Resources {
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,
         DrawColliderEdges = 0,
-        DrawColliderAabbs = 0,
+        DrawColliderAabbs = 1,
         DrawBroadphase = 0,
         DrawMassProperties = 0,
         DrawContacts = 0,
@@ -530,13 +527,19 @@ namespace SS.Resources {
       return world;
     }
 
-    private static unsafe BlobAssetReference<BlobArray<Entity>> BuildBlob(in NativeArray<Entity> entities) {
-      using (BlobBuilder blobBuilder = new BlobBuilder(Allocator.Temp)) {
-        ref var tileArrayAsset = ref blobBuilder.ConstructRoot<BlobArray<Entity>>();
-        var tileArray = blobBuilder.Allocate(ref tileArrayAsset, entities.Length);
-        UnsafeUtility.MemCpy(tileArray.GetUnsafePtr(), entities.GetUnsafeReadOnlyPtr(), entities.Length * UnsafeUtility.SizeOf<Entity>());
-        return blobBuilder.CreateBlobAssetReference<BlobArray<Entity>>(Allocator.Persistent);
-      }
+    private static unsafe BlobAssetReference<BlobArray<T>> BuildBlob<T>(in NativeArray<T> array) where T : struct {
+      using BlobBuilder blobBuilder = new(Allocator.Temp);
+      ref var blobArray = ref blobBuilder.ConstructRoot<BlobArray<T>>();
+      var tileArray = blobBuilder.Allocate(ref blobArray, array.Length);
+      UnsafeUtility.MemCpy(tileArray.GetUnsafePtr(), array.GetUnsafeReadOnlyPtr(), array.Length * UnsafeUtility.SizeOf<T>());
+      return blobBuilder.CreateBlobAssetReference<BlobArray<T>>(Allocator.Persistent);
+    }
+
+    private static unsafe BlobAssetReference<BlobArray<T>> BuildBlob<T>(in T[] array) where T : struct {
+      using BlobBuilder blobBuilder = new(Allocator.Temp);
+      ref var blobArray = ref blobBuilder.ConstructRoot<BlobArray<T>>();
+      var tileArray = blobBuilder.Construct(ref blobArray, array);
+      return blobBuilder.CreateBlobAssetReference<BlobArray<T>>(Allocator.Persistent);
     }
 
     private static MapElement[,] ReadMapElements(byte[] rawData, in LevelInfo levelInfo) {
@@ -554,39 +557,40 @@ namespace SS.Resources {
     }
 
     private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {
-      var tex128x128 = Addressables.LoadAssetAsync<BitmapSet>($"{0x03E8 + textureIndex}");
-      var tex64x64 = Addressables.LoadAssetAsync<BitmapSet>($"{0x02C3 + textureIndex}");
-      var tex32x32 = Addressables.LoadAssetAsync<BitmapSet>($"{0x004D}:{textureIndex}");
-      var tex16x16 = Addressables.LoadAssetAsync<BitmapSet>($"{0x004C}:{textureIndex}");
+      var tex128x128op = Res.Load<BitmapSet>((ushort)(0x03E8 + textureIndex));
+      var tex64x64op = Res.Load<BitmapSet>((ushort)(0x02C3 + textureIndex));
+      var tex32x32op = Res.Load<BitmapSet>(0x004D, textureIndex);
+      var tex16x16op = Res.Load<BitmapSet>(0x004C, textureIndex);
 
-      await Task.WhenAll(tex128x128.Task, tex64x64.Task, tex32x32.Task, tex16x16.Task);
+      // TODO FIXME disposing these might be a bad idea. Resources should be cached and reference counted.
+      using var tex128x128 = await tex128x128op;
 
-      Texture2D complete = new Texture2D(128, 128, tex128x128.Result.Texture.format, 4, true);
-      complete.filterMode = tex128x128.Result.Texture.filterMode;
-      complete.wrapMode = tex128x128.Result.Texture.wrapMode;
+      Texture2D complete = new(128, 128, tex128x128.Texture.format, 4, true) {
+        filterMode = tex128x128.Texture.filterMode,
+        wrapMode = tex128x128.Texture.wrapMode
+      };
+
+      using var tex64x64 = await tex64x64op;
+      using var tex32x32 = await tex32x32op;
+      using var tex16x16 = await tex16x16op;
 
       if (SystemInfo.copyTextureSupport.HasFlag(CopyTextureSupport.Basic)) {
-        Graphics.CopyTexture(tex128x128.Result.Texture, 0, 0, complete, 0, 0);
-        Graphics.CopyTexture(tex64x64.Result.Texture, 0, 0, complete, 0, 1);
-        Graphics.CopyTexture(tex32x32.Result.Texture, 0, 0, complete, 0, 2);
-        Graphics.CopyTexture(tex16x16.Result.Texture, 0, 0, complete, 0, 3);
+        Graphics.CopyTexture(tex128x128.Texture, 0, 0, complete, 0, 0);
+        Graphics.CopyTexture(tex64x64.Texture, 0, 0, complete, 0, 1);
+        Graphics.CopyTexture(tex32x32.Texture, 0, 0, complete, 0, 2);
+        Graphics.CopyTexture(tex16x16.Texture, 0, 0, complete, 0, 3);
       } else {
-        complete.SetPixelData(tex128x128.Result.Texture.GetPixelData<byte>(0), 0);
-        complete.SetPixelData(tex64x64.Result.Texture.GetPixelData<byte>(0), 1);
-        complete.SetPixelData(tex32x32.Result.Texture.GetPixelData<byte>(0), 2);
-        complete.SetPixelData(tex16x16.Result.Texture.GetPixelData<byte>(0), 3);
+        complete.SetPixelData(tex128x128.Texture.GetPixelData<byte>(0), 0);
+        complete.SetPixelData(tex64x64.Texture.GetPixelData<byte>(0), 1);
+        complete.SetPixelData(tex32x32.Texture.GetPixelData<byte>(0), 2);
+        complete.SetPixelData(tex16x16.Texture.GetPixelData<byte>(0), 3);
       }
       complete.Apply(false, true);
 
       var result = new BitmapSet {
         Texture = complete,
-        Description = tex128x128.Result.Description
+        Description = tex128x128.Description
       };
-
-      Addressables.Release(tex128x128);
-      Addressables.Release(tex64x64);
-      Addressables.Release(tex32x32);
-      Addressables.Release(tex16x16);
 
       return result;
     }

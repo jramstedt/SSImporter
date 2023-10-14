@@ -5,8 +5,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -18,14 +16,10 @@ namespace SS.System {
     private EntityQuery paletteEffectQuery;
     private int lastTicks;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<AsyncLoadTag>();
-
-      var rawPaletteOp = Services.Palette;
-      var shadeTableOp = Services.ShadeTable;
-      var clutOp = Services.ColorLookupTableTexture;
 
       paletteEffectQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -35,17 +29,11 @@ namespace SS.System {
 
       lastTicks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
 
-      var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { rawPaletteOp, shadeTableOp, clutOp });
-      loadOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
+      palette = (await Services.Palette).ToNativeArray();
+      shadeTable = await Services.ShadeTable;
+      clut = await Services.ColorLookupTableTexture;
 
-        palette = rawPaletteOp.Result.ToNativeArray();
-        shadeTable = shadeTableOp.Result;
-        clut = clutOp.Result;
-
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
+      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
     }
 
     protected override void OnUpdate() {
@@ -133,5 +121,4 @@ namespace SS.System {
     public byte FrameTime;
     public ushort TimeRemaining;
   }
-
 }

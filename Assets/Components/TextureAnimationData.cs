@@ -17,7 +17,7 @@ namespace SS.Resources {
     public readonly byte TotalFrames;
     public FlagMask Flags;
 
-    public bool IsCyclic => (Flags & FlagMask.Cyclic) == FlagMask.Cyclic;
-    public bool IsReversing => (Flags & FlagMask.Reversing) == FlagMask.Reversing;
+    public readonly bool IsCyclic => (Flags & FlagMask.Cyclic) == FlagMask.Cyclic;
+    public readonly bool IsReversing => (Flags & FlagMask.Reversing) == FlagMask.Reversing;
   }
 }

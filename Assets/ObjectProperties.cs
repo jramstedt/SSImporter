@@ -22,131 +22,130 @@ namespace SS.Resources {
       if (version != FILE_VERSION)
         throw new NotSupportedException($"File version is not supported ({version})");
 
-      using (var blobBuilder = new BlobBuilder(Allocator.Temp)) {
-        ref var objectDataBlob = ref blobBuilder.ConstructRoot<ObjectDatas>();
+      using var blobBuilder = new BlobBuilder(Allocator.Temp);
+      ref var objectDataBlob = ref blobBuilder.ConstructRoot<ObjectDatas>();
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.WeaponProps, Weapon.NUM_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.PistolWeaponProps, Weapon.NUM_PISTOL_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.AutomaticWeaponProps, Weapon.NUM_AUTO_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileWeaponProps, Weapon.NUM_SPECIAL_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.MeleeWeaponProps, Weapon.NUM_HANDTOHAND_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.BeamWeaponProps, Weapon.NUM_BEAM_GUN);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.EnergyProjectileWeaponProps, Weapon.NUM_BEAMPROJ_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.WeaponProps, Weapon.NUM_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.PistolWeaponProps, Weapon.NUM_PISTOL_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.AutomaticWeaponProps, Weapon.NUM_AUTO_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileWeaponProps, Weapon.NUM_SPECIAL_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.MeleeWeaponProps, Weapon.NUM_HANDTOHAND_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.BeamWeaponProps, Weapon.NUM_BEAM_GUN);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.EnergyProjectileWeaponProps, Weapon.NUM_BEAMPROJ_GUN);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.AmmunitionProps, Ammunition.NUM_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.PistolAmmunitionProps, Ammunition.NUM_PISTOL_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.NeedleAmmunitionProps, Ammunition.NUM_NEEDLE_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.MagnumAmmunitionProps, Ammunition.NUM_MAGNUM_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.RifleAmmunitionProps, Ammunition.NUM_RIFLE_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.FlechetteAmmunitionProps, Ammunition.NUM_FLECHETTE_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.AutoAmmunitionProps, Ammunition.NUM_AUTO_AMMO);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileAmmunitionProps, Ammunition.NUM_PROJ_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.AmmunitionProps, Ammunition.NUM_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.PistolAmmunitionProps, Ammunition.NUM_PISTOL_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.NeedleAmmunitionProps, Ammunition.NUM_NEEDLE_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.MagnumAmmunitionProps, Ammunition.NUM_MAGNUM_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.RifleAmmunitionProps, Ammunition.NUM_RIFLE_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.FlechetteAmmunitionProps, Ammunition.NUM_FLECHETTE_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.AutoAmmunitionProps, Ammunition.NUM_AUTO_AMMO);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileAmmunitionProps, Ammunition.NUM_PROJ_AMMO);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileProps, Projectile.NUM_PHYSICS);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TracerProjectileProps, Projectile.NUM_TRACER_PHYSICS);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.SlowProjectileProps, Projectile.NUM_SLOW_PHYSICS);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CameraProjectileProps, Projectile.NUM_CAMERA_PHYSICS);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ProjectileProps, Projectile.NUM_PHYSICS);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TracerProjectileProps, Projectile.NUM_TRACER_PHYSICS);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.SlowProjectileProps, Projectile.NUM_SLOW_PHYSICS);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CameraProjectileProps, Projectile.NUM_CAMERA_PHYSICS);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ExplosiveProps, Explosive.NUM_GRENADE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DirectExplosiveProps, Explosive.NUM_DIRECT_GRENADE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TimedExplosiveProps, Explosive.NUM_TIMED_GRENADE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ExplosiveProps, Explosive.NUM_GRENADE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DirectExplosiveProps, Explosive.NUM_DIRECT_GRENADE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TimedExplosiveProps, Explosive.NUM_TIMED_GRENADE);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DrugProps, DermalPatch.NUM_DRUG);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.StatsDrugProps, DermalPatch.NUM_STATS_DRUG);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DrugProps, DermalPatch.NUM_DRUG);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.StatsDrugProps, DermalPatch.NUM_STATS_DRUG);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.HardwareProps, Hardware.NUM_HARDWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.GoggleHardwareProps, Hardware.NUM_GOGGLE_HARDWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.HardHardwareProps, Hardware.NUM_HARDWARE_HARDWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.HardwareProps, Hardware.NUM_HARDWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.GoggleHardwareProps, Hardware.NUM_GOGGLE_HARDWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.HardHardwareProps, Hardware.NUM_HARDWARE_HARDWARE);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.SoftwareProps, Software.NUM_SOFTWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.OffenseSoftwareProps, Software.NUM_OFFENSE_SOFTWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DefenseSoftwareProps, Software.NUM_DEFENSE_SOFTWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.OneShotSoftwareProps, Software.NUM_ONESHOT_SOFTWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.MiscSoftwareProps, Software.NUM_MISC_SOFTWARE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DataSoftwareProps, Software.NUM_DATA_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.SoftwareProps, Software.NUM_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.OffenseSoftwareProps, Software.NUM_OFFENSE_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DefenseSoftwareProps, Software.NUM_DEFENSE_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.OneShotSoftwareProps, Software.NUM_ONESHOT_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.MiscSoftwareProps, Software.NUM_MISC_SOFTWARE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DataSoftwareProps, Software.NUM_DATA_SOFTWARE);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DecorationProps, Decoration.NUM_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ElectronicDecorationProps, Decoration.NUM_ELECTRONIC_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.FurnitureDecorationProps, Decoration.NUM_FURNISHING_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.OnTheWallDecorationProps, Decoration.NUM_ONTHEWALL_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.LightDecorationProps, Decoration.NUM_LIGHT_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.LabGearDecorationProps, Decoration.NUM_LABGEAR_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TechnoDecorationProps, Decoration.NUM_TECHNO_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DecorDecorationProps, Decoration.NUM_DECOR_BIGSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TerrainDecorationProps, Decoration.NUM_TERRAIN_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DecorationProps, Decoration.NUM_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ElectronicDecorationProps, Decoration.NUM_ELECTRONIC_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.FurnitureDecorationProps, Decoration.NUM_FURNISHING_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.OnTheWallDecorationProps, Decoration.NUM_ONTHEWALL_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.LightDecorationProps, Decoration.NUM_LIGHT_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.LabGearDecorationProps, Decoration.NUM_LABGEAR_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TechnoDecorationProps, Decoration.NUM_TECHNO_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DecorDecorationProps, Decoration.NUM_DECOR_BIGSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TerrainDecorationProps, Decoration.NUM_TERRAIN_BIGSTUFF);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ItemProps, Item.NUM_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.UselessItemProps, Item.NUM_USELESS_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.BrokenItemProps, Item.NUM_BROKEN_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CorpseItemProps, Item.NUM_CORPSELIKE_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.GearItemProps, Item.NUM_GEAR_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CardsItemProps, Item.NUM_CARDS_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberspaceItemProps, Item.NUM_CYBER_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.OnTheWallItemProps, Item.NUM_ONTHEWALL_SMALLSTUFF);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.PlotItemProps, Item.NUM_PLOT_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ItemProps, Item.NUM_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.UselessItemProps, Item.NUM_USELESS_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.BrokenItemProps, Item.NUM_BROKEN_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CorpseItemProps, Item.NUM_CORPSELIKE_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.GearItemProps, Item.NUM_GEAR_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CardsItemProps, Item.NUM_CARDS_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberspaceItemProps, Item.NUM_CYBER_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.OnTheWallItemProps, Item.NUM_ONTHEWALL_SMALLSTUFF);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.PlotItemProps, Item.NUM_PLOT_SMALLSTUFF);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.FixtureProps, Fixture.NUM_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ControlFixtureProps, Fixture.NUM_CONTROL_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ReceptacleFixtureProps, Fixture.NUM_RECEPTACLE_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TerminalFixtureProps, Fixture.NUM_TERMINAL_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.PanelFixtureProps, Fixture.NUM_PANEL_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.VendingFixtureProps, Fixture.NUM_VENDING_FIXTURE);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberFixtureProps, Fixture.NUM_CYBER_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.FixtureProps, Fixture.NUM_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ControlFixtureProps, Fixture.NUM_CONTROL_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ReceptacleFixtureProps, Fixture.NUM_RECEPTACLE_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TerminalFixtureProps, Fixture.NUM_TERMINAL_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.PanelFixtureProps, Fixture.NUM_PANEL_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.VendingFixtureProps, Fixture.NUM_VENDING_FIXTURE);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberFixtureProps, Fixture.NUM_CYBER_FIXTURE);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DoorsAndGratingProps, DoorAndGrating.NUM_DOOR);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.NormalDoorsAndGratingProps, DoorAndGrating.NUM_NORMAL_DOOR);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.DoorwayDoorsAndGratingProps, DoorAndGrating.NUM_DOORWAYS_DOOR);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ForceDoorsAndGratingProps, DoorAndGrating.NUM_FORCE_DOOR);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ElevatorDoorsAndGratingProps, DoorAndGrating.NUM_ELEVATOR_DOOR);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.SpecialDoorsAndGratingProps, DoorAndGrating.NUM_SPECIAL_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DoorsAndGratingProps, DoorAndGrating.NUM_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.NormalDoorsAndGratingProps, DoorAndGrating.NUM_NORMAL_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.DoorwayDoorsAndGratingProps, DoorAndGrating.NUM_DOORWAYS_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ForceDoorsAndGratingProps, DoorAndGrating.NUM_FORCE_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ElevatorDoorsAndGratingProps, DoorAndGrating.NUM_ELEVATOR_DOOR);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.SpecialDoorsAndGratingProps, DoorAndGrating.NUM_SPECIAL_DOOR);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.AnimatingProps, Animating.NUM_ANIMATING);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ObjectAnimatingProps, Animating.NUM_OBJECT_ANIMATING);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TransitoryAnimatingProps, Animating.NUM_TRANSITORY_ANIMATING);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ExplosionAnimatingProps, Animating.NUM_EXPLOSION_ANIMATING);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.AnimatingProps, Animating.NUM_ANIMATING);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ObjectAnimatingProps, Animating.NUM_OBJECT_ANIMATING);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TransitoryAnimatingProps, Animating.NUM_TRANSITORY_ANIMATING);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ExplosionAnimatingProps, Animating.NUM_EXPLOSION_ANIMATING);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TrapProps, Trap.NUM_TRAP);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.TriggerTrapProps, Trap.NUM_TRIGGER_TRAP);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.FeedbackTrapProps, Trap.NUM_FEEDBACKS_TRAP);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.SecretTrapProps, Trap.NUM_SECRET_TRAP);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TrapProps, Trap.NUM_TRAP);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.TriggerTrapProps, Trap.NUM_TRIGGER_TRAP);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.FeedbackTrapProps, Trap.NUM_FEEDBACKS_TRAP);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.SecretTrapProps, Trap.NUM_SECRET_TRAP);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ContainerProps, Container.NUM_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.ActualContainerProps, Container.NUM_ACTUAL_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.WasteContainerProps, Container.NUM_WASTE_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.LiquidContainerProps, Container.NUM_LIQUID_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.MutantCorpseContainerProps, Container.NUM_MUTANT_CORPSE_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.RobotCorpseContainerProps, Container.NUM_ROBOT_CORPSE_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyborgCorpseContainerProps, Container.NUM_CYBORG_CORPSE_CONTAINER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.OtherCorpseContainerProps, Container.NUM_OTHER_CORPSE_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ContainerProps, Container.NUM_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.ActualContainerProps, Container.NUM_ACTUAL_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.WasteContainerProps, Container.NUM_WASTE_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.LiquidContainerProps, Container.NUM_LIQUID_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.MutantCorpseContainerProps, Container.NUM_MUTANT_CORPSE_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.RobotCorpseContainerProps, Container.NUM_ROBOT_CORPSE_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyborgCorpseContainerProps, Container.NUM_CYBORG_CORPSE_CONTAINER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.OtherCorpseContainerProps, Container.NUM_OTHER_CORPSE_CONTAINER);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.EnemyProps, Enemy.NUM_CRITTER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.MutantEnemyProps, Enemy.NUM_MUTANT_CRITTER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.RobotEnemyProps, Enemy.NUM_ROBOT_CRITTER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyborgEnemyProps, Enemy.NUM_CYBORG_CRITTER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberspaceEnemyProps, Enemy.NUM_CYBER_CRITTER);
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.BossEnemyProps, Enemy.NUM_ROBOBABE_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.EnemyProps, Enemy.NUM_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.MutantEnemyProps, Enemy.NUM_MUTANT_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.RobotEnemyProps, Enemy.NUM_ROBOT_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyborgEnemyProps, Enemy.NUM_CYBORG_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.CyberspaceEnemyProps, Enemy.NUM_CYBER_CRITTER);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.BossEnemyProps, Enemy.NUM_ROBOBABE_CRITTER);
 
-        ReadData(blobBuilder, binaryReader, ref objectDataBlob.BaseProps, Base.NUM_OBJECT);
+      ReadData(blobBuilder, binaryReader, ref objectDataBlob.BaseProps, Base.NUM_OBJECT);
 
-        var ObjectBase = blobBuilder.Allocate(ref objectDataBlob.ObjectBase, 0x0F << 3);
-        var ClassBase = blobBuilder.Allocate(ref objectDataBlob.ClassBase, 0x0F << 3);
+      var ObjectBase = blobBuilder.Allocate(ref objectDataBlob.ObjectBase, 0x0F << 3);
+      var ClassBase = blobBuilder.Allocate(ref objectDataBlob.ClassBase, 0x0F << 3);
 
-        ushort totalCount = 0;
-        for (var classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
-          var subclassDeclaration = ObjectDeclarations[classIndex];
+      ushort totalCount = 0;
+      for (var classIndex = 0; classIndex < ObjectDeclarations.Length; ++classIndex) {
+        var subclassDeclaration = ObjectDeclarations[classIndex];
 
-          ushort perClassCount = 0;
-          for (var subclassIndex = 0; subclassIndex < subclassDeclaration.Length; ++subclassIndex) {
-            ObjectBase[(classIndex << 3) + subclassIndex] = totalCount;
-            ClassBase[(classIndex << 3) + subclassIndex] = perClassCount;
+        ushort perClassCount = 0;
+        for (var subclassIndex = 0; subclassIndex < subclassDeclaration.Length; ++subclassIndex) {
+          ObjectBase[(classIndex << 3) + subclassIndex] = totalCount;
+          ClassBase[(classIndex << 3) + subclassIndex] = perClassCount;
 
-            totalCount += (byte)subclassDeclaration[subclassIndex].Count;
-            perClassCount += (byte)subclassDeclaration[subclassIndex].Count;
-          }
+          totalCount += (byte)subclassDeclaration[subclassIndex].Count;
+          perClassCount += (byte)subclassDeclaration[subclassIndex].Count;
         }
-
-        ObjectDatasBlobAsset = blobBuilder.CreateBlobAssetReference<ObjectDatas>(Allocator.Persistent);
       }
+
+      ObjectDatasBlobAsset = blobBuilder.CreateBlobAssetReference<ObjectDatas>(Allocator.Persistent);
     }
 
     private unsafe void ReadData<T>(in BlobBuilder blobBuilder, BinaryReader binaryReader, ref BlobArray<T> targetBlobArray, int elementCount) where T : struct {
@@ -276,7 +275,6 @@ namespace SS.Resources {
       }
     };
   }
-
 
   [StructLayout(LayoutKind.Sequential)]
   public struct ObjectDatas {

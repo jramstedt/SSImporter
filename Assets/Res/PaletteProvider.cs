@@ -1,41 +1,35 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.Collections;
+using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.ResourceManagement.ResourceLocations;
-using UnityEngine.ResourceManagement.ResourceProviders;
+using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
-  public class PaletteProvider : ResourceProviderBase {
-    public override Type GetDefaultType(IResourceLocation location) => typeof(Palette);
-    public override void Provide(ProvideHandle provideHandle) {
-      var location = provideHandle.Location;
 
-      var resFile = provideHandle.GetDependency<ResourceFile>(0);
-      if (resFile == null) {
-        provideHandle.Complete<Palette>(default, false, new Exception($"Resource file failed to load for location {location.PrimaryKey}."));
-        return;
+  public class PaletteProvider : IResProvider<Palette> {
+    private class PaletteLoader : LoaderBase<Palette> {
+      public PaletteLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      var key = provideHandle.ResourceManager.TransformInternalId(location);
-      ushort resId, block;
-      if (!Utils.ExtractResourceIdAndBlock(key, out resId, out block)) {
-        provideHandle.Complete<Palette>(default, false, new Exception($"Resource {location.InternalId} with key {key} is not valid."));
-        return;
-      }
+      private Palette Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
-      if (resFile.GetResourceInfo(resId).info.ContentType != ResourceFile.ContentType.Palette) {
-        provideHandle.Complete<Palette>(default, false, new Exception($"Resource {location.InternalId} is not {nameof(ResourceFile.ContentType.Palette)}."));
-        return;
-      }
+        using MemoryStream ms = new(rawResource);
+        BinaryReader msbr = new(ms);
 
-      byte[] rawResource = resFile.GetResourceData(resId, block);
-
-      using (MemoryStream ms = new MemoryStream(rawResource)) {
-        BinaryReader msbr = new BinaryReader(ms);
-        provideHandle.Complete(msbr.Read<Palette>(), true, null);
+        return msbr.Read<Palette>();
       }
+    }
+
+    IResHandle<Palette> IResProvider<Palette>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      if (resInfo.info.ContentType != ResourceFile.ContentType.Palette)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Palette)}.");
+
+      return new PaletteLoader(resFile, resInfo, blockIndex);
     }
   }
 
@@ -94,7 +88,7 @@ namespace SS.Resources {
       }
     }
 
-    public Color32 Get(int index, bool opaque) {
+    public readonly Color32 Get(int index, bool opaque) {
       opaque = opaque || index != 0;
 
       index *= 3;
@@ -109,7 +103,7 @@ namespace SS.Resources {
       return new Color32(r, g, b, opaque ? (byte)0xFF : (byte)0x00);
     }
 
-    public NativeArray<Color32> ToNativeArray() {
+    public readonly NativeArray<Color32> ToNativeArray() {
       var palette = new NativeArray<Color32>(256, Allocator.Persistent);
       for (int i = 0; i < palette.Length; ++i) {
         var index = i * 3;

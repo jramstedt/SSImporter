@@ -2,12 +2,9 @@ using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs.LowLevel.Unsafe;
 using Random = Unity.Mathematics.Random;
-
-#pragma warning disable CS0282
 
 namespace SS.System {
   [BurstCompile]

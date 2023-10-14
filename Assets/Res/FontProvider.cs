@@ -3,38 +3,25 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities.UniversalDelegates;
+using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.ResourceManagement.ResourceProviders;
+using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
-  public class FontProvider : ResourceProviderBase {
-    public override void Provide(ProvideHandle provideHandle) {
-      var location = provideHandle.Location;
-
-      var resFile = provideHandle.GetDependency<ResourceFile>(0);
-      if (resFile == null) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource file failed to load for location {location.PrimaryKey}."));
-        return;
+  public class FontProvider : IResProvider<FontSet> {
+    public class FontLoader : LoaderBase<FontSet> {
+      public FontLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      var key = provideHandle.ResourceManager.TransformInternalId(location);
-      ushort resId, block;
-      if (!Utils.ExtractResourceIdAndBlock(key, out resId, out block)) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} with key {key} is not valid."));
-        return;
-      }
+      private FontSet Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
-      if (resFile.GetResourceInfo(resId).info.ContentType != ResourceFile.ContentType.Font) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} is not {nameof(ResourceFile.ContentType.Font)}."));
-        return;
-      }
+        const int PADDING = 1;
 
-      byte[] rawResource = resFile.GetResourceData(resId, block);
-
-      const int PADDING = 1;
-
-      using (MemoryStream ms = new MemoryStream(rawResource)) {
-        BinaryReader msbr = new BinaryReader(ms);
+        using MemoryStream ms = new(rawResource);
+        using BinaryReader msbr = new(ms);
 
         BitmapFont font = msbr.Read<BitmapFont>();
 
@@ -47,17 +34,16 @@ namespace SS.Resources {
         for (var i = 0; i < offsets.Length; ++i)
           offsets[i] = msbr.ReadUInt16();
 
-        var fontTextureWidth = font.Width + PADDING * offsetsCount; // +1 pixel padding on all sides and between characters
-        var fontTextureHeight = font.Height + PADDING * 2;          //
+        var fontTextureWidth = offsets[^1] + PADDING * offsetsCount; // +1 pixel padding on all sides and between characters
+        var fontTextureHeight = font.Rows + PADDING * 2;             //
 
-        Font unityFont = new Font($"{resId}");
         RectInt[] characterRects = new RectInt[charactersCount];
         CharacterInfo[] characterInfo = new CharacterInfo[charactersCount];
         #region Build character info and rects
         for (int c = 0; c < charactersCount; ++c) {
           var x = offsets[c];
           var width = offsets[c + 1] - x;
-          var height = font.Height;
+          var height = font.Rows;
 
           var rect = characterRects[c] = new(
             PADDING + x + c * PADDING,
@@ -68,7 +54,7 @@ namespace SS.Resources {
 
           characterInfo[c] = new() {
             index = font.FirstAscii + c,
-            size = font.Height,
+            size = font.Rows,
             style = FontStyle.Normal,
 
             advance = width + 1,
@@ -83,7 +69,6 @@ namespace SS.Resources {
           };
         }
         #endregion
-        unityFont.characterInfo = characterInfo;
 
         Texture2D fontTexture;
         #region Create texture and copy pixels
@@ -94,14 +79,14 @@ namespace SS.Resources {
           unsafe {
             UnsafeUtility.MemClear(textureData.GetUnsafePtr(), textureData.Length);
 
-            var lastY = font.Height - 1;
+            var lastY = font.Rows - 1;
             for (int c = 0; c < charactersCount; ++c) {
               var rect = characterRects[c];
               var offset = offsets[c];
               var width = offsets[c + 1] - offset;
 
-              for (int y = 0; y < font.Height; ++y) {
-                var lineStart = font.bitsOffset + offset + (lastY - y) * font.Width;
+              for (int y = 0; y < font.Rows; ++y) {
+                var lineStart = font.bitsOffset + (offset >> 3) + (lastY - y) * font.RowBytes;
                 for (int x = 0; x < width; ++x) {
                   byte stub = rawResource[(x >> 3) + lineStart];
                   textureData[rect.x + x + ((rect.y + y) * fontTextureWidth)] = ((0x80 >> (x & 7)) & stub) == 0 ? (byte)0x00 : (byte)0x01;
@@ -116,13 +101,13 @@ namespace SS.Resources {
           unsafe {
             UnsafeUtility.MemClear(textureData.GetUnsafePtr(), textureData.Length);
 
-            var lastY = font.Height - 1;
+            var lastY = font.Rows - 1;
             for (int c = 0; c < charactersCount; ++c) {
               var rect = characterRects[c];
               var offset = offsets[c];
               var width = offsets[c + 1] - offset;
-              for (int y = 0; y < font.Height; ++y)
-                NativeArray<byte>.Copy(rawResource, (int)(font.bitsOffset + offset + ((lastY - y) * font.Width)), textureData, rect.x + ((rect.y + y) * fontTextureWidth), width);
+              for (int y = 0; y < font.Rows; ++y)
+                NativeArray<byte>.Copy(rawResource, (int)(font.bitsOffset + offset + ((lastY - y) * font.RowBytes)), textureData, rect.x + ((rect.y + y) * fontTextureWidth), width);
             }
           }
         } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
@@ -136,23 +121,25 @@ namespace SS.Resources {
             var dstPtr = (byte*)textureData.GetUnsafePtr();
             UnsafeUtility.MemClear(dstPtr, textureData.Length);
 
-            var lastY = font.Height - 1;
+            var lastY = font.Rows - 1;
             for (int c = 0; c < charactersCount; ++c) {
               var rect = characterRects[c];
               var offset = offsets[c];
               var width = offsets[c + 1] - offset;
 
-              srcPtr += font.bitsOffset + offset;
+              srcPtr += font.bitsOffset;
               dstPtr += (rect.x + rect.y * fontTextureWidth) * stride;
 
               if (font.DataType == BitmapFont.BitmapDataType.Color) {
-                for (int y = 0; y < font.Height; ++y) {
-                  UnsafeUtility.MemCpyStride(dstPtr, stride, srcPtr + ((lastY - y) * font.Width), 1, 1, width);
+                srcPtr += offset;
+                for (int y = 0; y < font.Rows; ++y) {
+                  UnsafeUtility.MemCpyStride(dstPtr, stride, srcPtr + ((lastY - y) * font.RowBytes), 1, 1, width);
                   dstPtr += fontTextureWidth * stride;
                 }
               } else if (font.DataType == BitmapFont.BitmapDataType.Mono) {
-                for (int y = 0; y < font.Height; ++y) {
-                  var lineStart = (lastY - y) * font.Width;
+                srcPtr += offset >> 3;
+                for (int y = 0; y < font.Rows; ++y) {
+                  var lineStart = (lastY - y) * font.RowBytes;
                   for (int x = 0; x < width; ++x) {
                     byte stub = *(srcPtr + (x >> 3) + lineStart);
                     *(dstPtr + x) = ((0x80 >> (x & 7)) & stub) == 0 ? (byte)0x00 : (byte)0x01;
@@ -169,11 +156,31 @@ namespace SS.Resources {
           throw new Exception("No supported TextureFormat found.");
         }
 
-        fontTexture.alphaIsTransparency = true;
         fontTexture.wrapMode = TextureWrapMode.Clamp;
         fontTexture.filterMode = FilterMode.Point;
         #endregion
+
+        return new FontSet() {
+          Texture = fontTexture,
+          CharacterInfo = characterInfo
+        };
       }
+    }
+
+    IResHandle<FontSet> IResProvider<FontSet>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      if (resInfo.info.ContentType != ResourceFile.ContentType.Font)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Font)}.");
+
+      return new FontLoader(resFile, resInfo, blockIndex);
+    }
+  }
+
+  public class FontSet : IDisposable {
+    public Texture2D Texture;
+    public CharacterInfo[] CharacterInfo;
+
+    public void Dispose() {
+      if (Texture != null) UnityEngine.Object.Destroy(Texture);
     }
   }
 
@@ -196,7 +203,7 @@ namespace SS.Resources {
     public uint xOffset;
     public uint bitsOffset;
 
-    public ushort Width;
-    public ushort Height;
+    public ushort RowBytes;
+    public ushort Rows;
   }
 }

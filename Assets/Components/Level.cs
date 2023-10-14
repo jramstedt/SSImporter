@@ -11,6 +11,7 @@ namespace SS.Resources {
     public BlobAssetReference<BlobArray<Entity>> TileMap;
     public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
     public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras; // TODO needs to be mutable
+    public BlobAssetReference<BlobArray<ObjectReference>> ObjectReferences; // TODO needs to be mutable
   }
 
   public struct TileLocation : IComponentData {
@@ -40,12 +41,12 @@ namespace SS.Resources {
 
     public SchedulerInfo SchedulerInfo;
 
-    public bool IsCyberspace => Type == LevelType.Cyberspace;
+    public readonly bool IsCyberspace => Type == LevelType.Cyberspace;
 
-    public int HeightDivisor => 1 << ZShift;
-    public int HeightFactor => MapElement.MAX_HEIGHT >> ZShift;
+    public readonly int HeightDivisor => 1 << ZShift;
+    public readonly int HeightFactor => MapElement.MAX_HEIGHT >> ZShift;
 
-    public override string ToString() => $"Width = {Width}, Height = {Height}, XShift = {XShift}, YShift = {YShift}, ZShift = {ZShift}, Type = {Type}";
+    public readonly override string ToString() => $"Width = {Width}, Height = {Height}, XShift = {XShift}, YShift = {YShift}, ZShift = {ZShift}, Type = {Type}";
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -171,47 +172,47 @@ namespace SS.Resources {
     public const int MAX_HEIGHT = 32;
     public const int PHYSICS_RADIUS_UNIT = 96;
 
-    public int FloorHeight => (int)(FloorInfo & InfoMask.Height);
-    public Orientation FloorOrientation => (Orientation)(FloorInfo & InfoMask.Orientation);
-    public int FloorRotation => ((byte)FloorOrientation >> 5) & 0x03;
-    public bool FloorHazard => (FloorInfo & InfoMask.Hazard) == InfoMask.Hazard;
-    public byte FloorTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.FloorTexture) >> 11);
+    public readonly int FloorHeight => (int)(FloorInfo & InfoMask.Height);
+    public readonly Orientation FloorOrientation => (Orientation)(FloorInfo & InfoMask.Orientation);
+    public readonly int FloorRotation => ((byte)FloorOrientation >> 5) & 0x03;
+    public readonly bool FloorHazard => (FloorInfo & InfoMask.Hazard) == InfoMask.Hazard;
+    public readonly byte FloorTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.FloorTexture) >> 11);
 
-    public int CeilingHeight => MAX_HEIGHT - (int)(CeilingInfo & InfoMask.Height);
-    public Orientation CeilingOrientation => (Orientation)(CeilingInfo & InfoMask.Orientation);
-    public int CeilingRotation => ((byte)CeilingOrientation >> 5) & 0x03;
-    public bool CeilingHazard => (CeilingInfo & InfoMask.Hazard) == InfoMask.Hazard;
-    public byte CeilingTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.CeilingTexture) >> 6);
+    public readonly int CeilingHeight => MAX_HEIGHT - (int)(CeilingInfo & InfoMask.Height);
+    public readonly Orientation CeilingOrientation => (Orientation)(CeilingInfo & InfoMask.Orientation);
+    public readonly int CeilingRotation => ((byte)CeilingOrientation >> 5) & 0x03;
+    public readonly bool CeilingHazard => (CeilingInfo & InfoMask.Hazard) == InfoMask.Hazard;
+    public readonly byte CeilingTexture => (byte)((ushort)(TextureInfo & TextureInfoMask.CeilingTexture) >> 6);
 
-    public byte WallTexture => (byte)(TextureInfo & TextureInfoMask.WallTexture);
+    public readonly byte WallTexture => (byte)(TextureInfo & TextureInfoMask.WallTexture);
 
     // Flag 1
-    public byte TextureOffset => (byte)(Flag1 & Flag1Mask.Offset);
-    public bool TextureParity => (Flag1 & Flag1Mask.FlipParity) == Flag1Mask.FlipParity;
-    public bool TextureAlternate => (Flag1 & Flag1Mask.FlipAlternate) == Flag1Mask.FlipAlternate;
+    public readonly byte TextureOffset => (byte)(Flag1 & Flag1Mask.Offset);
+    public readonly bool TextureParity => (Flag1 & Flag1Mask.FlipParity) == Flag1Mask.FlipParity;
+    public readonly bool TextureAlternate => (Flag1 & Flag1Mask.FlipAlternate) == Flag1Mask.FlipAlternate;
 
     // Flag 2
-    public bool UseAdjacentTexture => (Flag2 & Flag2Mask.UseAdjacentWallTexture) == Flag2Mask.UseAdjacentWallTexture;
-    public bool IsCeilingMirrored => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeMirror;
-    public bool IsFloorOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeFloorOnly;
-    public bool IsCeilingOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeCeilingOnly;
+    public readonly bool UseAdjacentTexture => (Flag2 & Flag2Mask.UseAdjacentWallTexture) == Flag2Mask.UseAdjacentWallTexture;
+    public readonly bool IsCeilingMirrored => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeMirror;
+    public readonly bool IsFloorOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeFloorOnly;
+    public readonly bool IsCeilingOnly => (Flag2 & Flag2Mask.SlopeCeilingOnly) == Flag2Mask.SlopeCeilingOnly;
 
     // Flag 3
-    public byte ShadeFloor => (byte)(Flag3 & Flag3Mask.ShadeFloor);
+    public readonly byte ShadeFloor => (byte)(Flag3 & Flag3Mask.ShadeFloor);
     public byte ShadeFloorModifier {
-      get => (byte)(Templight & 0x0F);
+      readonly get => (byte)(Templight & 0x0F);
       set => Templight = (byte)((Templight & 0xF0) | value);
     }
 
     // Flag 4
-    public byte ShadeCeiling => (byte)(Flag4 & Flag4Mask.ShadeCeiling);
+    public readonly byte ShadeCeiling => (byte)(Flag4 & Flag4Mask.ShadeCeiling);
     public byte ShadeCeilingModifier {
-      get => (byte)((Templight & 0xF0) >> 4);
+      readonly get => (byte)((Templight & 0xF0) >> 4);
       set => Templight = (byte)((Templight & 0x0F) | (value << 4));
     }
 
-    public int FloorCornerHeight(int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
-    public int CeilingCornerHeight(int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
+    public readonly int FloorCornerHeight(int cornerIndex) => !IsCeilingOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] ? FloorHeight + SlopeSteepnessFactor : FloorHeight;
+    public readonly int CeilingCornerHeight(int cornerIndex) => !IsFloorOnly && slopeAffectsCorner[(byte)TileType][cornerIndex] == IsCeilingMirrored ? CeilingHeight - SlopeSteepnessFactor : CeilingHeight;
 
     public static readonly bool4[] slopeAffectsCorner = new bool4[] {
       bool4( false, false, false, false ),
@@ -248,6 +249,20 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public unsafe struct ObjectReference {
+    public LGPoint Tile;
+
+    /// <summary>Object index to Level.ObjectInstances </summary>
+    public ushort ObjectIndex;
+
+    /// <summary>Object in same tile as this. Index to Level.ObjectReferences </summary>
+    public ushort NextObjectInTileRef;
+
+    /// <summary>This object in another tile (or ref to current if not). Index to Level.ObjectReferences </summary>
+    public ushort ThisRefInAnotherTile;
+  }
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct TextureProperties {
     [Flags]
     public enum StartfieldControlMask : byte {
@@ -269,7 +284,7 @@ namespace SS.Resources {
     /// <summary>Offset from texture to start of the group.</summary>
     public byte GroupPosition;
 
-    public ushort BaseTextureId(int textureId) => (ushort)(textureId - GroupPosition);
+    public readonly ushort BaseTextureId(int textureId) => (ushort)(textureId - GroupPosition);
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -294,7 +309,7 @@ namespace SS.Resources {
     private byte Data;
     public byte InUse;
 
-    public bool IsFloor => (Data & 0x01) == 0x01; // TODO Setter
-    public byte Key => (byte)(Data >> 1); // TODO Setter
+    public readonly bool IsFloor => (Data & 0x01) == 0x01; // TODO Setter
+    public readonly byte Key => (byte)(Data >> 1); // TODO Setter
   }
 }

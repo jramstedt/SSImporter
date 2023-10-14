@@ -10,8 +10,6 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
 using Random = Unity.Mathematics.Random;
 
@@ -38,7 +36,7 @@ namespace SS.System {
 
     private EntityArchetype triggerEventArchetype;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
@@ -71,25 +69,16 @@ namespace SS.System {
         typeof(ScheduleEvent)
       );
 
-      var objectPropertiesOp = Services.ObjectProperties;
-      var artResourcesOp = Addressables.LoadAssetAsync<ResourceFile>(@"objart3.res");
+      objectProperties = await Services.ObjectProperties;
 
-      var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { objectPropertiesOp, artResourcesOp });
-      loadOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
+      var artResources = await Res.Open(Res.dataPath + @"objart3.res");
 
-        var artResources = artResourcesOp.Result;
+      // TODO Make better somehow. Don't load specific file and scan trough.
+      this.blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
+      foreach (var (id, resourceInfo) in artResources.ResourceEntries)
+        this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
 
-        // TODO Make better somehow. Don't load specific file and scan trough.
-        this.blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
-        foreach (var (id, resourceInfo) in artResources.ResourceEntries)
-          this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
-
-        objectProperties = objectPropertiesOp.Result;
-
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
+      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
     }
 
     protected override void OnUpdate() {
@@ -336,7 +325,6 @@ namespace SS.System {
     private struct AsyncLoadTag : IComponentData { }
   }
 
-#pragma warning disable CS0282
   [BurstCompile]
   public partial struct CollectAnimationDataJob : IJobEntity {
     [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
@@ -345,8 +333,6 @@ namespace SS.System {
       CachedAnimations[entityInQueryIndex] = (entity, animationData);
     }
   }
-#pragma warning restore CS0282
-
 
   public struct AnimatedTag : IComponentData { }
 
@@ -385,12 +371,12 @@ namespace SS.System {
     public uint UserData;
     public ushort FrameTime;
 
-    public bool IsRepeat => (Flags & AnimationFlags.Repeat) == AnimationFlags.Repeat;
-    public bool IsCyclic => (Flags & AnimationFlags.Cyclic) == AnimationFlags.Cyclic;
-    public bool IsReversing => (Flags & AnimationFlags.Reversing) == AnimationFlags.Reversing;
+    public readonly bool IsRepeat => (Flags & AnimationFlags.Repeat) == AnimationFlags.Repeat;
+    public readonly bool IsCyclic => (Flags & AnimationFlags.Cyclic) == AnimationFlags.Cyclic;
+    public readonly bool IsReversing => (Flags & AnimationFlags.Reversing) == AnimationFlags.Reversing;
 
-    public bool IsCallbackTypeRemove => (CallbackType & AnimationCallbackType.Remove) == AnimationCallbackType.Remove;
-    public bool IsCallbackTypeRepeat => (CallbackType & AnimationCallbackType.Repeat) == AnimationCallbackType.Repeat;
-    public bool IsCallbackTypeCycle => (CallbackType & AnimationCallbackType.Cycle) == AnimationCallbackType.Cycle;
+    public readonly bool IsCallbackTypeRemove => (CallbackType & AnimationCallbackType.Remove) == AnimationCallbackType.Remove;
+    public readonly bool IsCallbackTypeRepeat => (CallbackType & AnimationCallbackType.Repeat) == AnimationCallbackType.Repeat;
+    public readonly bool IsCallbackTypeCycle => (CallbackType & AnimationCallbackType.Cycle) == AnimationCallbackType.Cycle;
   }
 }

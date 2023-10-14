@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Unity.Entities;
+using static UnityEditor.FilePathAttribute;
 
 namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -16,9 +17,9 @@ namespace SS.Resources {
     public Location Location;
     public Info Info;
 
-    public ushort HeadUsed => CrossReferenceTableIndex;
-    public ushort HeadFree => Next;
-    public int Triple => ((byte)Class) << 16 | SubClass << 8 | Info.Type;
+    public readonly ushort HeadUsed => CrossReferenceTableIndex;
+    public readonly ushort HeadFree => Next;
+    public readonly int Triple => ((byte)Class) << 16 | SubClass << 8 | Info.Type;
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Weapon : IComponentData {
@@ -27,8 +28,8 @@ namespace SS.Resources {
       public byte AmmoType;
       public byte AmmoCount;
 
-      public byte Charge => AmmoType;
-      public byte Temperature => AmmoCount;
+      public readonly byte Charge => AmmoType;
+      public readonly byte Temperature => AmmoCount;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -84,17 +85,17 @@ namespace SS.Resources {
       public byte Version;
       public ushort Data;
 
-      public int SoftwareSecurity => Data >> 12;
-      public int SoftwareContents => Data & 0x0FFF;
+      public readonly int SoftwareSecurity => Data >> 12;
+      public readonly int SoftwareContents => Data & 0x0FFF;
 
-      public bool IsEmail => (Data >> 8) == 0;
-      public int EmailIndex => Data & 0xFF;
+      public readonly bool IsEmail => (Data >> 8) == 0;
+      public readonly int EmailIndex => Data & 0xFF;
 
-      public bool IsLog => (Data >> 8) == 1;
-      public int LogIndex => (Data & 0xFF) / 16; // 16 == LOGS_PER_LEVEL
+      public readonly bool IsLog => (Data >> 8) == 1;
+      public readonly int LogIndex => (Data & 0xFF) / 16; // 16 == LOGS_PER_LEVEL
 
-      public bool IsData => (Data >> 8) == 2;
-      public int DataIndex => Data & 0xFF;
+      public readonly bool IsData => (Data >> 8) == 2;
+      public readonly int DataIndex => Data & 0xFF;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -105,15 +106,15 @@ namespace SS.Resources {
       public uint Data1;
       public uint Data2;
 
-      public uint SoftwareVersion => Cosmetic;
-      public uint SoftwareSubclass => Data1;
+      public readonly uint SoftwareVersion => Cosmetic;
+      public readonly uint SoftwareSubclass => Data1;
 
       #region Mesh data
-      public uint SizeX => Data1 & 0x0F;
-      public uint SizeY => (Data1 & 0xF0) >> 4;
-      public uint SizeZ => (Data1 & 0xFF00) >> 8;
-      public uint SideTexture => (Data1 & 0xFF0000) >> 16;
-      public uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      public readonly uint SizeX => Data1 & 0x0F;
+      public readonly uint SizeY => (Data1 & 0xF0) >> 4;
+      public readonly uint SizeZ => (Data1 & 0xFF00) >> 8;
+      public readonly uint SideTexture => (Data1 & 0xFF0000) >> 16;
+      public readonly uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
       #endregion
     }
 
@@ -126,11 +127,11 @@ namespace SS.Resources {
       public uint Data2;
 
       #region Mesh data
-      public uint SizeX => Data1 & 0x0F;
-      public uint SizeY => (Data1 & 0xF0) >> 4;
-      public uint SizeZ => (Data1 & 0xFF00) >> 8;
-      public uint SideTexture => (Data1 & 0xFF0000) >> 16;
-      public uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      public readonly uint SizeX => Data1 & 0x0F;
+      public readonly uint SizeY => (Data1 & 0xF0) >> 4;
+      public readonly uint SizeZ => (Data1 & 0xFF00) >> 8;
+      public readonly uint SideTexture => (Data1 & 0xFF0000) >> 16;
+      public readonly uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
       #endregion
     }
 
@@ -184,10 +185,10 @@ namespace SS.Resources {
       public uint ActionParam3;
       public uint ActionParam4;
 
-      public float RepulsorBottom => ActionParam2 / 65536f;
-      public float RepulsorTop => ActionParam3 / 65536f;
-      public Direction RepulsorDirection => (Direction)((ActionParam4 + 1) & 0x7);
-      public bool RepulsorIsFast => (ActionParam4 & 0x8) != 0;
+      public readonly float RepulsorBottom => ActionParam2 / 65536f;
+      public readonly float RepulsorTop => ActionParam3 / 65536f;
+      public readonly Direction RepulsorDirection => (Direction)((ActionParam4 + 1) & 0x7);
+      public readonly bool RepulsorIsFast => (ActionParam4 & 0x8) != 0;
 
       public enum Direction : byte {
         Null = 0,
@@ -212,8 +213,8 @@ namespace SS.Resources {
 
       public uint Data;
 
-      public uint SideTexture => Data & 0xFF;
-      public uint TopBottomTexture => (Data & 0xFF00) >> 8;
+      public readonly uint SideTexture => Data & 0xFF;
+      public readonly uint TopBottomTexture => (Data & 0xFF00) >> 8;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -245,8 +246,8 @@ namespace SS.Resources {
       public ushort Loot2;
       public int Sidestep;
 
-      public PostureType Posture => (PostureType)(ViewPosture & 0xF); // TODO Setter
-      public int View => ViewPosture >> 8; // TODO Setter
+      public readonly PostureType Posture => (PostureType)(ViewPosture & 0xF); // TODO Setter
+      public readonly int View => ViewPosture >> 8; // TODO Setter
 
       public enum PostureType : byte {
         Standing,
@@ -302,10 +303,10 @@ namespace SS.Resources {
     public byte Roll;
 
 
-    public int TileX => X >> 8;
-    public int TileY => Y >> 8;
-    public int FineX => X & 0xFF;
-    public int FineY => Y & 0xFF;
+    public readonly int TileX => X >> 8;
+    public readonly int TileY => Y >> 8;
+    public readonly int FineX => X & 0xFF;
+    public readonly int FineY => Y & 0xFF;
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -325,8 +326,8 @@ namespace SS.Resources {
     public ushort Next;
     public ushort Prev;
 
-    public ushort HeadUsed => ObjectIndex;
-    public ushort HeadFree => Next;
+    public readonly ushort HeadUsed => ObjectIndex;
+    public readonly ushort HeadFree => Next;
   }
 
   public enum ActionType : byte {

@@ -1,8 +1,11 @@
 using SS.ObjectProperties;
 using SS.Resources;
 using SS.System;
+using System.Linq;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
+using UnityEditor.Search;
 using UnityEngine.Rendering;
 
 namespace SS {
@@ -31,7 +34,16 @@ namespace SS {
     public const int NUM_HACK_CAMERAS = 8;
 
     [BurstCompile]
-    public static int CalculateTextureData(in Entity entity, in Base baseProperties, in ObjectInstance instanceData, in Level level, in ComponentLookup<ObjectInstance> instanceLookup, in ComponentLookup<ObjectInstance.Decoration> decorationLookup) {
+    public static int CalculateTextureData(
+      in Entity entity,
+      in Base baseProperties,
+      in ObjectInstance instanceData,
+      in Level level,
+      in ComponentLookup<ObjectInstance> instanceLookup,
+      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in bool isAnimating
+    ) {
+
       var textureData = 0;
 
       var isIndirectable = instanceData.Class == ObjectClass.Decoration &&
@@ -50,7 +62,7 @@ namespace SS {
         const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
         const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
 
-        if (data != 0 /*|| animlist.ObjectIndex == objindex*/) {
+        if (data != 0 || isAnimating) {
           if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
             var dataEntity = level.ObjectInstances.Value[(int)data & INDIRECTED_STUFF_DATA_MASK];
             var databObjectInstance = instanceLookup.GetRefRO(dataEntity).ValueRO;
@@ -64,7 +76,7 @@ namespace SS {
           const int SECRET_FURNITURE_DEFAULT_O3DREP = 0x80;
           textureData = SECRET_FURNITURE_DEFAULT_O3DREP;
         }
-      } else if (baseProperties.DrawType != DrawType.TerrainPolygon || baseProperties.DrawType != DrawType.TexturedPolygon) {
+      } else if (baseProperties.DrawType != DrawType.TerrainPolygon && baseProperties.DrawType != DrawType.TexturedPolygon) {
         textureData = baseProperties.BitmapIndex;
 
         if (baseProperties.DrawType != DrawType.Voxel && instanceData.Class != ObjectClass.DoorAndGrating && instanceData.Info.CurrentFrame != -1) {
@@ -75,6 +87,14 @@ namespace SS {
       return textureData;
     }
 
+    public static bool IsAnimated(ushort objectIndex, in NativeArray<AnimationData>.ReadOnly animationData) {
+      for (var index = 0; index < animationData.Length; ++index)
+        if (animationData[index].ObjectIndex == objectIndex) return true;
+
+      return false;
+    }
+
+    [BurstCompile]
     public static BatchMaterialID GetResource(
       in Entity entity,
       in ObjectInstance instanceData,
@@ -83,9 +103,10 @@ namespace SS {
       in MaterialProviderSystem materialProviderSystem,
       in ComponentLookup<ObjectInstance> instanceLookup,
       in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in NativeArray<AnimationData>.ReadOnly animationData,
       in bool decal,
       out ushort refWidthOverride
-      ) {
+    ) {
       var baseProperties = objectProperties.Value.BasePropertyData(instanceData);
 
       refWidthOverride = 0;
@@ -95,13 +116,14 @@ namespace SS {
 
         if (instanceData.Class == ObjectClass.Decoration) {
           var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
-          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup);
+          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, animationData);
+          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;
 
             unsafe {
-              return materialProviderSystem.GetMaterial($"{0x03E8 + level.TextureMap.blockIndex[textureData]}", true, decal);
+              return materialProviderSystem.GetMaterial((uint)(0x03E8 + level.TextureMap.blockIndex[textureData]), true, decal);
             }
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
@@ -127,15 +149,15 @@ namespace SS {
             // TODO
             return BatchMaterialID.Null;
           } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
-            return materialProviderSystem.GetMaterial($"{IconResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
+            return materialProviderSystem.GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
           } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
-            return materialProviderSystem.GetMaterial($"{GraffitiResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
+            return materialProviderSystem.GetMaterial(GraffitiResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
           } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
-            return materialProviderSystem.GetMaterial($"{RepulsorResourceIdBase}:{instanceData.Info.CurrentFrame}", true, decal);
+            return materialProviderSystem.GetMaterial(RepulsorResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
           }
         } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
           // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
-          return materialProviderSystem.GetMaterial($"{DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)}:{instanceData.Info.CurrentFrame}", true, decal);
+          return materialProviderSystem.GetMaterial((ushort)(DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal);
         }
       }
 

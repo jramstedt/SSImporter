@@ -9,8 +9,8 @@ namespace SS.Resources {
     private const string FILE_HEADER = "LG Res File v2\r\n";
     private const long DIRECTORY_POINTER_OFFSET = 0x7C;
 
-    private MemoryStream fileStream;
-    private BinaryReader binaryReader;
+    private readonly MemoryStream fileStream;
+    private readonly BinaryReader binaryReader;
 
     private readonly Dictionary<ushort, ResourceInfo> resourceEntries;
 
@@ -20,7 +20,7 @@ namespace SS.Resources {
       fileStream = new MemoryStream(resFileData, false);
       binaryReader = new BinaryReader(fileStream, Encoding.ASCII);
 
-      string header = new string(binaryReader.ReadChars(FILE_HEADER.Length));
+      string header = new(binaryReader.ReadChars(FILE_HEADER.Length));
 
       if (header != FILE_HEADER)
         throw new NotSupportedException($"File type is not supported ({header})");
@@ -36,7 +36,7 @@ namespace SS.Resources {
 
       while (resourceCount-- > 0) {
         DirectoryEntry directoryEntry = binaryReader.Read<DirectoryEntry>();
-        ResourceInfo resourceInfo = new ResourceInfo() {
+        ResourceInfo resourceInfo = new() {
           info = directoryEntry,
           dataOffset = dataOffset
         };
@@ -93,8 +93,8 @@ namespace SS.Resources {
       fileStream.Position = resourceInfo.dataOffset;
       byte[] rawData = binaryReader.ReadBytes(directoryEntry.LengthPacked);
       byte[] blockData = ReadBlock(rawData, directoryEntry, blockIndex);
-      using (MemoryStream ms = new MemoryStream(blockData)) {
-        BinaryReader msbr = new BinaryReader(ms);
+      using (MemoryStream ms = new(blockData)) {
+        BinaryReader msbr = new(ms);
 
         int structSize = Marshal.SizeOf(typeof(T));
 
@@ -123,8 +123,8 @@ namespace SS.Resources {
 
     private byte[] ReadBlock(byte[] rawData, DirectoryEntry directoryEntry, ushort blockIndex = 0) {
       if (directoryEntry.Flags.HasFlag(ResourceFlags.Compound)) {
-        using (MemoryStream ms = new MemoryStream(rawData)) {
-          BinaryReader msbr = new BinaryReader(ms);
+        using (MemoryStream ms = new(rawData)) {
+          BinaryReader msbr = new(ms);
 
           ushort blockCount = msbr.ReadUInt16();
 
@@ -144,8 +144,8 @@ namespace SS.Resources {
           }
         }
       } else if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-        using (MemoryStream ms = new MemoryStream(rawData)) {
-          BinaryReader msbr = new BinaryReader(ms);
+        using (MemoryStream ms = new(rawData)) {
+          BinaryReader msbr = new(ms);
           return Unpack(msbr, directoryEntry.LengthUnpacked);
         }
       } else {
@@ -155,8 +155,8 @@ namespace SS.Resources {
 
     private byte[][] ReadBlock(byte[] rawData, DirectoryEntry directoryEntry) {
       if (directoryEntry.Flags.HasFlag(ResourceFlags.Compound)) {
-        using (MemoryStream ms = new MemoryStream(rawData)) {
-          BinaryReader msbr = new BinaryReader(ms);
+        using (MemoryStream ms = new(rawData)) {
+          BinaryReader msbr = new(ms);
 
           ushort blockCount = msbr.ReadUInt16();
           long blockDirectory = ms.Position;
@@ -169,8 +169,8 @@ namespace SS.Resources {
             ms.Position = headerSize;
             byte[] unpackedData = Unpack(msbr, directoryEntry.LengthUnpacked - headerSize);
 
-            using (MemoryStream ums = new MemoryStream(unpackedData)) {
-              BinaryReader umsbr = new BinaryReader(ms);
+            using (MemoryStream ums = new(unpackedData)) {
+              BinaryReader umsbr = new(ms);
 
               for (int i = 0; i < blockCount; ++i) {
                 ms.Position = blockDirectory + (i * sizeof(int));
@@ -195,8 +195,8 @@ namespace SS.Resources {
           return blockDatas;
         }
       } else if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-        using (MemoryStream ms = new MemoryStream(rawData)) {
-          BinaryReader msbr = new BinaryReader(ms);
+        using (MemoryStream ms = new(rawData)) {
+          BinaryReader msbr = new(ms);
           return new byte[][] { Unpack(msbr, directoryEntry.LengthUnpacked) };
         }
       } else {
@@ -220,8 +220,8 @@ namespace SS.Resources {
         reference[i] = -1;
       }
 
-      using (MemoryStream bms = new MemoryStream(blockData)) {
-        BinaryWriter bmsbw = new BinaryWriter(bms);
+      using (MemoryStream bms = new(blockData)) {
+        BinaryWriter bmsbw = new(bms);
 
         int bits = 0;
         ulong bitBuffer = 0;
@@ -321,8 +321,8 @@ namespace SS.Resources {
 
       public ContentType ContentType;
 
-      public int LengthUnpacked => lengthUnpacked[0] | lengthUnpacked[1] << 8 | lengthUnpacked[2] << 16;
-      public int LengthPacked => lengthPacked[0] | lengthPacked[1] << 8 | lengthPacked[2] << 16;
+      public readonly int LengthUnpacked => lengthUnpacked[0] | lengthUnpacked[1] << 8 | lengthUnpacked[2] << 16;
+      public readonly int LengthPacked => lengthPacked[0] | lengthPacked[1] << 8 | lengthPacked[2] << 16;
 
       public override string ToString() => $"Id = {Id}, LengthUnpacked = {LengthUnpacked}, Flags = {Flags}, LengthPacked = {LengthPacked}, ContentType = {ContentType}";
     }

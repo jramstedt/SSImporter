@@ -5,8 +5,6 @@ using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
-#pragma warning disable CS0282
-
 namespace SS.System {
   [BurstCompile]
   [UpdateAfter(typeof(UpdateWorldTimeSystem))]

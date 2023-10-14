@@ -1,106 +1,94 @@
 using SS.Resources;
 using System;
-using System.Collections.Generic;
-using Unity.Collections;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.ResourceLocations;
+using Unity.IO.LowLevel.Unsafe;
+using Unity.Rendering;
 
 namespace SS {
   public static class Services {
-    public static readonly AsyncOperationHandle<Palette> Palette;
-    public static readonly AsyncOperationHandle<ShadeTableData> ShadeTable;
-    public static readonly AsyncOperationHandle<Texture2D> ColorLookupTableTexture;
-    public static readonly AsyncOperationHandle<Texture2D> LightmapTexture;
-    public static readonly AsyncOperationHandle<TexturePropertiesData> TextureProperties;
-    public static readonly AsyncOperationHandle<Resources.ObjectProperties> ObjectProperties;
+    public static readonly IResHandle<Palette> Palette;
+    public static readonly IResHandle<ShadeTableData> ShadeTable;
+    public static readonly IResHandle<Texture2D> ColorLookupTableTexture;
+    public static readonly IResHandle<Texture2D> LightmapTexture;
+    public static readonly IResHandle<TexturePropertiesData> TextureProperties;
+    public static readonly IResHandle<Resources.ObjectProperties> ObjectProperties;
 
     static Services() {
       Debug.Log(@"Services");
 
-      var dataPath = Initialization.dataPath;
+      Palette = Res.Load<Palette>(0x02BC);
 
-      Palette = Addressables.LoadAssetAsync<Palette>(0x02BC);
+      ShadeTable = Res.Open<ShadeTableData>(Res.dataPath + @"\SHADTABL.DAT");
 
-      ShadeTable = Addressables.LoadAssetAsync<ShadeTableData>(new ResourceLocationBase(@"SHADTABL.DAT", dataPath + @"\SHADTABL.DAT", typeof(RawDataProvider).FullName, typeof(ShadeTableData)));
+      ColorLookupTableTexture = new CreateColorLookupTable();
+      LightmapTexture = new CreateLightmap();
 
-      ColorLookupTableTexture = Addressables.ResourceManager.StartOperation(new CreateColorLookupTable(Palette, ShadeTable), default);
-      LightmapTexture = Addressables.ResourceManager.StartOperation(new CreateLightmap(), default);
+      TextureProperties = Res.Open<TexturePropertiesData>(Res.dataPath + @"\TEXTPROP.DAT");
 
-      TextureProperties = Addressables.LoadAssetAsync<TexturePropertiesData>(new ResourceLocationBase(@"TEXTPROP.DAT", dataPath + @"\TEXTPROP.DAT", typeof(RawDataProvider).FullName, typeof(TexturePropertiesData)));
-
-      ObjectProperties = Addressables.LoadAssetAsync<Resources.ObjectProperties>(new ResourceLocationBase(@"OBJPROP.DAT", dataPath + @"\OBJPROP.DAT", typeof(ObjectPropertiesProvider).FullName, typeof(Resources.ObjectProperties)));
+      ObjectProperties = Res.OpenObjectProperties(Res.dataPath + @"\OBJPROP.DAT");
     }
 
-    private class CreateColorLookupTable : AsyncOperationBase<Texture2D>, IUpdateReceiver {
-      private AsyncOperationHandle<Palette> paletteOp;
-      private AsyncOperationHandle<ShadeTableData> shadeTableOp;
-
-      public CreateColorLookupTable(AsyncOperationHandle<Palette> paletteOp, AsyncOperationHandle<ShadeTableData> shadeTableOp) : base() {
-        this.paletteOp = paletteOp;
-        this.shadeTableOp = shadeTableOp;
+    private class CreateColorLookupTable : LoaderBase<Texture2D> {
+      public CreateColorLookupTable() {
+        CreateColorLookupTableAsync();
       }
 
-      public override void GetDependencies(List<AsyncOperationHandle> dependencies) {
-        dependencies.Add(paletteOp);
-        dependencies.Add(shadeTableOp);
-      }
+      private async void CreateColorLookupTableAsync() {
+        var palette = await Palette;
+        var shadeTable = await ShadeTable;
 
-      public void Update(float unscaledDeltaTime) {
-        if (this.paletteOp.IsDone && this.shadeTableOp.IsDone) {
-          var palette = paletteOp.Result;
-          var shadeTable = shadeTableOp.Result;
+        Texture2D colorLookupTable = new(256, 16, TextureFormat.RGBA32, false, false) {
+          name = @"Color lookup table",
+          filterMode = FilterMode.Point,
+          wrapMode = TextureWrapMode.Clamp
+        };
 
-          Texture2D clut = new(256, 16, TextureFormat.RGBA32, false, false) {
-            filterMode = FilterMode.Point,
-            wrapMode = TextureWrapMode.Clamp
-          };
+        var textureData = colorLookupTable.GetRawTextureData<Color32>();
 
-          var textureData = clut.GetRawTextureData<Color32>();
+        for (int i = 0; i < textureData.Length; ++i)
+          textureData[i] = palette[shadeTable[i]];
 
-          for (int i = 0; i < textureData.Length; ++i)
-            textureData[i] = palette[shadeTable[i]];
+        colorLookupTable.Apply(false, false);
 
-          clut.Apply(false, false);
+        Shader.SetGlobalTexture(Shader.PropertyToID(@"_CLUT"), colorLookupTable);
 
-          clut.name = @"Color lookup table";
-
-          Shader.SetGlobalTexture(Shader.PropertyToID(@"_CLUT"), clut);
-
-          Complete(clut, true, null);
-        }
-      }
-
-      protected override void Execute() {
-        if (this.paletteOp.IsValid() && this.shadeTableOp.IsValid())
-          Update(0f);
-        else
-          Complete(null, false, @"Invalid dependencies.");
+        InvokeCompletionEvent(colorLookupTable);
       }
     }
 
-    private class CreateLightmap : AsyncOperationBase<Texture2D> {
-      protected override void Execute() {
+    private class CreateLightmap : LoaderBase<Texture2D> {
+      public CreateLightmap () {
         Texture2D lightmap;
-        if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16)) {
+        if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16))
           lightmap = new(64, 64, TextureFormat.RG16, false, true);
-        } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+        else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32))
           lightmap = new(64, 64, TextureFormat.RGBA32, false, true);
-        } else {
-          Complete(null, false, new Exception("No supported TextureFormat found."));
-          return;
-        }
+        else
+          throw new Exception("No supported TextureFormat found.");
 
         lightmap.name = @"Lightmap";
 
         Shader.SetGlobalTexture(Shader.PropertyToID(@"_LightGrid"), lightmap);
 
-        Complete(lightmap, true, null);
+        InvokeCompletionEvent(lightmap);
       }
     }
 
+    /*
+     * TODO Caching and refcounting Res.Load
+     * 
+    private static Texture2D ColorLookupTable;
+    private static Texture2D Lightmap;
+
+    public static IResHandle<Palette> Palette => Res.Load<Palette>(0x02BC);
+    public static IResHandle<ShadeTableData> ShadeTable => Res.Open<ShadeTableData>(Res.dataPath + @"\SHADTABL.DAT");
+    public static IResHandle<Texture2D> ColorLookupTableTexture => CreateColorLookupTable();
+    public static IResHandle<Texture2D> LightmapTexture => CreateLightmap();
+    public static IResHandle<TexturePropertiesData> TextureProperties => Res.Open<TexturePropertiesData>(Res.dataPath + @"\TEXTPROP.DAT");
+    public static IResHandle<Resources.ObjectProperties> ObjectProperties => Res.OpenObjectProperties(Res.dataPath + @"\OBJPROP.DAT");
+    */
+
+    /*
     private class CreateInversePaletteLookupTable : AsyncOperationBase<Texture2D> {
       protected override void Execute() {
         // TODO SupportsTextureFormat
@@ -115,9 +103,8 @@ namespace SS {
         var red = textureData.GetSubArray(0, 256);
         var green = textureData.GetSubArray(256, 256);
         var blue = textureData.GetSubArray(512, 256);
-
-
       }
     }
+    */
   }
 }

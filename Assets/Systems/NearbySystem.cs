@@ -1,3 +1,4 @@
+#if false
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
@@ -122,3 +123,4 @@ namespace SS.System {
     }
   }
 }
+#endif

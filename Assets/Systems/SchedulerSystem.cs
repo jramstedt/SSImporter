@@ -5,8 +5,6 @@ using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
 
-#pragma warning disable CS0282
-
 namespace SS.System {
   [BurstCompile]
   [UpdateBefore(typeof(TriggerSystem))]

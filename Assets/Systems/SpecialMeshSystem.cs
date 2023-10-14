@@ -3,15 +3,15 @@ using SS.Resources;
 using System;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.IO.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
+using UnityEditor.TerrainTools;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
 
@@ -68,9 +68,7 @@ namespace SS.System {
       materials = new(15, Allocator.Persistent);
 
       // TODO FIXME should be accessible from Services.
-      for (var i = 0; i < materials.Length; ++i) {
-        var materialIndex = i;
-
+      for (var materialIndex = 0; materialIndex < materials.Length; ++materialIndex) {
         var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
         material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
         material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
@@ -83,26 +81,7 @@ namespace SS.System {
 
         materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
 
-        var bitmapSetOp = Addressables.LoadAssetAsync<BitmapSet>($"{CustomTextureIdBase + materialIndex}:{0}");
-        bitmapSetOp.Completed += op => {
-          if (op.Status == AsyncOperationStatus.Succeeded) {
-            var bitmapSet = bitmapSetOp.Result;
-
-            material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-
-            if (bitmapSet.Description.Transparent) {
-              material.SetFloat("_AlphaClip", 1);
-              material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-              material.renderQueue = (int)RenderQueue.AlphaTest;
-            } else {
-              material.SetFloat("_AlphaClip", 0);
-              material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-              material.renderQueue = (int)RenderQueue.Geometry;
-            }
-          } else {
-            Debug.LogError($"{CustomTextureIdBase + materialIndex} failed.");
-          }
-        };
+        LoadBitmapToMaterial(materialIndex, material);
       }
 
       this.vertexAttributes = new(5, Allocator.Persistent) {
@@ -118,6 +97,23 @@ namespace SS.System {
         receiveShadows: false,
         staticShadowCaster: false
       );
+    }
+
+    // TODO FIXME Almost equals to one in MaterialProviderSystem
+    private async void LoadBitmapToMaterial(int materialIndex, Material material) {
+      var bitmapSet = await Res.Load<BitmapSet>((ushort)(CustomTextureIdBase + materialIndex));
+
+      material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+
+      if (bitmapSet.Description.Transparent) {
+        material.SetFloat("_AlphaClip", 1);
+        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+        material.renderQueue = (int)RenderQueue.AlphaTest;
+      } else {
+        material.SetFloat("_AlphaClip", 0);
+        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+        material.renderQueue = (int)RenderQueue.Geometry;
+      }
     }
 
     protected override void OnDestroy() {

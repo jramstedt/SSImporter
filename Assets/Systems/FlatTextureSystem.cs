@@ -1,4 +1,3 @@
-using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
@@ -9,7 +8,6 @@ using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.System.ProjectedTextureSystem;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
@@ -24,6 +22,7 @@ namespace SS.System {
     private EntityQuery newFlatTextureQuery;
     private EntityQuery animatedFlatTextureQuery;
     private EntityQuery removedFlatTextureQuery;
+    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -67,6 +66,10 @@ namespace SS.System {
         None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>() },
       });
 
+      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<AnimationData>()
+        .Build(this);
+
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(FlatTexturePart),
 
@@ -93,9 +96,6 @@ namespace SS.System {
 
       var objectPropertiesOp = Services.ObjectProperties;
       objectPropertiesOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
-
         objectProperties = objectPropertiesOp.Result;
 
         EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
@@ -112,11 +112,13 @@ namespace SS.System {
 
       var level = SystemAPI.GetSingleton<Level>();
 
+      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
+
       { // Update animated mesh
         var animatedEntities = animatedFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
 
-        ProcessEntities(level, animatedEntities, entityMeshInfo);
+        ProcessEntities(level, animatedEntities, entityMeshInfo, animationData);
 
         for (var index = 0; index < animatedEntities.Length; ++index) {
           var entity = animatedEntities[index];
@@ -136,7 +138,7 @@ namespace SS.System {
         var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         var entityMeshInfos = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.TempJob);
 
-        ProcessEntities(level, newEntities, entityMeshInfos);
+        ProcessEntities(level, newEntities, entityMeshInfos, animationData);
 
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
         RenderMeshUtility.AddComponents(
@@ -164,9 +166,9 @@ namespace SS.System {
       // Dependency.Complete();
     }
 
-    private void ProcessEntities(Level level, NativeArray<Entity> newEntities, NativeArray<MaterialMeshInfo> entityMeshInfos) {
-      for (int entityIndex = 0; entityIndex < newEntities.Length; ++entityIndex) {
-        var entity = newEntities[entityIndex];
+    private void ProcessEntities(Level level, NativeArray<Entity> entities, NativeArray<MaterialMeshInfo> entityMeshInfos, NativeArray<AnimationData> animationData) {
+      for (int entityIndex = 0; entityIndex < entities.Length; ++entityIndex) {
+        var entity = entities[entityIndex];
         var instanceData = instanceLookup.GetRefRO(entity).ValueRO;
 
         if (instanceData.Class != ObjectClass.DoorAndGrating) continue; // Non doublesided are handled in ProjectedTextureSystem
@@ -179,13 +181,14 @@ namespace SS.System {
           materialProviderSystem,
           instanceLookup,
           decorationLookup,
+          animationData.AsReadOnly(),
           false,
           out ushort refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-          materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{spriteIndex}", true, false);
+          materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, false);
         }
 
         if (resourceMaterialMeshInfos.TryGetValue((materialID, refWidthOverride), out var materialMeshInfo)) {
@@ -205,22 +208,19 @@ namespace SS.System {
 
         entityMeshInfos[entityIndex] = materialMeshInfo;
 
-        if (resourceMaterialMeshInfos.TryAdd((materialID, refWidthOverride), materialMeshInfo)) {
-          var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
-          loadOp.Completed += loadOp => {
-            if (loadOp.Status != AsyncOperationStatus.Succeeded)
-              throw loadOp.OperationException;
-
-            var bitmapDesc = loadOp.Result;
-
-            float scale = 1f;
-            if (refWidthOverride > 0)
-              scale = refWidthOverride / bitmapDesc.Size.x;
-
-            BuildPlaneMesh(mesh, scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 128f, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
-          };
-        }
+        if (resourceMaterialMeshInfos.TryAdd((materialID, refWidthOverride), materialMeshInfo))
+          UpdatePlaneMeshAsync(materialID, refWidthOverride, mesh);
       }
+    }
+
+    private async void UpdatePlaneMeshAsync (BatchMaterialID materialID, ushort refWidthOverride, Mesh mesh) {
+      var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
+
+      float scale = 1f;
+      if (refWidthOverride > 0)
+        scale = refWidthOverride / bitmapDesc.Size.x;
+
+      BuildPlaneMesh(mesh, scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 128f, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
     }
 
     protected override void OnDestroy() {

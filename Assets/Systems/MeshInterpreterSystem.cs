@@ -12,9 +12,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
 
 namespace SS.System {
@@ -25,6 +23,7 @@ namespace SS.System {
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
     private EntityQuery removedMeshQuery;
+    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -54,7 +53,7 @@ namespace SS.System {
     private Resources.ObjectProperties objectProperties;
     private ShadeTableData shadeTable;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
@@ -78,6 +77,10 @@ namespace SS.System {
         All = new ComponentType[] { ComponentType.ReadOnly<MeshCachedTag>() },
         None = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
       });
+
+      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<AnimationData>()
+        .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(ModelPart),
@@ -107,6 +110,12 @@ namespace SS.System {
       this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
       this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
+      objectProperties = await Services.ObjectProperties;
+      shadeTable = await Services.ShadeTable;
+
+      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+
+      /*
       var objectPropertiesOp = Services.ObjectProperties;
       var shadeTableOp = Services.ShadeTable;
 
@@ -120,6 +129,7 @@ namespace SS.System {
 
         EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
+      */
     }
 
     protected override void OnDestroy() {
@@ -168,6 +178,8 @@ namespace SS.System {
 
       ecbSystem.AddJobHandleForProducer(Dependency);
       #endregion
+
+      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
 
       var entityCount = activeMeshQuery.CalculateEntityCount();
       if (entityCount > 0) {
@@ -294,6 +306,12 @@ namespace SS.System {
 
           // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
 
+          var objectIndex = level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
+          var isAnimating = IsAnimated(objectIndex, animationData.AsReadOnly());
+
+          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
+          var texturedMaterialID = materialProviderSystem.ParseTextureData(textureData, true, false, out var textureType, out var scale);
+
           var submeshCount = mesh.subMeshCount;
           for (sbyte submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
             Entity modelPart;
@@ -313,12 +331,12 @@ namespace SS.System {
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
-              0 => materialProviderSystem.ParseTextureData(CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup), true, false, out var textureType, out var scale),
+              0 => texturedMaterialID,
               _ => BatchMaterialID.Null
             };
 
             if (materialID == BatchMaterialID.Null)
-              materialID = materialProviderSystem.GetMaterial($"{ModelTextureIdBase + textureId}:{0}", true, false);
+              materialID = materialProviderSystem.GetMaterial((ushort)(ModelTextureIdBase + textureId), 0, true, false);
 
             commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
             commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {

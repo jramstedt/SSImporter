@@ -8,9 +8,9 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
+using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
 
@@ -76,9 +76,6 @@ namespace SS.System {
 
       var objectPropertiesOp = Services.ObjectProperties;
       objectPropertiesOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
-
         var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
         var materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
         objectProperties = objectPropertiesOp.Result.ObjectDatasBlobAsset;
@@ -94,7 +91,7 @@ namespace SS.System {
           ++artIndex; // Skip 2D icon
 
           for (var j = 0; j < frameCount; ++j) {
-            var materialID = materialProviderSystem.GetMaterial($"{ArtResourceIdBase}:{artIndex}", true, false);
+            var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false);
             var mesh = new Mesh();
 
             spriteMeshes[bitmapIndex] = new SpriteMesh {
@@ -105,21 +102,7 @@ namespace SS.System {
 
             spriteIndices[bitmapIndex] = artIndex;
 
-            var currentBitmapIndex = bitmapIndex; // cache for load op
-            var loadOp = materialProviderSystem.GetBitmapDesc(materialID);
-            loadOp.Completed += loadOp => {
-              if (loadOp.Status != AsyncOperationStatus.Succeeded)
-                throw loadOp.OperationException;
-
-              var bitmapDesc = loadOp.Result;
-
-              BuildSpriteMesh(mesh, bitmapDesc);
-
-              unsafe {
-                ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), currentBitmapIndex); //ref spriteMeshes[currentBitmapIndex];
-                spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
-              }
-            };
+            UpdateSpriteMeshAsync(materialID, mesh, bitmapIndex);
 
             ++artIndex;
             ++bitmapIndex;
@@ -130,6 +113,20 @@ namespace SS.System {
 
         EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
       };
+    }
+
+    private async void UpdateSpriteMeshAsync (BatchMaterialID materialID, Mesh mesh, ushort bitmapIndex) {
+      var materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+
+      var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
+
+      unsafe void UpdateSpriteMeshAnchor(BitmapDesc bitmapDesc, ushort bitmapIndex) {
+        ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), bitmapIndex);
+        spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
+      }
+
+      BuildSpriteMesh(mesh, bitmapDesc);
+      UpdateSpriteMeshAnchor(bitmapDesc, bitmapIndex);
     }
 
     protected override void OnDestroy() {

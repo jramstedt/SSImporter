@@ -1,41 +1,24 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.Collections;
+using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.ResourceManagement.ResourceLocations;
-using UnityEngine.ResourceManagement.ResourceProviders;
-using static UnityEditor.PlayerSettings.SplashScreen;
+using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
-  public class BitmapProvider : ResourceProviderBase {
-    public override Type GetDefaultType(IResourceLocation location) => typeof(BitmapSet);
-
-    public override void Provide(ProvideHandle provideHandle) {
-      var location = provideHandle.Location;
-
-      var resFile = provideHandle.GetDependency<ResourceFile>(0);
-      if (resFile == null) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource file failed to load for location {location.PrimaryKey}."));
-        return;
+  public class BitmapProvider : IResProvider<BitmapSet> {
+    private class BitmapLoader : LoaderBase<BitmapSet> {
+      public BitmapLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      var key = provideHandle.ResourceManager.TransformInternalId(location);
-      ushort resId, block;
-      if (!Utils.ExtractResourceIdAndBlock(key, out resId, out block)) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} with key {key} is not valid."));
-        return;
-      }
+      public BitmapSet Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
-      if (resFile.GetResourceInfo(resId).info.ContentType != ResourceFile.ContentType.Image) {
-        provideHandle.Complete<BitmapSet>(null, false, new Exception($"Resource {location.InternalId} is not {nameof(ResourceFile.ContentType.Image)}."));
-        return;
-      }
-
-      byte[] rawResource = resFile.GetResourceData(resId, block);
-
-      using (MemoryStream ms = new MemoryStream(rawResource)) {
-        BinaryReader msbr = new BinaryReader(ms);
+        using MemoryStream ms = new(rawResource);
+        BinaryReader msbr = new(ms);
 
         Bitmap bitmap = msbr.Read<Bitmap>();
 
@@ -48,8 +31,7 @@ namespace SS.Resources {
         } else if (bitmap.BitmapType == BitmapType.Compressed) {
           pixelData = RunLengthDecode(bitmap, msbr);
         } else {
-          provideHandle.Complete<BitmapSet>(null, false, new Exception($"Unsupported bitmap type {bitmap.BitmapType}."));
-          return;
+          throw new Exception($"Unsupported bitmap type {bitmap.BitmapType}.");
         }
 
         // TODO using private palette should be decided by code using the texture.
@@ -57,7 +39,7 @@ namespace SS.Resources {
         PrivatePalette? palette = null;
 
         if (bitmap.PaletteOffset != 0) {
-          long resourceOffset = resFile.GetResourceInfo(resId).dataOffset;
+          long resourceOffset = resInfo.dataOffset;
 
           BinaryReader binaryReader = resFile.GetBinaryReader(resourceOffset + bitmap.PaletteOffset);
           palette = binaryReader.Read<PrivatePalette>();
@@ -86,9 +68,10 @@ namespace SS.Resources {
 
           texture.Apply();
         } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
-          texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true);
-          texture.filterMode = FilterMode.Point;
-          texture.wrapMode = TextureWrapMode.Repeat;
+          texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true) {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Repeat
+          };
 
           NativeArray<Color32> textureData = texture.GetRawTextureData<Color32>();
 
@@ -103,12 +86,11 @@ namespace SS.Resources {
 
           texture.Apply();
         } else {
-          provideHandle.Complete<BitmapSet>(null, false, new Exception("No supported TextureFormat found."));
-          return;
+          throw new Exception("No supported TextureFormat found.");
         }
         #endregion
 
-        provideHandle.Complete(new BitmapSet {
+        return new BitmapSet {
           Texture = texture,
           Description = new() {
             Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
@@ -117,56 +99,62 @@ namespace SS.Resources {
             AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
             Palette = palette
           }
-        }, true, null);
+        };
+      }
+
+      private byte[] RunLengthDecode(Bitmap bitmap, BinaryReader msbr) {
+        byte[] bitmapData = new byte[bitmap.Width * bitmap.Height];
+        using (MemoryStream ms = new(bitmapData)) {
+          BinaryWriter msbw = new(ms);
+
+          while (ms.Position < ms.Length) {
+            byte cmd = msbr.ReadByte();
+
+            if (cmd == 0x00) { // 00 nn xx      write nn bytes of colour xx
+              byte amount = msbr.ReadByte();
+              byte data = msbr.ReadByte();
+
+              for (byte i = 0; i < amount; ++i)
+                msbw.Write(data);
+            } else if (cmd < 0x80) { // 0<nn<0x80	copy nn bytes direct
+              for (byte i = 0; i < cmd; ++i)
+                msbw.Write(msbr.ReadByte());
+            } else if (cmd == 0x80) {
+              byte param1 = msbr.ReadByte();
+              byte param2 = msbr.ReadByte();
+
+              if (param1 == 0x00 && param2 == 0x00) { // EOF
+                break;
+              } else if (param2 < 0x80) { // skip (nn*256+mm) bytes
+                                          // TODO if video frame, copy from previous frame
+                for (int i = 0; i < (param2 * 256 + param1); ++i)
+                  msbw.Write((byte)0x00);
+              } else if (param2 < 0xC0) { // copy ((nn&0x3f)*256+mm) bytes
+                for (int i = 0; i < ((uint)(param2 & 0x3F) * 256 + param1); ++i)
+                  msbw.Write(msbr.ReadByte());
+              } else if (param2 > 0xC0) { // 0xC0<nn	write ((nn&0x3f)*256+mm) bytes of colour xx
+                byte color = msbr.ReadByte();
+                for (int i = 0; i < ((uint)(param2 & 0x3F) * 256 + param1); ++i)
+                  msbw.Write(color);
+              } else {
+                throw new Exception($"Unhandled subcommand {param2:2X}");
+              }
+            } else { // 0x80<nn	skip (nn&0x7f) bytes
+                     // TODO if video frame, copy from previous frame
+              for (int i = 0; i < (cmd & 0x7F); ++i)
+                msbw.Write((byte)0x00);
+            }
+          }
+        }
+        return bitmapData;
       }
     }
 
+    IResHandle<BitmapSet> IResProvider<BitmapSet>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      if (resInfo.info.ContentType != ResourceFile.ContentType.Image)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Image)}.");
 
-    private byte[] RunLengthDecode(Bitmap bitmap, BinaryReader msbr) {
-      byte[] bitmapData = new byte[bitmap.Width * bitmap.Height];
-      using (MemoryStream ms = new MemoryStream(bitmapData)) {
-        BinaryWriter msbw = new BinaryWriter(ms);
-
-        while (ms.Position < ms.Length) {
-          byte cmd = msbr.ReadByte();
-
-          if (cmd == 0x00) { // 00 nn xx      write nn bytes of colour xx
-            byte amount = msbr.ReadByte();
-            byte data = msbr.ReadByte();
-
-            for (byte i = 0; i < amount; ++i)
-              msbw.Write(data);
-          } else if (cmd < 0x80) { // 0<nn<0x80	copy nn bytes direct
-            for (byte i = 0; i < cmd; ++i)
-              msbw.Write(msbr.ReadByte());
-          } else if (cmd == 0x80) {
-            byte param1 = msbr.ReadByte();
-            byte param2 = msbr.ReadByte();
-
-            if (param1 == 0x00 && param2 == 0x00) { // EOF
-              break;
-            } else if (param2 < 0x80) { // skip (nn*256+mm) bytes
-                                        // TODO if video frame, copy from previous frame
-              for (int i = 0; i < (param2 * 256 + param1); ++i)
-                msbw.Write((byte)0x00);
-            } else if (param2 < 0xC0) { // copy ((nn&0x3f)*256+mm) bytes
-              for (int i = 0; i < ((uint)(param2 & 0x3F) * 256 + param1); ++i)
-                msbw.Write(msbr.ReadByte());
-            } else if (param2 > 0xC0) { // 0xC0<nn	write ((nn&0x3f)*256+mm) bytes of colour xx
-              byte color = msbr.ReadByte();
-              for (int i = 0; i < ((uint)(param2 & 0x3F) * 256 + param1); ++i)
-                msbw.Write(color);
-            } else {
-              throw new Exception($"Unhandled subcommand {param2:2X}");
-            }
-          } else { // 0x80<nn	skip (nn&0x7f) bytes
-                   // TODO if video frame, copy from previous frame
-            for (int i = 0; i < (cmd & 0x7F); ++i)
-              msbw.Write((byte)0x00);
-          }
-        }
-      }
-      return bitmapData;
+      return new BitmapLoader(resFile, resInfo, blockIndex);
     }
   }
 
@@ -195,7 +183,7 @@ namespace SS.Resources {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Bitmap {
-    private uint Reserved;
+    private uint Reserved; // 32-bit runtime pointer to bitmap in memory
     public BitmapType BitmapType;
     private byte Align;
     public BitmapFlags Flags;
@@ -210,21 +198,21 @@ namespace SS.Resources {
 
     public uint PaletteOffset;
 
-    public LGRect AnchorArea {
+    public readonly LGRect AnchorArea {
       get {
         GCHandle handle = GCHandle.Alloc(pivot, GCHandleType.Pinned);
         try { return Marshal.PtrToStructure<LGRect>(handle.AddrOfPinnedObject()); } finally { handle.Free(); }
       }
     }
 
-    public LGPoint AnchorPoint {
+    public readonly LGPoint AnchorPoint {
       get {
         GCHandle handle = GCHandle.Alloc(pivot, GCHandleType.Pinned);
         try { return Marshal.PtrToStructure<LGPoint>(handle.AddrOfPinnedObject()); } finally { handle.Free(); }
       }
     }
 
-    public override string ToString() {
+    public override readonly string ToString() {
       return $"BitmapType = {BitmapType}, Width = {Width}, Height = {Height}, Stride = {Stride}, WidthShift = {WidthShift}, HeightShift = {HeightShift}";
     }
   }
