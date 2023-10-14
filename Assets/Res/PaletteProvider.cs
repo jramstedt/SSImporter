@@ -8,7 +8,6 @@ using UnityEngine;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
-
   public class PaletteProvider : IResProvider<Palette> {
     private class PaletteLoader : LoaderBase<Palette> {
       public PaletteLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
@@ -16,12 +15,7 @@ namespace SS.Resources {
       }
 
       private Palette Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-        byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
-
-        using MemoryStream ms = new(rawResource);
-        BinaryReader msbr = new(ms);
-
-        return msbr.Read<Palette>();
+        return resFile.GetResourceData<Palette>(resInfo, blockIndex);
       }
     }
 

@@ -25,25 +25,25 @@ namespace SS.ObjectProperties {
     public ushort Bitmap;
     public byte DestroyEffect; // ?? destroy_effect
 
-    public byte Radius => PhysicsX;
+    public readonly byte Radius => PhysicsX;
 
-    public bool IsTrash => (Flags & FlagMasks.InventoryGeneral) == FlagMasks.InventoryGeneral;
-    public bool IsPhysicsPreserved => (Flags & FlagMasks.PreservePhysics) == FlagMasks.PreservePhysics;
-    public UseModes UseMode => (UseModes)((ushort)(Flags & FlagMasks.InventoryUsable) >> 2);
-    public bool IsNoCursor => (Flags & FlagMasks.NoCursor) == FlagMasks.NoCursor;
-    public bool IsBlockRendering => (Flags & FlagMasks.BlockRendering) == FlagMasks.BlockRendering;
-    public LightTypes LightType => (LightTypes)((ushort)(Flags & FlagMasks.LightType) >> 6);
-    public TerrainTypes TerrainType => (TerrainTypes)((ushort)(Flags & FlagMasks.Terrain) >> 8);
-    public bool IsDoubleSize => (Flags & FlagMasks.DoubleSize) == FlagMasks.DoubleSize;
-    public bool IsTerrainDamage => (Flags & FlagMasks.TerrainDamage) == FlagMasks.TerrainDamage;
-    public bool IsUseless => (Flags & FlagMasks.Useless) == FlagMasks.Useless;
+    public readonly bool IsTrash => (Flags & FlagMasks.InventoryGeneral) == FlagMasks.InventoryGeneral;
+    public readonly bool IsPhysicsPreserved => (Flags & FlagMasks.PreservePhysics) == FlagMasks.PreservePhysics;
+    public readonly UseModes UseMode => (UseModes)((ushort)(Flags & FlagMasks.InventoryUsable) >> 2);
+    public readonly bool IsNoCursor => (Flags & FlagMasks.NoCursor) == FlagMasks.NoCursor;
+    public readonly bool IsBlockRendering => (Flags & FlagMasks.BlockRendering) == FlagMasks.BlockRendering;
+    public readonly LightTypes LightType => (LightTypes)((ushort)(Flags & FlagMasks.LightType) >> 6);
+    public readonly TerrainTypes TerrainType => (TerrainTypes)((ushort)(Flags & FlagMasks.Terrain) >> 8);
+    public readonly bool IsDoubleSize => (Flags & FlagMasks.DoubleSize) == FlagMasks.DoubleSize;
+    public readonly bool IsTerrainDamage => (Flags & FlagMasks.TerrainDamage) == FlagMasks.TerrainDamage;
+    public readonly bool IsUseless => (Flags & FlagMasks.Useless) == FlagMasks.Useless;
 
-    public byte ClassFlags => (byte)((ushort)(Flags & FlagMasks.ClassFlags) >> 12);
+    public readonly byte ClassFlags => (byte)((ushort)(Flags & FlagMasks.ClassFlags) >> 12);
 
-    public ushort BitmapIndex => (ushort)((Bitmap & 0x3FF) + ((Bitmap & 0x8000) >> 5));
-    public byte BitmapFrameCount => (byte)((Bitmap & 0x7000) >> 12);
-    public bool BitmapRepeat => (Bitmap & 0x0800) == 0x0800;
-    public bool BitmapAnim => (Bitmap & 0x0400) == 0x0400;
+    public readonly ushort BitmapIndex => (ushort)((Bitmap & 0x3FF) + ((Bitmap & 0x8000) >> 5));
+    public readonly byte BitmapFrameCount => (byte)((Bitmap & 0x7000) >> 12);
+    public readonly bool BitmapRepeat => (Bitmap & 0x0800) == 0x0800;
+    public readonly bool BitmapAnim => (Bitmap & 0x0400) == 0x0400;
 
     [Flags]
     public enum FlagMasks : ushort {

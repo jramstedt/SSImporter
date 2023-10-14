@@ -5,8 +5,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
-using Unity.IO.LowLevel.Unsafe;
-using System.Threading.Tasks;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {

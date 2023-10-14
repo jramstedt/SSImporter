@@ -32,11 +32,17 @@ namespace SS.System {
         }
       });
 
-      this.textureAnimationDataLookup = GetComponentLookup<TextureAnimationData>();
+      textureAnimationDataLookup = GetComponentLookup<TextureAnimationData>();
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      textureAnimationEntities.Dispose();
     }
 
     protected override void OnUpdate() {
-      this.textureAnimationDataLookup.Update(this);
+      textureAnimationDataLookup.Update(this);
 
       var animateTexturesJob = new AnimateTexturesJob {
         textureAnimationTypeHandle = GetComponentTypeHandle<TextureAnimationData>(),
@@ -48,7 +54,7 @@ namespace SS.System {
 
       foreach (var (textureIndex, material) in mapMaterial) {
         var textureAnimationEntity = textureAnimationEntities[textureProperties[textureIndex].AnimationGroup];
-        var textureAnimation = this.textureAnimationDataLookup[textureAnimationEntity];
+        var textureAnimation = textureAnimationDataLookup[textureAnimationEntity];
 
         if (textureAnimation.TotalFrames == 0) continue;
 
@@ -66,12 +72,6 @@ namespace SS.System {
           material.renderQueue = (int)RenderQueue.Geometry;
         }
       }
-    }
-
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
-      textureAnimationEntities.Dispose();
     }
 
     [BurstCompile]

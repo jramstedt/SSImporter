@@ -92,51 +92,35 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
 
-      this.vertexAttributes = new(4, Allocator.Persistent) {
+      vertexAttributes = new(4, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
       };
 
-      this.renderMeshDescription = new RenderMeshDescription(
+      renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
         receiveShadows: false,
         staticShadowCaster: false
       );
 
-      this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
-      this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
+      instanceLookup = GetComponentLookup<ObjectInstance>(true);
+      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
       objectProperties = await Services.ObjectProperties;
       shadeTable = await Services.ShadeTable;
 
-      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-
-      /*
-      var objectPropertiesOp = Services.ObjectProperties;
-      var shadeTableOp = Services.ShadeTable;
-
-      var loadOp = Addressables.ResourceManager.CreateGenericGroupOperation(new() { objectPropertiesOp, shadeTableOp });
-      loadOp.Completed += op => {
-        if (op.Status != AsyncOperationStatus.Succeeded)
-          throw op.OperationException;
-
-        objectProperties = objectPropertiesOp.Result;
-        shadeTable = shadeTableOp.Result;
-
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
-      */
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      this.entityMeshIDs.Dispose();
-      this.vertexAttributes.Dispose();
+      entityMeshIDs.Dispose();
+      vertexAttributes.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -153,9 +137,7 @@ namespace SS.System {
         EntityMeshes = entityMeshes
       };
 
-      var addMeshToCacheJobHandle = addMeshToCacheJob.ScheduleParallel(newMeshQuery, dependsOn: Dependency);
-      Dependency = addMeshToCacheJobHandle;
-      ecbSystem.AddJobHandleForProducer(addMeshToCacheJobHandle);
+      Dependency = addMeshToCacheJob.ScheduleParallel(newMeshQuery, dependsOn: Dependency);
       */
 
       Entities
@@ -175,8 +157,6 @@ namespace SS.System {
         })
         .WithoutBurst()
         .Run();
-
-      ecbSystem.AddJobHandleForProducer(Dependency);
       #endregion
 
       using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
@@ -208,8 +188,8 @@ namespace SS.System {
 
           #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
           {
-            using (MemoryStream ms = new MemoryStream(meshInfo.Commands.Value.ToArray())) {
-              BinaryReader msbr = new BinaryReader(ms);
+            using (MemoryStream ms = new(meshInfo.Commands.Value.ToArray())) {
+              using BinaryReader msbr = new(ms);
 
               subMeshIndices.Clear();
               subMeshVertices.Clear();
@@ -280,8 +260,8 @@ namespace SS.System {
         var level = SystemAPI.GetSingleton<Level>();
 
         // Needs to be updated here, after creating the prototype
-        this.instanceLookup.Update(this);
-        this.decorationLookup.Update(this);
+        instanceLookup.Update(this);
+        decorationLookup.Update(this);
 
         textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
@@ -365,9 +345,7 @@ namespace SS.System {
         EntityMeshIDs = entityMeshIDs
       };
 
-      var removeMeshToCacheJobHandle = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, Dependency);
-      Dependency = removeMeshToCacheJobHandle;
-      ecbSystem.AddJobHandleForProducer(removeMeshToCacheJobHandle);
+      Dependency = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, Dependency);
     }
 
     private unsafe void IntepreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
@@ -617,7 +595,7 @@ namespace SS.System {
         } else if (command == OpCode.getvscolor) {
           ushort colorIndex = msbr.ReadUInt16();
           ushort shade = msbr.ReadUInt16();
-          drawState.color = this.shadeTable[(shade << 8) | vertexColor[colorIndex]];
+          drawState.color = shadeTable[(shade << 8) | vertexColor[colorIndex]];
         } else if (command == OpCode.rgbshades) {
           ushort count = msbr.ReadUInt16();
           while (count-- > 0) {
@@ -641,7 +619,7 @@ namespace SS.System {
         } else if (command == OpCode.getpscolor) {
           ushort colorIndex = *(parameterData + msbr.ReadUInt16());
           ushort shade = msbr.ReadUInt16();
-          drawState.color = this.shadeTable[(shade << 8) | (colorIndex & 0xFF)];
+          drawState.color = shadeTable[(shade << 8) | (colorIndex & 0xFF)];
         } else if (command == OpCode.scaleres) {
           break;
         } else if (command == OpCode.vpnt_p) {

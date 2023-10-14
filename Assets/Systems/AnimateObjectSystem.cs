@@ -74,11 +74,18 @@ namespace SS.System {
       var artResources = await Res.Open(Res.dataPath + @"objart3.res");
 
       // TODO Make better somehow. Don't load specific file and scan trough.
-      this.blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
+      blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
       foreach (var (id, resourceInfo) in artResources.ResourceEntries)
-        this.blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
+        blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
 
-      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      blockCounts.Dispose();
+      randoms.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -148,14 +155,6 @@ namespace SS.System {
 
       Dependency = animateJob.ScheduleParallel(animationQuery, Dependency);
     }
-
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
-      this.blockCounts.Dispose();
-      randoms.Dispose();
-    }
-
 
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
@@ -306,7 +305,7 @@ namespace SS.System {
             Debug.Log($"AnimationData.Callback.UnShodanize addAnimation");
 
             instanceData.Info.TimeRemaining = 0;
-            Processor.animationList.addAnimation(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
+            Processor.animationList.AddAnimation(animation.ObjectIndex, false, true, false, 0, AnimationData.Callback.UnShodanize, 1, AnimationData.AnimationCallbackType.Remove);
           }
         } else if (animation.CallbackOperation == AnimationData.Callback.Animate) {
           if ((userData & 0x20000) == 0x20000) { // 1 << 17
@@ -323,15 +322,6 @@ namespace SS.System {
     }
 
     private struct AsyncLoadTag : IComponentData { }
-  }
-
-  [BurstCompile]
-  public partial struct CollectAnimationDataJob : IJobEntity {
-    [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
-
-    public void Execute([EntityIndexInQuery] int entityInQueryIndex, in Entity entity, in AnimationData animationData) {
-      CachedAnimations[entityInQueryIndex] = (entity, animationData);
-    }
   }
 
   public struct AnimatedTag : IComponentData { }

@@ -8,7 +8,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.TextureUtils;
@@ -32,14 +31,14 @@ namespace SS.System {
     private NativeArray<ushort> spriteIndices;
     private NativeArray<SpriteMesh> spriteMeshes;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<AsyncLoadTag>();
 
-      this.spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
-      this.spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
-      this.spriteMeshes = new NativeArray<SpriteMesh>(Base.NUM_OBJECT * 8, Allocator.Persistent);
+      spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
+      spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
+      spriteMeshes = new NativeArray<SpriteMesh>(Base.NUM_OBJECT * 8, Allocator.Persistent);
 
       newSpriteQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] { ComponentType.ReadOnly<SpriteInfo>() },
@@ -68,73 +67,59 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      this.renderMeshDescription = new RenderMeshDescription(
+      renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
         receiveShadows: false,
         staticShadowCaster: false
       );
 
-      var objectPropertiesOp = Services.ObjectProperties;
-      objectPropertiesOp.Completed += op => {
-        var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-        var materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
-        objectProperties = objectPropertiesOp.Result.ObjectDatasBlobAsset;
+      objectProperties = (await Services.ObjectProperties).ObjectDatasBlobAsset;
 
-        ushort bitmapIndex = 1;
-        ushort artIndex = 1;
-        for (var i = 0; i < Base.NUM_OBJECT; ++i) {
-          var baseData = objectProperties.Value.BasePropertyData(i);
-          var frameCount = baseData.BitmapFrameCount + 1;
-
-          spriteBase[i] = bitmapIndex;
-
-          ++artIndex; // Skip 2D icon
-
-          for (var j = 0; j < frameCount; ++j) {
-            var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false);
-            var mesh = new Mesh();
-
-            spriteMeshes[bitmapIndex] = new SpriteMesh {
-              Material = materialID,
-              Mesh = entitiesGraphicsSystem.RegisterMesh(mesh),
-              AnchorPoint = default
-            };
-
-            spriteIndices[bitmapIndex] = artIndex;
-
-            UpdateSpriteMeshAsync(materialID, mesh, bitmapIndex);
-
-            ++artIndex;
-            ++bitmapIndex;
-          }
-
-          ++artIndex; // Skip editor icon
-        }
-
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
-    }
-
-    private async void UpdateSpriteMeshAsync (BatchMaterialID materialID, Mesh mesh, ushort bitmapIndex) {
+      var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
       var materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
 
-      var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
+      ushort bitmapIndex = 1;
+      ushort artIndex = 1;
+      for (var i = 0; i < Base.NUM_OBJECT; ++i) {
+        var baseData = objectProperties.Value.BasePropertyData(i);
+        var frameCount = baseData.BitmapFrameCount + 1;
 
-      unsafe void UpdateSpriteMeshAnchor(BitmapDesc bitmapDesc, ushort bitmapIndex) {
-        ref var spriteMesh = ref UnsafeUtility.ArrayElementAsRef<SpriteMesh>(spriteMeshes.GetUnsafePtr(), bitmapIndex);
-        spriteMesh.AnchorPoint = bitmapDesc.AnchorPoint;
+        spriteBase[i] = bitmapIndex;
+
+        ++artIndex; // Skip 2D icon
+
+        for (var j = 0; j < frameCount; ++j) {
+          var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false);
+          var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
+
+          var mesh = new Mesh();
+
+          spriteMeshes[bitmapIndex] = new SpriteMesh {
+            Material = materialID,
+            Mesh = entitiesGraphicsSystem.RegisterMesh(mesh),
+            AnchorPoint = bitmapDesc.AnchorPoint
+          };
+
+          spriteIndices[bitmapIndex] = artIndex;
+
+          BuildSpriteMesh(mesh, bitmapDesc);
+
+          ++artIndex;
+          ++bitmapIndex;
+        }
+
+        ++artIndex; // Skip editor icon
       }
 
-      BuildSpriteMesh(mesh, bitmapDesc);
-      UpdateSpriteMeshAnchor(bitmapDesc, bitmapIndex);
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      this.spriteBase.Dispose();
-      this.spriteIndices.Dispose();
-      this.spriteMeshes.Dispose();
+      spriteBase.Dispose();
+      spriteIndices.Dispose();
+      spriteMeshes.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -164,8 +149,8 @@ namespace SS.System {
           var spriteMesh = spriteMeshes[startIndex + currentFrame];
           var baseData = objectProperties.Value.BasePropertyData(instanceData);
 
-          var scale = (float)(2048 / 3) / (float)ushort.MaxValue;
-          var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+          var scale = (float)(2048 / 3) / ushort.MaxValue;
+          var radius = (float)baseData.Radius / MapElement.PHYSICS_RADIUS_UNIT;
 
           if (spriteMesh.AnchorPoint.x > 0 || spriteMesh.AnchorPoint.y > 0)
             radius = 0f;

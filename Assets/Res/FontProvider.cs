@@ -3,8 +3,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities.UniversalDelegates;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using static SS.Resources.ResourceFile;
 

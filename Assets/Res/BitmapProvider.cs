@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Unity.Collections;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using static SS.Resources.ResourceFile;
 
@@ -18,7 +16,7 @@ namespace SS.Resources {
         byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
         using MemoryStream ms = new(rawResource);
-        BinaryReader msbr = new(ms);
+        using BinaryReader msbr = new(ms);
 
         Bitmap bitmap = msbr.Read<Bitmap>();
 

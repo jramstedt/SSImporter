@@ -52,19 +52,19 @@ namespace SS {
     public byte Type;
 
 
-    public bool Equals(Triple other) => Class == other.Class && SubClass == other.SubClass && Type == other.Type;
+    public readonly bool Equals(Triple other) => Class == other.Class && SubClass == other.SubClass && Type == other.Type;
 
-    public override bool Equals(object obj) => obj is Triple other && Class == other.Class && SubClass == other.SubClass && Type == other.Type;
+    public override readonly bool Equals(object obj) => obj is Triple other && Class == other.Class && SubClass == other.SubClass && Type == other.Type;
 
-    public override int GetHashCode() => HashCode.Combine(Class, SubClass, Type);
+    public override readonly int GetHashCode() => HashCode.Combine(Class, SubClass, Type);
 
-    public override string ToString() => $"{Class}:{SubClass}:{Type}";
+    public override readonly string ToString() => $"{Class}:{SubClass}:{Type}";
 
     public static bool operator ==(Triple left, Triple right) => left.Class == right.Class && left.SubClass == right.SubClass && left.Type == right.Type;
     public static bool operator !=(Triple left, Triple right) => left.Class != right.Class || left.SubClass != right.SubClass || left.Type != right.Type;
 
-    public static implicit operator Triple(ObjectInstance instance) => new Triple { Class = instance.Class, SubClass = instance.SubClass, Type = instance.Info.Type };
-    public static implicit operator Triple(int triple) => new Triple { Class = (ObjectClass)(triple >> 16 & 0xFF), SubClass = (byte)(triple >> 8 & 0xFF), Type = (byte)(triple & 0xFF) };
+    public static implicit operator Triple(ObjectInstance instance) => new() { Class = instance.Class, SubClass = instance.SubClass, Type = instance.Info.Type };
+    public static implicit operator Triple(int triple) => new() { Class = (ObjectClass)(triple >> 16 & 0xFF), SubClass = (byte)(triple >> 8 & 0xFF), Type = (byte)(triple & 0xFF) };
     public static implicit operator int(Triple triple) => (ushort)(((byte)triple.Class) << 16 | triple.SubClass << 8 | triple.Type);
   }
 }

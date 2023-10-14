@@ -38,7 +38,7 @@ namespace SS.System {
 
     private Resources.ObjectProperties objectProperties;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
@@ -80,32 +80,35 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      this.renderMeshDescription = new RenderMeshDescription(
+      renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
         receiveShadows: false,
         staticShadowCaster: false
       );
 
-      this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
-      this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
-      this.childLookup = GetBufferLookup<Child>(true);
+      instanceLookup = GetComponentLookup<ObjectInstance>(true);
+      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
+      childLookup = GetBufferLookup<Child>(true);
 
-      this.entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
-      this.spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
+      entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+      spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
 
-      var objectPropertiesOp = Services.ObjectProperties;
-      objectPropertiesOp.Completed += op => {
-        objectProperties = objectPropertiesOp.Result;
+      objectProperties = await Services.ObjectProperties;
 
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      resourceMaterialMeshInfos.Dispose();
     }
 
     protected override void OnUpdate() {
-      this.instanceLookup.Update(this);
-      this.decorationLookup.Update(this);
-      this.childLookup.Update(this);
+      instanceLookup.Update(this);
+      decorationLookup.Update(this);
+      childLookup.Update(this);
 
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
@@ -162,8 +165,6 @@ namespace SS.System {
         var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
         finalizeCommandBuffer.DestroyEntity(prototype);
       }
-
-      // Dependency.Complete();
     }
 
     private void ProcessEntities(Level level, NativeArray<Entity> entities, NativeArray<MaterialMeshInfo> entityMeshInfos, NativeArray<AnimationData> animationData) {
@@ -202,7 +203,7 @@ namespace SS.System {
 
         materialMeshInfo = new MaterialMeshInfo {
           MaterialID = materialID,
-          MeshID = this.entitiesGraphicsSystem.RegisterMesh(mesh),
+          MeshID = entitiesGraphicsSystem.RegisterMesh(mesh),
           Submesh = 0
         };
 
@@ -221,12 +222,6 @@ namespace SS.System {
         scale = refWidthOverride / bitmapDesc.Size.x;
 
       BuildPlaneMesh(mesh, scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 128f, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
-    }
-
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
-      resourceMaterialMeshInfos.Dispose();
     }
 
     // TODO almost identical to one in SpriteSystem

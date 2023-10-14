@@ -150,15 +150,8 @@ namespace SS.Resources {
 
     private unsafe void ReadData<T>(in BlobBuilder blobBuilder, BinaryReader binaryReader, ref BlobArray<T> targetBlobArray, int elementCount) where T : struct {
       var blobArray = blobBuilder.Allocate(ref targetBlobArray, elementCount);
-      var realBytes = binaryReader.ReadBytes(UnsafeUtility.SizeOf<T>() * elementCount);
-
-      UnsafeUtility.MemCpy(blobArray.GetUnsafePtr(), UnsafeUtility.PinGCArrayAndGetDataAddress(realBytes, out ulong gcHandle), realBytes.LongLength);
-      UnsafeUtility.ReleaseGCObject(gcHandle);
-
-      // TODO FIXME https://issuetracker.unity3d.com/issues/the-binaryreader-read-data-to-a-span-is-always-zero
-
-      // var span = new Span<byte>(blobArray.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * elementCount);
-      // var bytes = binaryReader.Read(span);
+      var span = new Span<byte>(blobArray.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * elementCount);
+      binaryReader.Read(span);
     }
 
     public int BasePropertyIndex(Triple triple) => ObjectDatasBlobAsset.Value.BasePropertyIndex(triple);

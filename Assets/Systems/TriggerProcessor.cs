@@ -410,7 +410,7 @@ namespace SS.System {
 
         if (frames == 0) frames = 4;
 
-        if (removeAnimation) animationList.removeAnimation(objectIndex);
+        if (removeAnimation) animationList.RemoveAnimation(objectIndex);
 
         if (actionParam2 == 0) {
           var reverse = (actionParam3 & 0x8000) == 0x8000; // 1 << 15
@@ -421,7 +421,7 @@ namespace SS.System {
           instance.Info.CurrentFrame = (sbyte)(reverse ? frames - 1 : 0);
           instance.Info.TimeRemaining = 0;
 
-          animationList.addAnimation(objectIndex, true, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+          animationList.AddAnimation(objectIndex, true, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
         } else {
           var reverse = (actionParam2 & 0x8000) == 0x8000; // 1 << 15
           var cycle = (actionParam2 & 0x10000) == 0x10000; // 1 << 16
@@ -432,9 +432,9 @@ namespace SS.System {
           instance.Info.TimeRemaining = 0;
 
           if (actionParam3 != 0)
-            animationList.addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
+            animationList.AddAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Animate, actionParam3, AnimationData.AnimationCallbackType.Remove);
           else
-            animationList.addAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
+            animationList.AddAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
         }
 
         InstanceLookup[entity] = instance;

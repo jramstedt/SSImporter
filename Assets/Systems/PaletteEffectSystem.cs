@@ -33,7 +33,7 @@ namespace SS.System {
       shadeTable = await Services.ShadeTable;
       clut = await Services.ColorLookupTableTexture;
 
-      EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnUpdate() {

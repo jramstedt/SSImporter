@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.IO.LowLevel.Unsafe;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
@@ -33,7 +32,7 @@ namespace SS.System {
 
     private Resources.ObjectProperties objectProperties;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
@@ -75,24 +74,21 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      this.instanceLookup = GetComponentLookup<ObjectInstance>(true);
-      this.decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
+      instanceLookup = GetComponentLookup<ObjectInstance>(true);
+      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
 
-      this.entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
-      this.spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
+      entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+      spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
 
-      var objectPropertiesOp = Services.ObjectProperties;
-      objectPropertiesOp.Completed += op => {
-        objectProperties = objectPropertiesOp.Result;
+      objectProperties = await Services.ObjectProperties;
 
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnUpdate() {
-      this.instanceLookup.Update(this);
-      this.decorationLookup.Update(this);
+      instanceLookup.Update(this);
+      decorationLookup.Update(this);
 
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();

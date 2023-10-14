@@ -72,7 +72,7 @@ namespace SS.System {
           var entity = entities[i];
           var scheduleEvent = scheduleEvents[i];
 
-          if (expandTimestamp(scheduleEvent.Timestamp, timestamp) >= expandTimestamp(timestamp, timestamp)) continue;
+          if (ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= ExpandTimestamp(timestamp, timestamp)) continue;
 
           if (scheduleEvent.Type == EventType.Trap) {
             TrapScheduleEvent trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
@@ -93,7 +93,7 @@ namespace SS.System {
       /// <summary>
       /// This hack is to handle timestamp overflow.
       /// </summary>
-      private ushort expandTimestamp(ushort timestamp, ushort gametime) {
+      private readonly ushort ExpandTimestamp(ushort timestamp, ushort gametime) {
         if (timestamp <= (gametime - (0xFFFF >> 1)))
           timestamp += 0xFFFF;
         else if (timestamp >= (gametime + (0xFFFF >> 1)))

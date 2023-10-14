@@ -1,8 +1,6 @@
 using SS.Resources;
 using System;
 using UnityEngine;
-using Unity.IO.LowLevel.Unsafe;
-using Unity.Rendering;
 
 namespace SS {
   public static class Services {

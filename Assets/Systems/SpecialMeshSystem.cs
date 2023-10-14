@@ -3,12 +3,10 @@ using SS.Resources;
 using System;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.IO.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
-using UnityEditor.TerrainTools;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -84,7 +82,7 @@ namespace SS.System {
         LoadBitmapToMaterial(materialIndex, material);
       }
 
-      this.vertexAttributes = new(5, Allocator.Persistent) {
+      vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -92,7 +90,7 @@ namespace SS.System {
         [4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       };
 
-      this.renderMeshDescription = new RenderMeshDescription(
+      renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
         receiveShadows: false,
         staticShadowCaster: false
@@ -119,8 +117,8 @@ namespace SS.System {
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      this.materials.Dispose();
-      this.vertexAttributes.Dispose();
+      materials.Dispose();
+      vertexAttributes.Dispose();
     }
 
     protected override void OnUpdate() {

@@ -17,7 +17,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      EntityManager.AddComponentData(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
+      EntityManager.AddComponentData(SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
 
       animationQuery = GetEntityQuery(new EntityQueryDesc {
         All = new ComponentType[] {
@@ -28,6 +28,13 @@ namespace SS.System {
       animationArchetype = EntityManager.CreateArchetype(
         typeof(AnimationData)
       );
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      var systemData = SystemAPI.GetComponent<AnimateObjectSystemData>(SystemHandle);
+      systemData.commands.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -41,8 +48,8 @@ namespace SS.System {
 
       Dependency = collectAnimationDataJob.ScheduleParallel(animationQuery, Dependency);
 
-      var commands = SystemAPI.GetComponent<AnimateObjectSystemData>(this.SystemHandle).commands;
-      SystemAPI.SetComponent(this.SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
+      var commands = SystemAPI.GetComponent<AnimateObjectSystemData>(SystemHandle).commands;
+      SystemAPI.SetComponent(SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
 
       var processAnimationCommands = new ProcessAnimationCommands {
         commands = commands.AsReader(),
@@ -50,19 +57,12 @@ namespace SS.System {
         CachedAnimations = cachedAnimations,
         CommandBuffer = listProcessCommandBuffer.AsParallelWriter()
       };
-
+        
       Dependency = processAnimationCommands.Schedule(commands.ForEachCount, 1, Dependency);
       if (commands.IsCreated) commands.Dispose(Dependency);
 
-      Dependency.Complete();
+      CompleteDependency();
       listProcessCommandBuffer.Playback(EntityManager);
-    }
-
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
-      var systemData = SystemAPI.GetComponent<AnimateObjectSystemData>(this.SystemHandle);
-      systemData.commands.Dispose();
     }
 
     struct ProcessAnimationCommands : IJobParallelFor {
@@ -85,18 +85,18 @@ namespace SS.System {
           if (command == AnimationCommand.Remove) {
             Debug.Log("<color=green> ProcessAnimationCommands removeAnimation");
             var data = commands.Read<AnimationRemove>();
-            removeAnimation(data.objectIndex);
+            ProcessRemoveAnimation(data.objectIndex);
           } else {
             Debug.Log("<color=green> ProcessAnimationCommands addAnimation");
             var data = commands.Read<AnimationAdd>();
-            addAnimation(data.objectIndex, data.repeat, data.reverse, data.cycle, data.speed, data.callbackOperation, data.userData, data.callbackType);
+            ProcessAddAnimation(data.objectIndex, data.repeat, data.reverse, data.cycle, data.speed, data.callbackOperation, data.userData, data.callbackType);
           }
         }
 
         commands.EndForEachIndex();
       }
 
-      private Entity findAnimatingEntity(ushort objectIndex) {
+      private readonly Entity FindAnimatingEntity(ushort objectIndex) {
         foreach (var (entity, animationData) in CachedAnimations) {
           if (animationData.ObjectIndex == objectIndex)
             return entity;
@@ -105,7 +105,7 @@ namespace SS.System {
         return Entity.Null;
       }
 
-      private void addAnimation(ushort objectIndex, bool repeat, bool reverse, bool cycle, ushort speed, Callback callbackOperation, uint userData, AnimationCallbackType callbackType) {
+      private void ProcessAddAnimation(ushort objectIndex, bool repeat, bool reverse, bool cycle, ushort speed, Callback callbackOperation, uint userData, AnimationCallbackType callbackType) {
         const ushort DEFAULT_ANIMLIST_SPEED = 128;
 
         AnimationFlags flags = 0;
@@ -124,7 +124,7 @@ namespace SS.System {
           FrameTime = speed > 0 ? speed : DEFAULT_ANIMLIST_SPEED
         };
 
-        var animationEntity = findAnimatingEntity(objectIndex);
+        var animationEntity = FindAnimatingEntity(objectIndex);
 
         Debug.Log($"<color=lightblue> ProcessAnimationCommands findAnimatingEntity e:{animationEntity} isnull:{animationEntity == Entity.Null}");
 
@@ -134,11 +134,21 @@ namespace SS.System {
         CommandBuffer.SetComponent(unfilteredChunkIndex, animationEntity, animationData);
       }
 
-      private void removeAnimation(ushort objectIndex) {
-        var animationEntity = findAnimatingEntity(objectIndex);
+      private void ProcessRemoveAnimation(ushort objectIndex) {
+        var animationEntity = FindAnimatingEntity(objectIndex);
 
         if (animationEntity != Entity.Null)
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
+      }
+    }
+
+
+    [BurstCompile]
+    private partial struct CollectAnimationDataJob : IJobEntity {
+      [WriteOnly] public NativeArray<(Entity entity, AnimationData animationData)> CachedAnimations;
+
+      public void Execute([EntityIndexInQuery] int entityInQueryIndex, in Entity entity, in AnimationData animationData) {
+        CachedAnimations[entityInQueryIndex] = (entity, animationData);
       }
     }
   }
@@ -162,6 +172,7 @@ namespace SS.System {
     public uint userData;
     public AnimationCallbackType callbackType;
   }
+
   public struct AnimateObjectSystemData : IComponentData {
     public UnsafeStream commands;
 
@@ -169,14 +180,14 @@ namespace SS.System {
     public struct Writer {
       public UnsafeStream.Writer commands;
 
-      public void removeAnimation(ushort objectIndex) {
+      public void RemoveAnimation(ushort objectIndex) {
         Debug.Log($"<color=yellow> Adding removeAnimation {objectIndex}");
 
         commands.Write(AnimationCommand.Remove);
         commands.Write(new AnimationRemove { objectIndex = objectIndex });
       }
 
-      public void addAnimation(ushort objectIndex, bool repeat, bool reverse, bool cycle, ushort speed, Callback callbackOperation, uint userData, AnimationCallbackType callbackType) {
+      public void AddAnimation(ushort objectIndex, bool repeat, bool reverse, bool cycle, ushort speed, Callback callbackOperation, uint userData, AnimationCallbackType callbackType) {
         Debug.Log($"<color=yellow> Adding addAnimation ud:{userData} oi:{objectIndex}");
 
         commands.Write(AnimationCommand.Add);

@@ -15,9 +15,9 @@ namespace SS.Resources {
         byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
         using BlobBuilder blobBuilder = new(Allocator.Temp);
-        ref var commandsBlobArray = ref blobBuilder.ConstructRoot<BlobArray<byte>>();
-        var commandBlobArray = blobBuilder.Allocate(ref commandsBlobArray, rawResource.Length);
-        UnsafeUtility.MemCpy(commandBlobArray.GetUnsafePtr(), UnsafeUtility.PinGCArrayAndGetDataAddress(rawResource, out ulong gcHandle), rawResource.Length);
+        ref var blobArray = ref blobBuilder.ConstructRoot<BlobArray<byte>>();
+        var blobBuilderArray = blobBuilder.Allocate(ref blobArray, rawResource.Length);
+        UnsafeUtility.MemCpy(blobBuilderArray.GetUnsafePtr(), UnsafeUtility.PinGCArrayAndGetDataAddress(rawResource, out ulong gcHandle), rawResource.Length);
         UnsafeUtility.ReleaseGCObject(gcHandle);
         var blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<byte>>(Allocator.Persistent);
 

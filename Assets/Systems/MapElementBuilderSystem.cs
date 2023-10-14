@@ -31,7 +31,7 @@ namespace SS.System {
     private EntityQuery viewPartQuery;
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
-    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
+    private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
 
     private RenderMeshDescription renderMeshDescription;
@@ -80,7 +80,7 @@ namespace SS.System {
         }
       });
 
-      this.vertexAttributes = new(5, Allocator.Persistent) {
+      vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent),
@@ -88,7 +88,7 @@ namespace SS.System {
         [4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
       };
 
-      this.renderMeshDescription = new RenderMeshDescription(
+      renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
         receiveShadows: false,
         staticShadowCaster: false
@@ -98,18 +98,18 @@ namespace SS.System {
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      this.vertexAttributes.Dispose();
-      this.entityMeshIDs.Dispose();
+      vertexAttributes.Dispose();
+      entityMeshIDs.Dispose();
     }
 
     protected override void OnUpdate() {
+      var entityCount = mapElementQuery.CalculateEntityCount();
+      if (entityCount == 0) return;
+
       var ecbSystem = World.GetExistingSystemManaged<EndInitializationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-
-      var entityCount = mapElementQuery.CalculateEntityCount();
-      if (entityCount == 0) return;
 
       using var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
@@ -155,10 +155,9 @@ namespace SS.System {
       };
 
       Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
-      #endregion
 
-      CompleteDependency();
-      EntityManager.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery);
+      commandBuffer.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtRecord);
+      #endregion
 
       #region Update meshes
       var meshes = new Mesh[entityCount];
@@ -173,6 +172,9 @@ namespace SS.System {
           return mesh;
         });
       }
+
+      CompleteDependency();
+
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
       for (int meshIndex = 0; meshIndex < meshes.Length; ++meshIndex) {
@@ -329,18 +331,14 @@ namespace SS.System {
     private const int VerticesPerViewPart = 8;
     private const int IndicesPerViewPart = 12;
 
-    private unsafe void ClearIndexArray(in Mesh.MeshData mesh) {
+    private readonly unsafe void ClearMeshData(in Mesh.MeshData mesh) {
       var index = mesh.GetIndexData<ushort>();
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
-    }
 
-    private unsafe void ClearVertexArray(in Mesh.MeshData mesh) {
-      Vertex* nullVertex = stackalloc Vertex[] {
-        new Vertex { pos = float3(0f), normal = float3(0f), tangent = float3(0f), uv = half2(0f), light = 0f }
-      };
+      Vertex nullVertex = new() { pos = float3(0f), normal = float3(0f), tangent = float3(0f), uv = half2(0f), light = 0f };
 
       var vertices = mesh.GetVertexData<Vertex>();
-      UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
+      UnsafeUtility.MemCpyReplicate(vertices.GetUnsafePtr(), &nullVertex, UnsafeUtility.SizeOf<Vertex>(), vertices.Length);
     }
 
     private void BuildMesh(in Entity entity, in TileLocation tileLocation, in MapElement tile, ref Mesh.MeshData mesh, ref NativeArray<byte> textureIndices, out BlobAssetReference<Collider> compoundCollider) {
@@ -359,15 +357,14 @@ namespace SS.System {
 
       mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
-      ClearIndexArray(mesh);
-      ClearVertexArray(mesh);
+      ClearMeshData(mesh);
 
       var colliderBlobs = new NativeArray<BlobAssetReference<Collider>>(mesh.subMeshCount, Allocator.Temp);
 
       var subMeshAccumulator = 0;
 
-      subMeshAccumulator += this.CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, false);
-      subMeshAccumulator += this.CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, true);
+      subMeshAccumulator += CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, false);
+      subMeshAccumulator += CreatePlane(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, true);
 
       #region North Wall
       {
@@ -500,11 +497,6 @@ namespace SS.System {
         textureIndices[subMeshIndex] = tile.FloorTexture;
       }
 
-      vertices[vertexStart + 4] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-      vertices[vertexStart + 5] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-      vertices[vertexStart + 6] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-      vertices[vertexStart + 7] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-
       mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(indexStart, indicesTemplate.Length, MeshTopology.Triangles));
 
       #region Collider
@@ -580,10 +572,6 @@ namespace SS.System {
         vertices[vertexStart + 1] = new Vertex { pos = wallVertices[1], uv = half2(uvs[1].x, (half)(wallVertices[1].y - textureVerticalOffset)), light = 1f };
         vertices[vertexStart + 2] = new Vertex { pos = wallVertices[2], uv = half2(uvs[2].x, (half)(wallVertices[2].y - textureVerticalOffset)), light = 1f };
         vertices[vertexStart + 3] = new Vertex { pos = wallVertices[3], uv = half2(uvs[3].x, (half)(wallVertices[3].y - textureVerticalOffset)), light = 0f };
-        vertices[vertexStart + 4] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-        vertices[vertexStart + 5] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-        vertices[vertexStart + 6] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
-        vertices[vertexStart + 7] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
 
         for (int i = 0; i < faceIndices.Length; ++i) index[indexStart + i] = (ushort)(faceIndices[i] + vertexStart);
 
@@ -656,9 +644,6 @@ namespace SS.System {
 
           vertexStart += wallVertices.Length;
         }
-
-        for (int vertex = vertexStart; vertex < (originalVertexStart + VerticesPerViewPart); ++vertex)
-          vertices[vertex] = new Vertex { pos = float3(0f), uv = half2(0f), light = 0f };
 
         if (indexCount > 0) {
           mesh.SetSubMesh(subMeshIndex, new SubMeshDescriptor(originalIndexStart, indexCount, MeshTopology.Triangles));

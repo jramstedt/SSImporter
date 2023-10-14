@@ -2,7 +2,6 @@
 using System;
 using System.IO;
 using System.Runtime.ExceptionServices;
-using UnityEngine;
 
 namespace SS.Resources {
   public class LoaderBase<T> : IResHandle<T> {

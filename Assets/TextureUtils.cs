@@ -1,11 +1,9 @@
 using SS.ObjectProperties;
 using SS.Resources;
 using SS.System;
-using System.Linq;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using UnityEditor.Search;
 using UnityEngine.Rendering;
 
 namespace SS {

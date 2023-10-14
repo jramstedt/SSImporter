@@ -38,7 +38,7 @@ namespace SS.System {
         None = new ComponentType[] { ComponentType.ReadOnly<SurveillanceSource>() },
       });
 
-      this.materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
     }
 
     protected override void OnUpdate() {
@@ -55,11 +55,11 @@ namespace SS.System {
 
           EntityManager.AddComponentObject(entity, camera);
           EntityManager.AddComponentObject(entity, urpCameraData);
-          EntityManager.AddComponentData<CameraAdded>(entity, new CameraAdded() {
+          EntityManager.AddComponentData(entity, new CameraAdded() {
             go = gameObject
           });
 
-          camera.targetTexture = this.materialProviderSystem.GetCameraRenderTexture(surveillanceSource.CameraIndex);
+          camera.targetTexture = materialProviderSystem.GetCameraRenderTexture(surveillanceSource.CameraIndex);
         })
         .WithoutBurst()
         .WithStructuralChanges()

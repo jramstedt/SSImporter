@@ -11,7 +11,6 @@ using Unity.Physics;
 using Unity.Physics.Authoring;
 using Unity.Rendering;
 using Unity.Transforms;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -530,30 +529,31 @@ namespace SS.Resources {
     private static unsafe BlobAssetReference<BlobArray<T>> BuildBlob<T>(in NativeArray<T> array) where T : struct {
       using BlobBuilder blobBuilder = new(Allocator.Temp);
       ref var blobArray = ref blobBuilder.ConstructRoot<BlobArray<T>>();
-      var tileArray = blobBuilder.Allocate(ref blobArray, array.Length);
-      UnsafeUtility.MemCpy(tileArray.GetUnsafePtr(), array.GetUnsafeReadOnlyPtr(), array.Length * UnsafeUtility.SizeOf<T>());
+      var blobBuilderArray = blobBuilder.Allocate(ref blobArray, array.Length);
+      UnsafeUtility.MemCpy(blobBuilderArray.GetUnsafePtr(), array.GetUnsafeReadOnlyPtr(), array.Length * UnsafeUtility.SizeOf<T>());
       return blobBuilder.CreateBlobAssetReference<BlobArray<T>>(Allocator.Persistent);
     }
 
     private static unsafe BlobAssetReference<BlobArray<T>> BuildBlob<T>(in T[] array) where T : struct {
       using BlobBuilder blobBuilder = new(Allocator.Temp);
       ref var blobArray = ref blobBuilder.ConstructRoot<BlobArray<T>>();
-      var tileArray = blobBuilder.Construct(ref blobArray, array);
+      var blobBuilderArray = blobBuilder.Allocate(ref blobArray, array.Length);
+      UnsafeUtility.MemCpy(blobBuilderArray.GetUnsafePtr(), UnsafeUtility.PinGCArrayAndGetDataAddress(array, out ulong gcHandle), array.Length * UnsafeUtility.SizeOf<T>());
+      UnsafeUtility.ReleaseGCObject(gcHandle);
       return blobBuilder.CreateBlobAssetReference<BlobArray<T>>(Allocator.Persistent);
     }
 
     private static MapElement[,] ReadMapElements(byte[] rawData, in LevelInfo levelInfo) {
-      using (MemoryStream ms = new MemoryStream(rawData)) {
-        BinaryReader msbr = new BinaryReader(ms);
+      using MemoryStream ms = new(rawData);
+      using BinaryReader msbr = new(ms);
 
-        MapElement[,] mapElements = new MapElement[levelInfo.Width, levelInfo.Height];
+      MapElement[,] mapElements = new MapElement[levelInfo.Width, levelInfo.Height];
 
-        for (uint y = 0; y < levelInfo.Height; ++y)
-          for (uint x = 0; x < levelInfo.Width; ++x)
-            mapElements[x, y] = msbr.Read<MapElement>();
+      for (uint y = 0; y < levelInfo.Height; ++y)
+        for (uint x = 0; x < levelInfo.Width; ++x)
+          mapElements[x, y] = msbr.Read<MapElement>();
 
-        return mapElements;
-      }
+      return mapElements;
     }
 
     private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {

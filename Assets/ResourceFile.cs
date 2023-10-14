@@ -26,7 +26,7 @@ namespace SS.Resources {
         throw new NotSupportedException($"File type is not supported ({header})");
 
       fileStream.Position = DIRECTORY_POINTER_OFFSET;
-      fileStream.Position = (long)binaryReader.ReadInt32(); // file offset to resource directory
+      fileStream.Position = binaryReader.ReadInt32(); // file offset to resource directory
 
       #region Resource directory
       ushort resourceCount = binaryReader.ReadUInt16(); // number of resources in directory
@@ -79,7 +79,11 @@ namespace SS.Resources {
     }
 
     public T GetResourceData<T>(ushort resourceId, ushort blockIndex = 0) {
-      byte[] data = GetResourceData(resourceId, blockIndex);
+      return GetResourceData<T>(resourceEntries[resourceId], blockIndex);
+    }
+
+    public T GetResourceData<T>(ResourceInfo resourceInfo, ushort blockIndex = 0) {
+      byte[] data = GetResourceData(resourceInfo, blockIndex);
       return data.Read<T>();
     }
 
@@ -93,21 +97,21 @@ namespace SS.Resources {
       fileStream.Position = resourceInfo.dataOffset;
       byte[] rawData = binaryReader.ReadBytes(directoryEntry.LengthPacked);
       byte[] blockData = ReadBlock(rawData, directoryEntry, blockIndex);
-      using (MemoryStream ms = new(blockData)) {
-        BinaryReader msbr = new(ms);
 
-        int structSize = Marshal.SizeOf(typeof(T));
+      using MemoryStream ms = new(blockData);
+      using BinaryReader msbr = new(ms);
 
-        if (structSize > ms.Length || ms.Length % structSize != 0)
-          throw new ArgumentException($"Chunk length {ms.Length} is not divisible by struct {typeof(T)} size {structSize}.");
+      int structSize = Marshal.SizeOf(typeof(T));
 
-        T[] structs = new T[ms.Length / structSize];
+      if (structSize > ms.Length || ms.Length % structSize != 0)
+        throw new ArgumentException($"Chunk length {ms.Length} is not divisible by struct {typeof(T)} size {structSize}.");
 
-        for (int i = 0; i < structs.Length; ++i)
-          structs[i] = msbr.Read<T>();
+      T[] structs = new T[ms.Length / structSize];
 
-        return structs;
-      }
+      for (int i = 0; i < structs.Length; ++i)
+        structs[i] = msbr.Read<T>();
+
+      return structs;
     }
 
     public ushort GetResourceBlockCount(ushort resourceId) => GetResourceBlockCount(resourceEntries[resourceId]);
@@ -123,31 +127,29 @@ namespace SS.Resources {
 
     private byte[] ReadBlock(byte[] rawData, DirectoryEntry directoryEntry, ushort blockIndex = 0) {
       if (directoryEntry.Flags.HasFlag(ResourceFlags.Compound)) {
-        using (MemoryStream ms = new(rawData)) {
-          BinaryReader msbr = new(ms);
+        using MemoryStream ms = new(rawData);
+        using BinaryReader msbr = new(ms);
 
-          ushort blockCount = msbr.ReadUInt16();
+        ushort blockCount = msbr.ReadUInt16();
 
-          if (blockIndex >= blockCount)
-            throw new ArgumentOutOfRangeException(nameof(blockIndex), $"Resource has only {blockCount} blocks");
+        if (blockIndex >= blockCount)
+          throw new ArgumentOutOfRangeException(nameof(blockIndex), $"Resource has only {blockCount} blocks");
 
-          ms.Position += blockIndex * sizeof(int);
-          int blockStart = msbr.ReadInt32();
-          int blockEnd = msbr.ReadInt32();
+        ms.Position += blockIndex * sizeof(int);
+        int blockStart = msbr.ReadInt32();
+        int blockEnd = msbr.ReadInt32();
 
-          if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-            ms.Position = sizeof(ushort) + (blockCount + 1) * sizeof(int);  // move to start of data
-            return Unpack(msbr, blockEnd - blockStart, blockStart);
-          } else {
-            ms.Position = blockStart;
-            return msbr.ReadBytes(blockEnd - blockStart);
-          }
+        if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
+          ms.Position = sizeof(ushort) + (blockCount + 1) * sizeof(int);  // move to start of data
+          return Unpack(msbr, blockEnd - blockStart, blockStart);
+        } else {
+          ms.Position = blockStart;
+          return msbr.ReadBytes(blockEnd - blockStart);
         }
       } else if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-        using (MemoryStream ms = new(rawData)) {
-          BinaryReader msbr = new(ms);
-          return Unpack(msbr, directoryEntry.LengthUnpacked);
-        }
+        using MemoryStream ms = new(rawData);
+        using BinaryReader msbr = new(ms);
+        return Unpack(msbr, directoryEntry.LengthUnpacked);
       } else {
         return rawData;
       }
@@ -155,50 +157,47 @@ namespace SS.Resources {
 
     private byte[][] ReadBlock(byte[] rawData, DirectoryEntry directoryEntry) {
       if (directoryEntry.Flags.HasFlag(ResourceFlags.Compound)) {
-        using (MemoryStream ms = new(rawData)) {
-          BinaryReader msbr = new(ms);
+        using MemoryStream ms = new(rawData);
+        using BinaryReader msbr = new(ms);
 
-          ushort blockCount = msbr.ReadUInt16();
-          long blockDirectory = ms.Position;
+        ushort blockCount = msbr.ReadUInt16();
+        long blockDirectory = ms.Position;
 
-          byte[][] blockDatas = new byte[blockCount][];
+        byte[][] blockDatas = new byte[blockCount][];
 
-          if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-            int headerSize = sizeof(ushort) + (blockCount + 1) * sizeof(int);
+        if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
+          int headerSize = sizeof(ushort) + (blockCount + 1) * sizeof(int);
 
-            ms.Position = headerSize;
-            byte[] unpackedData = Unpack(msbr, directoryEntry.LengthUnpacked - headerSize);
+          ms.Position = headerSize;
+          byte[] unpackedData = Unpack(msbr, directoryEntry.LengthUnpacked - headerSize);
 
-            using (MemoryStream ums = new(unpackedData)) {
-              BinaryReader umsbr = new(ms);
+          using MemoryStream ums = new(unpackedData);
+          using BinaryReader umsbr = new(ms);
 
-              for (int i = 0; i < blockCount; ++i) {
-                ms.Position = blockDirectory + (i * sizeof(int));
-                int blockStart = msbr.ReadInt32();
-                int blockEnd = msbr.ReadInt32();
+          for (int i = 0; i < blockCount; ++i) {
+            ms.Position = blockDirectory + (i * sizeof(int));
+            int blockStart = msbr.ReadInt32();
+            int blockEnd = msbr.ReadInt32();
 
-                ums.Position = blockStart - headerSize;
-                blockDatas[i] = umsbr.ReadBytes(blockEnd - blockStart);
-              }
-            }
-          } else {
-            for (int i = 0; i < blockCount; ++i) {
-              ms.Position = blockDirectory + (i * sizeof(int));
-              int blockStart = msbr.ReadInt32();
-              int blockEnd = msbr.ReadInt32();
-
-              ms.Position = blockStart;
-              blockDatas[i] = msbr.ReadBytes(blockEnd - blockStart);
-            }
+            ums.Position = blockStart - headerSize;
+            blockDatas[i] = umsbr.ReadBytes(blockEnd - blockStart);
           }
+        } else {
+          for (int i = 0; i < blockCount; ++i) {
+            ms.Position = blockDirectory + (i * sizeof(int));
+            int blockStart = msbr.ReadInt32();
+            int blockEnd = msbr.ReadInt32();
 
-          return blockDatas;
+            ms.Position = blockStart;
+            blockDatas[i] = msbr.ReadBytes(blockEnd - blockStart);
+          }
         }
+
+        return blockDatas;
       } else if (directoryEntry.Flags.HasFlag(ResourceFlags.LZW)) {
-        using (MemoryStream ms = new(rawData)) {
-          BinaryReader msbr = new(ms);
-          return new byte[][] { Unpack(msbr, directoryEntry.LengthUnpacked) };
-        }
+        using MemoryStream ms = new(rawData);
+        using BinaryReader msbr = new(ms);
+        return new byte[][] { Unpack(msbr, directoryEntry.LengthUnpacked) };
       } else {
         return new byte[][] { rawData };
       }
@@ -324,7 +323,7 @@ namespace SS.Resources {
       public readonly int LengthUnpacked => lengthUnpacked[0] | lengthUnpacked[1] << 8 | lengthUnpacked[2] << 16;
       public readonly int LengthPacked => lengthPacked[0] | lengthPacked[1] << 8 | lengthPacked[2] << 16;
 
-      public override string ToString() => $"Id = {Id}, LengthUnpacked = {LengthUnpacked}, Flags = {Flags}, LengthPacked = {LengthPacked}, ContentType = {ContentType}";
+      public override readonly string ToString() => $"Id = {Id}, LengthUnpacked = {LengthUnpacked}, Flags = {Flags}, LengthPacked = {LengthPacked}, ContentType = {ContentType}";
     }
 
     public struct ResourceInfo {

@@ -98,9 +98,9 @@ namespace SS.System {
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(clutColorMaterialTemplate);
 
       {
-        this.noiseBitmapSet = CreateNoiseTexture();
-        this.noiseMaterial = new Material(clutMaterialTemplate);
-        noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), this.noiseBitmapSet.Texture);
+        noiseBitmapSet = CreateNoiseTexture();
+        noiseMaterial = new Material(clutMaterialTemplate);
+        noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"LIGHTGRID");
         noiseMaterial.renderQueue = (int)RenderQueue.Geometry;
@@ -109,8 +109,8 @@ namespace SS.System {
       }
 
       {
-        this.cameraBitmapDescs = new BitmapDesc[NUM_HACK_CAMERAS];
-        this.cameraRenderTextures = new RenderTexture[NUM_HACK_CAMERAS];
+        cameraBitmapDescs = new BitmapDesc[NUM_HACK_CAMERAS];
+        cameraRenderTextures = new RenderTexture[NUM_HACK_CAMERAS];
         /*
           RenderTextureFormat format;
           if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8))
@@ -123,13 +123,13 @@ namespace SS.System {
         var format = RenderTextureFormat.ARGB32;
 
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
-          this.cameraRenderTextures[i] = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16)) {
+          cameraRenderTextures[i] = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16)) {
             name = @"Camera",
             filterMode = FilterMode.Point,
             wrapMode = TextureWrapMode.Repeat
           };
 
-          this.cameraBitmapDescs[i] = new BitmapDesc() {
+          cameraBitmapDescs[i] = new BitmapDesc() {
             Transparent = false,
             Size = new(32, 32),
             AnchorPoint = new(),
@@ -137,6 +137,17 @@ namespace SS.System {
           };
         }
       }
+    }
+
+    protected override void OnDestroy() {
+      base.OnDestroy();
+
+      textureMaterials.Dispose();
+      cameraMaterials.Dispose();
+
+      materialIDToBitmapResourceRef.Dispose();
+
+      randoms.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -156,17 +167,6 @@ namespace SS.System {
 
         noiseTexture.Apply(false, false);
       }
-    }
-
-    protected override void OnDestroy() {
-      base.OnDestroy();
-
-      textureMaterials.Dispose();
-      cameraMaterials.Dispose();
-
-      materialIDToBitmapResourceRef.Dispose();
-
-      randoms.Dispose();
     }
 
     public Material ClutMaterialTemplate => clutMaterialTemplate;
@@ -242,7 +242,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (cameraMaterials.TryAdd((cameraIndex, lightmapped, decal), batchMaterialID)) {
-        var cameraTexture = this.cameraRenderTextures[cameraIndex];
+        var cameraTexture = cameraRenderTextures[cameraIndex];
 
         if (decal)
           material.SetTexture(Shader.PropertyToID(@"Base_Map"), cameraTexture);

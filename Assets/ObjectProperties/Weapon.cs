@@ -17,8 +17,8 @@ namespace SS.ObjectProperties {
     public byte FiringRate;
     public byte AmmoInfo;
 
-    public byte AmmoSubClass => (byte)((AmmoInfo >> 4) & 0x0F);
-    public byte AmmoType => (byte)(AmmoInfo & 0x0F);
+    public readonly byte AmmoSubClass => (byte)((AmmoInfo >> 4) & 0x0F);
+    public readonly byte AmmoType => (byte)(AmmoInfo & 0x0F);
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -112,7 +112,7 @@ namespace SS.ObjectProperties {
 
     public byte ArmorPenetration;
 
-    public int PrimaryDamage => (SpecialDamage >> 8) & 0x0F;
-    public int SuperDamage => (SpecialDamage >> 12) & 0x0F;
+    public readonly int PrimaryDamage => (SpecialDamage >> 8) & 0x0F;
+    public readonly int SuperDamage => (SpecialDamage >> 12) & 0x0F;
   }
 }

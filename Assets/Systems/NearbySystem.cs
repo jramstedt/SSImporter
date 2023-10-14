@@ -1,4 +1,3 @@
-#if false
 using SS.Resources;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
@@ -113,7 +112,7 @@ namespace SS.System {
               DecorationLookup[objectEntity] = decorationData;
               objectInstances[i] = objectInstance;
 
-              animationList.addAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
+              animationList.AddAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
             // }
           }
         }
@@ -123,4 +122,3 @@ namespace SS.System {
     }
   }
 }
-#endif

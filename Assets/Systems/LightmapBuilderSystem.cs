@@ -13,7 +13,7 @@ namespace SS.System {
 
     private Texture2D lightmap;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<LevelInfo>();
@@ -27,17 +27,13 @@ namespace SS.System {
         }
       });
 
-      var lightmapOp = Services.LightmapTexture;
-      lightmapOp.Completed += op => {
-        lightmap = lightmapOp.Result;
+      lightmap = await Services.LightmapTexture;
 
-        EntityManager.AddComponent<AsyncLoadTag>(this.SystemHandle);
-      };
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnUpdate() {
-      var entityCount = mapElementQuery.CalculateEntityCount();
-      if (entityCount == 0) return;
+      if (mapElementQuery.IsEmptyIgnoreFilter) return;
 
       var lightmapJob = new UpdateLightmapJob {
         tileLocationTypeHandle = GetComponentTypeHandle<TileLocation>(),

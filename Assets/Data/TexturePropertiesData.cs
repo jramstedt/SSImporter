@@ -10,7 +10,7 @@ namespace SS.Resources {
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 396)] // 400 / Marshal.SizeOf<TextureProperties>()
     private readonly TextureProperties[] textureProperties;
 
-    public TextureProperties this[int index] {
+    public readonly TextureProperties this[int index] {
       get => textureProperties[index];
       set => textureProperties[index] = value;
     }
