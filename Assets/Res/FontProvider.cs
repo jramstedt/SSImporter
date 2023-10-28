@@ -183,7 +183,7 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct BitmapFont {
+  public struct BitmapFont {
     public enum BitmapDataType : ushort {
       Mono = 0x0000,
       Color = 0xCCCC
@@ -191,12 +191,12 @@ namespace SS.Resources {
 
     public BitmapDataType DataType;
 
-    private fixed byte Dummy1[34];
+    private unsafe fixed byte Dummy1[34];
 
     public ushort FirstAscii;
     public ushort LastAscii;
 
-    private fixed byte Dummy2[32];
+    private unsafe fixed byte Dummy2[32];
 
     public uint xOffset;
     public uint bitsOffset;

@@ -119,10 +119,7 @@ namespace SS {
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;
-
-            unsafe {
-              return materialProviderSystem.GetMaterial((uint)(0x03E8 + level.TextureMap.blockIndex[textureData]), true, decal);
-            }
+            return materialProviderSystem.GetMaterial((ushort)(0x03E8 + level.TextureMap[textureData]), 0, true, decal);
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidthOverride = 128; // 1 << 7

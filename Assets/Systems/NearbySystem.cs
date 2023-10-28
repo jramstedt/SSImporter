@@ -20,11 +20,9 @@ namespace SS.System {
 
       RequireForUpdate<Level>();
 
-      objectQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>()
-        }
-      });
+      objectQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ObjectInstance>()
+        .Build(this);
     }
 
     protected override void OnUpdate() {
@@ -42,7 +40,7 @@ namespace SS.System {
         Level = level,
 
         EntityTypeHandle = GetEntityTypeHandle(),
-        ObjectInstanceTypeHandle = GetComponentTypeHandle<ObjectInstance>(),
+        ObjectInstanceTypeHandleRW = GetComponentTypeHandle<ObjectInstance>(),
 
         InstanceLookup = GetComponentLookup<ObjectInstance>(),
         DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(),
@@ -64,7 +62,7 @@ namespace SS.System {
     [ReadOnly] public Level Level;
 
     [ReadOnly] public EntityTypeHandle EntityTypeHandle;
-    public ComponentTypeHandle<ObjectInstance> ObjectInstanceTypeHandle;
+    public ComponentTypeHandle<ObjectInstance> ObjectInstanceTypeHandleRW;
 
     [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance> InstanceLookup;
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
@@ -73,7 +71,7 @@ namespace SS.System {
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var objectEntities = chunk.GetNativeArray(EntityTypeHandle);
-      var objectInstances = chunk.GetNativeArray(ref ObjectInstanceTypeHandle);
+      var objectInstances = chunk.GetNativeArray(ref ObjectInstanceTypeHandleRW);
 
       var playerIndex = Player.playerObjectIndex;
       var playerEntity = Level.ObjectInstances.Value[playerIndex];

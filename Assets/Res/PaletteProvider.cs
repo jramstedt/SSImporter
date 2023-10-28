@@ -57,7 +57,7 @@ namespace SS.Resources {
         rgb[i] = copy.rgb[i];
     }
 
-    public Color32 this[int index] {
+    public readonly Color32 this[int index] {
       get {
         index *= 3;
 
@@ -70,6 +70,7 @@ namespace SS.Resources {
 
         return new Color32(r, g, b, 0xFF);
       }
+
       set {
         index *= 3;
 

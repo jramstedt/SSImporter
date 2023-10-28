@@ -49,7 +49,7 @@ namespace SS.ObjectProperties {
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public unsafe struct Cyberspace {
+    public struct Cyberspace {
       public SixOf<byte> Colors;
     }
 

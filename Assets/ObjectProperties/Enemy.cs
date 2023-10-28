@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace SS.ObjectProperties {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct Enemy {
+  public struct Enemy {
     public const int NUM_MUTANT_CRITTER = 9;
     public const int NUM_ROBOT_CRITTER = 12;
     public const int NUM_CYBORG_CRITTER = 7;
@@ -59,7 +59,7 @@ namespace SS.ObjectProperties {
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public unsafe struct Cyberspace {
+    public struct Cyberspace {
       public ThreeOf<byte> Colors;
       public ThreeOf<byte> AlternativeColors;
     }

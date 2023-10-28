@@ -46,25 +46,19 @@ namespace SS.System {
 
       resourceMaterialMeshInfos = new(512, Allocator.Persistent);
 
-      newFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>(), ComponentType.ReadOnly<ObjectInstance>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureMeshAddedTag>(), ComponentType.ReadOnly<DecalProjectorAddedTag>() },
-      });
+      newFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<FlatTextureInfo, ObjectInstance>()
+        .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
+        .Build(this);
 
-      animatedFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>(),
+      animatedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll< FlatTextureMeshAddedTag, AnimatedTag, FlatTextureInfo, ObjectInstance>()
+        .Build(this);
 
-          ComponentType.ReadOnly<FlatTextureInfo>(),
-          ComponentType.ReadOnly<FlatTextureMeshAddedTag>(),
-          ComponentType.ReadOnly<AnimatedTag>(),
-        }
-      });
-
-      removedFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<FlatTextureMeshAddedTag>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>() },
-      });
+      removedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<FlatTextureMeshAddedTag>()
+        .WithNone<FlatTextureInfo>()
+        .Build(this);
 
       animatedQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<AnimationData>()

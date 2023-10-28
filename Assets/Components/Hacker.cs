@@ -6,7 +6,7 @@ using Unity.Entities;
 
 namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct Hacker : IComponentData {
+  public struct Hacker : IComponentData {
     public const int NUM_LEVELS = 22;
     public const int NUM_DAMAGE_TYPES = 8;
     public const int DEGREES_OF_FREEDOM = 6;
@@ -51,12 +51,12 @@ namespace SS.Resources {
     }
 
     // Static Game Data
-    public fixed byte name[20];
+    public unsafe fixed byte name[20];
     public byte realspace_level;  // this is the last realspace level we were in
 
     // Difficulty related stuff
-    public fixed sbyte difficulty[4];
-    private fixed byte Unused[(NUM_LEVELS >> 3) + 1];
+    public unsafe fixed sbyte difficulty[4];
+    private unsafe fixed byte Unused[(NUM_LEVELS >> 3) + 1];
 
     // system stuff
     public uint gameTime;
@@ -70,14 +70,14 @@ namespace SS.Resources {
 
     // World stuff
     public byte currentLevel;
-    public fixed short initialShodanSecurityLevels[NUM_LEVELS];
+    public unsafe fixed short initialShodanSecurityLevels[NUM_LEVELS];
     // public Span<short> InitialShodanSecurityLevels { get { fixed (short* a = initialShodanSecurityLevels) { return new Span<short>(a, UnsafeUtility.SizeOf<short>() * NUM_LEVELS); } } }
 
-    public fixed sbyte controls[DEGREES_OF_FREEDOM];
+    public unsafe fixed sbyte controls[DEGREES_OF_FREEDOM];
     public short playerObjectIndex;
     public Location realspaceLocation;            // This is where the player will come back out of cspace into
     public int versionNumber;
-    public fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
+    public unsafe fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
 
     // Random physics state.
     public byte posture;                   // current posture (standing/stooped/prone)
@@ -91,7 +91,7 @@ namespace SS.Resources {
     public byte hitPoints;                // I bet we will want these.
     public byte cyperspaceHitPoints;                 // after hit_points so we can array ref this stuff
     public ushort hitPointsRegenRate;         // Rate at which hit points regenerate, per minute
-    public fixed byte hitPointsLost[NUM_DAMAGE_TYPES];  // Rate at which damage is taken, per minute
+    public unsafe fixed byte hitPointsLost[NUM_DAMAGE_TYPES];  // Rate at which damage is taken, per minute
     public ushort bioPostExpose;          // expose damage from bio squares long past.
     public ushort radPostExpose;          // expose damage from rad squares long past.
     public byte energy;                    // suit power charge
@@ -101,8 +101,8 @@ namespace SS.Resources {
     public short cyberspaceTrips;
     public int cyberspaceTimeBase;
 
-    private fixed byte questBits[NUM_QUESTBITS >> 3];       // Mask of which "quests" you have completed
-    private fixed short questVars[NUM_QUESTVARS];
+    private unsafe fixed byte questBits[NUM_QUESTBITS >> 3];       // Mask of which "quests" you have completed
+    private unsafe fixed short questVars[NUM_QUESTVARS];
 
     public uint hudModes;                 // What hud functions are currently active?
     [MarshalAs(UnmanagedType.U1)] public bool experience;                // Are you experienced?
@@ -117,50 +117,50 @@ namespace SS.Resources {
     public byte lightValue;               // current lamp setting
 
     // MFD State
-    public fixed byte mfdVirtualSlots[NUM_MFDS * MFD_NUM_VIRTUAL_SLOTS]; // ptrs to mfd_slot id's
-    public fixed /*MFDStatus*/ byte mfdSlotStatus[MFD_NUM_REAL_SLOTS];
-    public fixed byte mfdAllSlots[MFD_NUM_REAL_SLOTS];          // ptrs to mfd_func id's
-    public fixed byte mfdFuncStatus[MFD_NUM_FUNCS];             // ptrs to mfd_func flags
-    public fixed byte mfdFuncData[MFD_NUM_FUNCS * 8];
-    public fixed byte mfdCurrentSlots[NUM_MFDS];                // ptrs to mfd's curr slots
-    public fixed byte mfdEmptyFuncs[NUM_MFDS];                  // ptrs to mfd's empty func
-    public fixed byte mfdAccessPuzzles[64];             // this is 4 times as much as that hardcoded 8 up there
+    public unsafe fixed byte mfdVirtualSlots[NUM_MFDS * MFD_NUM_VIRTUAL_SLOTS]; // ptrs to mfd_slot id's
+    public unsafe fixed /*MFDStatus*/ byte mfdSlotStatus[MFD_NUM_REAL_SLOTS];
+    public unsafe fixed byte mfdAllSlots[MFD_NUM_REAL_SLOTS];          // ptrs to mfd_func id's
+    public unsafe fixed byte mfdFuncStatus[MFD_NUM_FUNCS];             // ptrs to mfd_func flags
+    public unsafe fixed byte mfdFuncData[MFD_NUM_FUNCS * 8];
+    public unsafe fixed byte mfdCurrentSlots[NUM_MFDS];                // ptrs to mfd's curr slots
+    public unsafe fixed byte mfdEmptyFuncs[NUM_MFDS];                  // ptrs to mfd's empty func
+    public unsafe fixed byte mfdAccessPuzzles[64];             // this is 4 times as much as that hardcoded 8 up there
                                                         // who knows how much we really need, hopefully in soon
                                                         // KLC - changed to 64
-    public fixed sbyte mfdSaveSlot[NUM_MFDS];
+    public unsafe fixed sbyte mfdSaveSlot[NUM_MFDS];
 
     // Inventory stuff, in general, a value of zero will indicate an empty slot
     // indices are drug/grenade/ware "types" 
-    public fixed byte hardware[Hardware.NUM_HARDWARE];  // Which warez do we have? (level of each type?)
+    public unsafe fixed byte hardware[Hardware.NUM_HARDWARE];  // Which warez do we have? (level of each type?)
 
-    public fixed byte softwareCombat[Software.NUM_COMBAT_SOFTS];
-    public fixed byte softwareDefense[Software.NUM_DEFENSE_SOFTS];
-    public fixed byte softwareMisc[Software.NUM_MISC_SOFTS];
+    public unsafe fixed byte softwareCombat[Software.NUM_COMBAT_SOFTS];
+    public unsafe fixed byte softwareDefense[Software.NUM_DEFENSE_SOFTS];
+    public unsafe fixed byte softwareMisc[Software.NUM_MISC_SOFTS];
 
-    public fixed byte cartridges[Ammunition.NUM_AMMO]; // Cartridges for each ammo type.
-    public fixed byte partialClip[Ammunition.NUM_AMMO];
+    public unsafe fixed byte cartridges[Ammunition.NUM_AMMO]; // Cartridges for each ammo type.
+    public unsafe fixed byte partialClip[Ammunition.NUM_AMMO];
 
-    public fixed byte drugs[DermalPatch.NUM_DRUG];          // Quantity of each drug
-    public fixed byte grenades[NUM_GRENADES];    // Quantity of each grenade.
+    public unsafe fixed byte drugs[DermalPatch.NUM_DRUG];          // Quantity of each drug
+    public unsafe fixed byte grenades[NUM_GRENADES];    // Quantity of each grenade.
 
-    public fixed byte email[NUM_EMAIL];  // Which email messages do you have.
-    public fixed byte logs[NUM_LOG_LEVELS]; // on which levels do we have logs. 
+    public unsafe fixed byte email[NUM_EMAIL];  // Which email messages do you have.
+    public unsafe fixed byte logs[NUM_LOG_LEVELS]; // on which levels do we have logs. 
 
     // Weapons are arranged into "slots" 
-    public fixed /*WeaponSlot*/ byte weapons[5 * NUM_WEAPON_SLOTS]; // Which weapons do you have?
+    public unsafe fixed /*WeaponSlot*/ byte weapons[5 * NUM_WEAPON_SLOTS]; // Which weapons do you have?
 
     // Inventory status
-    public fixed byte hardwareStatus[Hardware.NUM_HARDWARE];    // Status of active wares (on/off, activation time, recharge time?)
+    public unsafe fixed byte hardwareStatus[Hardware.NUM_HARDWARE];    // Status of active wares (on/off, activation time, recharge time?)
 
-    public fixed byte softwareCombatStatus[Software.NUM_COMBAT_SOFTS];
-    public fixed byte softwareDefenseStatus[Software.NUM_DEFENSE_SOFTS];
-    public fixed byte softwareMiscStatus[Software.NUM_MISC_SOFTS];
+    public unsafe fixed byte softwareCombatStatus[Software.NUM_COMBAT_SOFTS];
+    public unsafe fixed byte softwareDefenseStatus[Software.NUM_DEFENSE_SOFTS];
+    public unsafe fixed byte softwareMiscStatus[Software.NUM_MISC_SOFTS];
 
     public byte jumpjetEnergyFraction;  // fractional units of energy spent on jumpjets.
-    public fixed byte emailSenderCounts[32];  // who has sent how many emails 
-    public fixed sbyte drugStatus[DermalPatch.NUM_DRUG];     // Time left on active drugs, 0 if inactive
-    public fixed byte drugIntensity[DermalPatch.NUM_DRUG];  // Intensity of active drugs, 0 if inactive
-    public fixed ushort grenadesTimeSetting[NUM_GRENADES];      // Time setting for each grenade
+    public unsafe fixed byte emailSenderCounts[32];  // who has sent how many emails 
+    public unsafe fixed sbyte drugStatus[DermalPatch.NUM_DRUG];     // Time left on active drugs, 0 if inactive
+    public unsafe fixed byte drugIntensity[DermalPatch.NUM_DRUG];  // Intensity of active drugs, 0 if inactive
+    public unsafe fixed ushort grenadesTimeSetting[NUM_GRENADES];      // Time setting for each grenade
 
     // PLOT STUFF
     public ushort time2dest;  // Time to destination (seconds)
@@ -172,7 +172,7 @@ namespace SS.Resources {
     public ushort fireRate;                 // game time required between weapon fires.
 
     // Selectied items
-    public fixed byte actives[NUM_ACTIVES];
+    public unsafe fixed byte actives[NUM_ACTIVES];
 
     // Other transitory state
     public short saveObjCursorObjectId;            // saving object cursor when you change to cyberspace
@@ -191,7 +191,7 @@ namespace SS.Resources {
     public long eyePosition;       // physics eye position
 
     // let's hope State stays at 12 fixes
-    public fixed int edmsState[12];
+    public unsafe fixed int edmsState[12];
 
     // the player's actively selected inventory category.  
     public byte currentActiveCategory;
@@ -199,7 +199,7 @@ namespace SS.Resources {
 
     public short currentEmail;
 
-    public fixed byte version[6];
+    public unsafe fixed byte version[6];
     [MarshalAs(UnmanagedType.U1)] public bool dead;
 
     public ushort leanFilterState;
@@ -214,13 +214,13 @@ namespace SS.Resources {
 
     public uint lastHeadBob;
 
-    private fixed byte pad[9];
+    private unsafe fixed byte pad[9];
 
     /// <summary>
     /// Initializes new player
     /// init_player
     /// </summary>
-    public void Initialize() { // TODO name, difficulty
+    public unsafe void Initialize() { // TODO name, difficulty
       UnsafeUtility.MemClear(UnsafeUtility.AddressOf(ref this), UnsafeUtility.SizeOf<Hacker>());
 
       ReadOnlySpan<short> turnOnQuestBits = stackalloc short[] {
@@ -293,14 +293,14 @@ namespace SS.Resources {
       actives[(int)Active.Email] = 0xFF;
     }
 
-    public bool GetQuestBit(int index) => (questBits[index >> 3] & (1 << (index & 0xF))) != 0;
-    public void SetQuestBit(int index, bool value) {
+    public unsafe bool GetQuestBit(int index) => (questBits[index >> 3] & (1 << (index & 0xF))) != 0;
+    public unsafe void SetQuestBit(int index, bool value) {
       if (value) questBits[index >> 3] |= (byte)(1 << (index & 0xF));
       else questBits[index >> 3] &= (byte)~(1 << (index & 0xF));
     }
 
-    public short GetQuestVar(int index) => questVars[index];
-    public void SetQuestVar(int index, short value) => questVars[index] = value;
+    public unsafe short GetQuestVar(int index) => questVars[index];
+    public unsafe void SetQuestVar(int index, short value) => questVars[index] = value;
 
     [Flags]
     public enum EmailFlags : byte {
@@ -331,8 +331,8 @@ namespace SS.Resources {
       public byte ammo_type;
       public byte manufacturer;
 
-      public byte Heat => ammo;
-      public byte Setting => ammo_type;
+      public readonly byte Heat => ammo;
+      public readonly byte Setting => ammo_type;
     }
   }
 }

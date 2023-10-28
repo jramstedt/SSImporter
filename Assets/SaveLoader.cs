@@ -1,8 +1,6 @@
 ﻿using SS.ObjectProperties;
 using SS.System;
-using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -12,10 +10,7 @@ using Unity.Physics.Authoring;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 using static Unity.Physics.Material;
-using Material = UnityEngine.Material;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -108,64 +103,9 @@ namespace SS.Resources {
       var lightmap = await Services.LightmapTexture;
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
-      // TODO FIXME move material creations to own system with singleton entity access to material IDs
-
-      var textures = new BitmapSet[TextureMap.NUM_LOADED_TEXTURES];
-      var textureProperties = new TextureProperties[TextureMap.NUM_LOADED_TEXTURES];
-      var materials = new Dictionary<ushort, Material>(TextureMap.NUM_LOADED_TEXTURES);
-      var materialIds = new NativeHashMap<ushort, BatchMaterialID>(TextureMap.NUM_LOADED_TEXTURES, Allocator.Persistent);
-      for (ushort i = 0; i < TextureMap.NUM_LOADED_TEXTURES; ++i) {
-        if (materialIds.ContainsKey(i)) continue;
-
-        ushort textureIndex = 0;
-        unsafe {
-          textureIndex = textureMap.blockIndex[i];
-        }
-
-        textureProperties[i] = allTextureProperties[textureIndex];
-
-        var bitmapSet = await CreateMipmapTexture(textureIndex); // TODO instead of await, run parallel
-        textures[i] = bitmapSet;
-
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
-        material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-        material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-        material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-
-        material.EnableKeyword(@"LIGHTGRID");
-        if (bitmapSet.Description.Transparent) {
-          material.SetFloat("_AlphaClip", 1);
-          material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-          material.renderQueue = (int)RenderQueue.AlphaTest;
-        } else {
-          material.SetFloat("_AlphaClip", 0);
-          material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-          material.renderQueue = (int)RenderQueue.Geometry;
-        }
-
-        material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-        material.enableInstancing = true;
-
-        materials.Add(i, material);
-        materialIds.Add(i, entitiesGraphicsSystem.RegisterMaterial(material));
-      }
-
-      var mapSystem = world.GetOrCreateSystemManaged<MapElementBuilderSystem>();
-      mapSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
-
-      var specialMeshSystem = world.GetOrCreateSystemManaged<SpecialMeshSystem>();
-      specialMeshSystem.mapMaterial = materialIds.AsReadOnly(); // TODO FIXME Ugly
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
-      var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Persistent); // Don't dispose.
-      var animateTexturesSystem = world.GetOrCreateSystemManaged<AnimateTexturesSystem>();
-      animateTexturesSystem.textures = textures;
-      animateTexturesSystem.textureProperties = textureProperties;
-      animateTexturesSystem.mapMaterial = materials; // TODO FIXME Ugly
-      animateTexturesSystem.textureAnimationEntities = textureAnimationEntities;
-
+      using var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Temp);
+      
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
@@ -470,6 +410,7 @@ namespace SS.Resources {
       var level = new Level {
         Id = mapId,
         TextureMap = textureMap,
+        TextureAnimations = BuildBlob(textureAnimationEntities),
         ObjectInstances = BuildBlob(objectInstanceEntities),
         SurveillanceCameras = BuildBlob(surveillanceSourceEntities),
         ObjectReferences = BuildBlob(crossReferenceTable)
@@ -554,45 +495,6 @@ namespace SS.Resources {
           mapElements[x, y] = msbr.Read<MapElement>();
 
       return mapElements;
-    }
-
-    private static async Task<BitmapSet> CreateMipmapTexture(ushort textureIndex) {
-      var tex128x128op = Res.Load<BitmapSet>((ushort)(0x03E8 + textureIndex));
-      var tex64x64op = Res.Load<BitmapSet>((ushort)(0x02C3 + textureIndex));
-      var tex32x32op = Res.Load<BitmapSet>(0x004D, textureIndex);
-      var tex16x16op = Res.Load<BitmapSet>(0x004C, textureIndex);
-
-      // TODO FIXME disposing these might be a bad idea. Resources should be cached and reference counted.
-      using var tex128x128 = await tex128x128op;
-
-      Texture2D complete = new(128, 128, tex128x128.Texture.format, 4, true) {
-        filterMode = tex128x128.Texture.filterMode,
-        wrapMode = tex128x128.Texture.wrapMode
-      };
-
-      using var tex64x64 = await tex64x64op;
-      using var tex32x32 = await tex32x32op;
-      using var tex16x16 = await tex16x16op;
-
-      if (SystemInfo.copyTextureSupport.HasFlag(CopyTextureSupport.Basic)) {
-        Graphics.CopyTexture(tex128x128.Texture, 0, 0, complete, 0, 0);
-        Graphics.CopyTexture(tex64x64.Texture, 0, 0, complete, 0, 1);
-        Graphics.CopyTexture(tex32x32.Texture, 0, 0, complete, 0, 2);
-        Graphics.CopyTexture(tex16x16.Texture, 0, 0, complete, 0, 3);
-      } else {
-        complete.SetPixelData(tex128x128.Texture.GetPixelData<byte>(0), 0);
-        complete.SetPixelData(tex64x64.Texture.GetPixelData<byte>(0), 1);
-        complete.SetPixelData(tex32x32.Texture.GetPixelData<byte>(0), 2);
-        complete.SetPixelData(tex16x16.Texture.GetPixelData<byte>(0), 3);
-      }
-      complete.Apply(false, true);
-
-      var result = new BitmapSet {
-        Texture = complete,
-        Description = tex128x128.Description
-      };
-
-      return result;
     }
   }
 }

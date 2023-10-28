@@ -8,6 +8,7 @@ namespace SS.Resources {
   public struct Level : IComponentData {
     public byte Id;
     public TextureMap TextureMap;
+    public BlobAssetReference<BlobArray<Entity>> TextureAnimations;
     public BlobAssetReference<BlobArray<Entity>> TileMap;
     public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
     public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras; // TODO needs to be mutable
@@ -23,7 +24,7 @@ namespace SS.Resources {
    * FullMap
    */
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct LevelInfo : IComponentData {
+  public struct LevelInfo : IComponentData {
     public enum LevelType : byte {
       Normal,
       Cyberspace
@@ -37,7 +38,7 @@ namespace SS.Resources {
     private uint InternalPointer;
     public LevelType Type;
 
-    private fixed byte Unused[12]; // x_scale, y_scale, z_scale
+    private unsafe fixed byte Unused[12]; // x_scale, y_scale, z_scale
 
     public SchedulerInfo SchedulerInfo;
 
@@ -242,14 +243,19 @@ namespace SS.Resources {
 
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct TextureMap {
+  public struct TextureMap {
     public const byte NUM_LOADED_TEXTURES = 54;
 
-    public fixed ushort blockIndex[NUM_LOADED_TEXTURES];
+    private unsafe fixed ushort blockIndex[NUM_LOADED_TEXTURES];
+
+    public unsafe ushort this[int index] {
+      get => blockIndex[index];
+      set => blockIndex[index] = value;
+    }
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct ObjectReference {
+  public struct ObjectReference {
     public LGPoint Tile;
 
     /// <summary>Object index to Level.ObjectInstances </summary>
@@ -279,6 +285,7 @@ namespace SS.Resources {
     public byte FrictionClimb;
     public byte FrictionWalk;
     public byte StarfieldControl;
+    /// <summary>Index to Level.TextureAnimations.</summary>
     public byte AnimationGroup;
 
     /// <summary>Offset from texture to start of the group.</summary>

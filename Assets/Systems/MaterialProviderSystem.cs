@@ -8,7 +8,6 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Rendering;
-using Unity.IO.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -19,8 +18,9 @@ namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MaterialProviderSystem : SystemBase {
-    private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> textureMaterials;
+    private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
+    private NativeParallelHashMap<ushort, BatchMaterialID> textureMaterials;
 
     private NativeParallelHashMap<BatchMaterialID, uint> materialIDToBitmapResourceRef;
     private readonly Dictionary<uint, IResHandle<BitmapSet>> bitmapSetLoaders = new();
@@ -48,8 +48,9 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      textureMaterials = new(1024, Allocator.Persistent);
-      cameraMaterials = new(1024, Allocator.Persistent);
+      bitmapMaterials = new(1024, Allocator.Persistent);
+      cameraMaterials = new(128, Allocator.Persistent);
+      textureMaterials = new(128, Allocator.Persistent);
 
       materialIDToBitmapResourceRef = new(1024, Allocator.Persistent);
 
@@ -142,8 +143,9 @@ namespace SS.System {
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      textureMaterials.Dispose();
+      bitmapMaterials.Dispose();
       cameraMaterials.Dispose();
+      textureMaterials.Dispose();
 
       materialIDToBitmapResourceRef.Dispose();
 
@@ -175,16 +177,10 @@ namespace SS.System {
     public BatchMaterialID ColorMaterialID => colorMaterialID;
     public BatchMaterialID NoiseMaterialID => noiseMaterialID;
 
-    public BatchMaterialID GetMaterial(uint resRef, bool lightmapped, bool decal) {
-      ushort resId = (ushort)(resRef >> 16);
-      ushort blockIndex = (ushort)(resRef & 0xFFFF);
-      return GetMaterial(resId, blockIndex, lightmapped, decal);
-    }
-
     public BatchMaterialID GetMaterial(ushort resId, ushort blockIndex, bool lightmapped, bool decal) {
       var resRef = (uint)((resId << 16) | blockIndex);
 
-      if (textureMaterials.TryGetValue((resRef, lightmapped, decal), out var batchMaterialID))
+      if (bitmapMaterials.TryGetValue((resRef, lightmapped, decal), out var batchMaterialID))
         return batchMaterialID; // Res already loaded. Skip loading.
 
       Material material = new(decal ? clutDecalMaterialTemplate : clutMaterialTemplate);
@@ -193,7 +189,7 @@ namespace SS.System {
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
-      if (textureMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
+      if (bitmapMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
         materialIDToBitmapResourceRef[batchMaterialID] = resRef;
 
         LoadBitmapToMaterial(resId, blockIndex, decal, material);
@@ -204,6 +200,51 @@ namespace SS.System {
       Debug.LogWarning($"GetMaterial failed for {resRef:X8}.");
 
       return BatchMaterialID.Null;
+    }
+
+    public BatchMaterialID GetTextureMaterial(ushort textureIndex) {
+      if (textureMaterials.TryGetValue(textureIndex, out var batchMaterialID))
+        return batchMaterialID; // Res already loaded. Skip loading.
+
+      Material material = new(clutMaterialTemplate);
+      material.EnableKeyword(@"LIGHTGRID");
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (textureMaterials.TryAdd(textureIndex, batchMaterialID)) {
+        materialIDToBitmapResourceRef[batchMaterialID] = (uint)((0x03E8 + textureIndex) << 16); // Uses the 128x128 resource id
+
+        LoadTextureToMaterial(textureIndex, material);
+
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetTextureMaterial failed for {textureIndex}.");
+
+      return BatchMaterialID.Null;
+    }
+
+    private async void LoadTextureToMaterial(ushort textureIndex, Material material) {
+      var resRef = (uint)((0x03E8 + textureIndex) << 16); // Uses the 128x128 resource id
+
+      if (!bitmapSetLoaders.TryGetValue(resRef, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
+        bitmapSetLoadOp = new MipMapLoader(textureIndex);
+        bitmapSetLoaders.TryAdd(resRef, bitmapSetLoadOp);
+      }
+
+      var bitmapSet = await bitmapSetLoadOp;
+
+      material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+
+      if (bitmapSet.Description.Transparent) {
+        material.SetFloat("_AlphaClip", 1);
+        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+        material.renderQueue = (int)RenderQueue.AlphaTest;
+      } else {
+        material.SetFloat("_AlphaClip", 0);
+        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+        material.renderQueue = (int)RenderQueue.Geometry;
+      }
     }
 
     private async void LoadBitmapToMaterial(ushort resId, ushort blockIndex, bool decal, Material material) {
@@ -270,6 +311,10 @@ namespace SS.System {
         return cameraBitmapDescs[cameraIndex];
       else
         return (await bitmapSetLoaders[materialIDToBitmapResourceRef[materialID]]).Description;
+    }
+
+    public IResHandle<BitmapSet> GetBitmapLoader(BatchMaterialID materialID) {
+      return bitmapSetLoaders[materialIDToBitmapResourceRef[materialID]];
     }
 
     public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, bool decal, out TextureType type, out int scale) {
@@ -348,6 +393,49 @@ namespace SS.System {
       };
 
       return noiseBitmapSet;
+    }
+
+    private class MipMapLoader : LoaderBase<BitmapSet> {
+      public MipMapLoader(ushort textureIndex) {
+        Load(textureIndex);
+      }
+
+      private async void Load(ushort textureIndex) {
+        var tex128x128op = Res.Load<BitmapSet>((ushort)(0x03E8 + textureIndex));
+        var tex64x64op = Res.Load<BitmapSet>((ushort)(0x02C3 + textureIndex));
+        var tex32x32op = Res.Load<BitmapSet>(0x004D, textureIndex);
+        var tex16x16op = Res.Load<BitmapSet>(0x004C, textureIndex);
+
+        // TODO FIXME disposing these might be a bad idea. Resources should be cached and reference counted.
+        using var tex128x128 = await tex128x128op;
+
+        Texture2D complete = new(128, 128, tex128x128.Texture.format, 4, true) {
+          filterMode = tex128x128.Texture.filterMode,
+          wrapMode = tex128x128.Texture.wrapMode
+        };
+
+        using var tex64x64 = await tex64x64op;
+        using var tex32x32 = await tex32x32op;
+        using var tex16x16 = await tex16x16op;
+
+        if (SystemInfo.copyTextureSupport.HasFlag(CopyTextureSupport.Basic)) {
+          Graphics.CopyTexture(tex128x128.Texture, 0, 0, complete, 0, 0);
+          Graphics.CopyTexture(tex64x64.Texture, 0, 0, complete, 0, 1);
+          Graphics.CopyTexture(tex32x32.Texture, 0, 0, complete, 0, 2);
+          Graphics.CopyTexture(tex16x16.Texture, 0, 0, complete, 0, 3);
+        } else {
+          complete.SetPixelData(tex128x128.Texture.GetPixelData<byte>(0), 0);
+          complete.SetPixelData(tex64x64.Texture.GetPixelData<byte>(0), 1);
+          complete.SetPixelData(tex32x32.Texture.GetPixelData<byte>(0), 2);
+          complete.SetPixelData(tex16x16.Texture.GetPixelData<byte>(0), 3);
+        }
+        complete.Apply(false, true);
+
+        InvokeCompletionEvent(new BitmapSet {
+          Texture = complete,
+          Description = tex128x128.Description
+        });
+      }
     }
 
     [BurstCompile]

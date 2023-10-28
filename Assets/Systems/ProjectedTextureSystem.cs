@@ -40,25 +40,19 @@ namespace SS.System {
 
       resourceDecalProjectors = new();
 
-      newFlatTextureQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>(), ComponentType.ReadOnly<ObjectInstance>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureMeshAddedTag>(), ComponentType.ReadOnly<DecalProjectorAddedTag>() },
-      });
+      newFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<FlatTextureInfo, ObjectInstance>()
+        .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
+        .Build(this);
 
-      activeDecalProjectorQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>(),
+      activeDecalProjectorQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ObjectInstance, FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>()
+        .Build(this);
 
-          ComponentType.ReadOnly<FlatTextureInfo>(),
-          ComponentType.ReadOnly<DecalProjectorAddedTag>(),
-          ComponentType.ReadOnly<AnimatedTag>(),
-        }
-      });
-
-      removedDecalProjectoreQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<DecalProjectorAddedTag>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<FlatTextureInfo>() },
-      });
+      removedDecalProjectoreQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<DecalProjectorAddedTag>()
+        .WithNone<FlatTextureInfo>()
+        .Build(this);
 
       animatedQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<AnimationData>()

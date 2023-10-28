@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace SS.ObjectProperties {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct ThreeOf<T> where T : unmanaged {
+  public struct ThreeOf<T> where T : unmanaged {
     public T x;
     public T y;
     public T z;
@@ -26,7 +26,7 @@ namespace SS.ObjectProperties {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct FourOf<T> where T : unmanaged {
+  public struct FourOf<T> where T : unmanaged {
     public T x;
     public T y;
     public T z;
@@ -51,7 +51,7 @@ namespace SS.ObjectProperties {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct SixOf<T> where T : unmanaged {
+  public struct SixOf<T> where T : unmanaged {
     public T i;
     public T j;
     public T k;
@@ -78,7 +78,7 @@ namespace SS.ObjectProperties {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct EightOf<T> where T : unmanaged {
+  public struct EightOf<T> where T : unmanaged {
     public T i;
     public T j;
     public T k;

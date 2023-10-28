@@ -13,8 +13,8 @@ namespace SS.System {
     private const double NextContinuousSeconds = 5.0;
 
     private EntityTypeHandle entityTypeHandle;
-    private ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
-    private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+    private ComponentTypeHandle<ObjectInstance> instanceTypeHandleRO;
+    private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandleRO;
 
     private ComponentLookup<MapElement> mapElementLookup;
     private ComponentLookup<ObjectInstance> instanceLookup;
@@ -32,8 +32,8 @@ namespace SS.System {
       state.RequireForUpdate<Level>();
 
       entityTypeHandle = state.GetEntityTypeHandle();
-      instanceTypeHandle = state.GetComponentTypeHandle<ObjectInstance>();
-      triggerTypeHandle = state.GetComponentTypeHandle<ObjectInstance.Trigger>();
+      instanceTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance>(true);
+      triggerTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance.Trigger>(true);
       mapElementLookup = state.GetComponentLookup<MapElement>();
       instanceLookup = state.GetComponentLookup<ObjectInstance>();
       triggerLookup = state.GetComponentLookup<ObjectInstance.Trigger>();
@@ -45,13 +45,9 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      triggerQuery = state.GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>(),
-          ComponentType.ReadOnly<ObjectInstance.Trigger>(),
-          ComponentType.ReadOnly<TriggerActivateTag>()
-        }
-      });
+      triggerQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ObjectInstance, ObjectInstance.Trigger, TriggerActivateTag>()
+        .Build(ref state);
 
       triggerEventArchetype = state.EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
@@ -70,8 +66,8 @@ namespace SS.System {
       var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
       entityTypeHandle.Update(ref state);
-      instanceTypeHandle.Update(ref state);
-      triggerTypeHandle.Update(ref state);
+      instanceTypeHandleRO.Update(ref state);
+      triggerTypeHandleRO.Update(ref state);
       mapElementLookup.Update(ref state);
       instanceLookup.Update(ref state);
       triggerLookup.Update(ref state);
@@ -87,8 +83,8 @@ namespace SS.System {
 
       var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
-        instanceTypeHandle = instanceTypeHandle,
-        triggerTypeHandle = triggerTypeHandle,
+        instanceTypeHandleRO = instanceTypeHandleRO,
+        triggerTypeHandleRO = triggerTypeHandleRO,
 
         Processor = new TriggerProcessor() {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
@@ -101,14 +97,14 @@ namespace SS.System {
           TileMapBlobAsset = level.TileMap,
           ObjectInstancesBlobAsset = level.ObjectInstances,
 
-          MapElementLookup = mapElementLookup,
-          InstanceLookup = instanceLookup,
-          TriggerLookup = triggerLookup,
-          InterfaceLookup = interfaceLookup,
-          DecorationLookup = decorationLookup,
-          DoorLookup = doorLookup,
+          MapElementLookupRW = mapElementLookup,
+          InstanceLookupRW = instanceLookup,
+          TriggerLookupRW = triggerLookup,
+          InterfaceLookupRW = interfaceLookup,
+          DecorationLookupRW = decorationLookup,
+          DoorLookupRW = doorLookup,
 
-          Randoms = randoms,
+          RandomsRW = randoms,
 
           animationList = new AnimateObjectSystemData.Writer {
             commands = animationCommandListSystemData.commands.AsWriter()
@@ -124,8 +120,8 @@ namespace SS.System {
     [BurstCompile]
     private struct TriggerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
-      [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
-      [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+      [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandleRO;
+      [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandleRO;
 
       public TriggerProcessor Processor;
 
@@ -133,8 +129,8 @@ namespace SS.System {
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var instances = chunk.GetNativeArray(ref instanceTypeHandle);
-        var triggers = chunk.GetNativeArray(ref triggerTypeHandle);
+        var instances = chunk.GetNativeArray(ref instanceTypeHandleRO);
+        var triggers = chunk.GetNativeArray(ref triggerTypeHandleRO);
 
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
         Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);

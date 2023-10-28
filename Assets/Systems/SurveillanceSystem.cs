@@ -1,4 +1,5 @@
 using SS.Resources;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -20,23 +21,19 @@ namespace SS.System {
 
       RequireForUpdate<Level>();
 
-      newSurveillanceSourceQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<SurveillanceSource>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<CameraAdded>() },
-      });
+      newSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<SurveillanceSource>()
+        .WithNone<CameraAdded>()
+        .Build(this);
 
-      activeSurveillanceSourceQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>(),
-          ComponentType.ReadOnly<Camera>(),
-          ComponentType.ReadOnly<CameraAdded>(),
-        }
-      });
+      activeSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ObjectInstance, Camera, CameraAdded>()
+        .Build(this);
 
-      removedSurveillanceSourceQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<CameraAdded>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<SurveillanceSource>() },
-      });
+      removedSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<CameraAdded>()
+        .WithNone<SurveillanceSource>()
+        .Build(this);
 
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
     }

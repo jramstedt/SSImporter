@@ -16,8 +16,8 @@ namespace SS.System {
     private bool LevelEnterProcessed;
 
     private EntityTypeHandle entityTypeHandle;
-    private ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
-    private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+    private ComponentTypeHandle<ObjectInstance> instanceTypeHandleRO;
+    private ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandleRO;
 
     private EntityQuery triggerQuery;
 
@@ -28,24 +28,21 @@ namespace SS.System {
       state.RequireForUpdate<Level>();
 
       entityTypeHandle = state.GetEntityTypeHandle();
-      instanceTypeHandle = state.GetComponentTypeHandle<ObjectInstance>();
-      triggerTypeHandle = state.GetComponentTypeHandle<ObjectInstance.Trigger>();
+      instanceTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance>(true);
+      triggerTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance.Trigger>(true);
 
-      triggerQuery = state.GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ObjectInstance>(),
-          ComponentType.ReadOnly<ObjectInstance.Trigger>()
-        }
-      });
+      triggerQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ObjectInstance, ObjectInstance.Trigger>()
+        .Build(ref state);
 
       // TODO listen Level singleton add and remove
     }
 
-    public void OnDestroy(ref SystemState state) { }
+    public readonly void OnDestroy(ref SystemState state) { }
 
-    public void OnStartRunning(ref SystemState state) { }
+    public readonly void OnStartRunning(ref SystemState state) { }
 
-    public void OnStopRunning(ref SystemState state) {
+    public readonly void OnStopRunning(ref SystemState state) {
       // LevelEnterProcessed = false;
     }
 
@@ -54,8 +51,8 @@ namespace SS.System {
       var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
       entityTypeHandle.Update(ref state);
-      instanceTypeHandle.Update(ref state);
-      triggerTypeHandle.Update(ref state);
+      instanceTypeHandleRO.Update(ref state);
+      triggerTypeHandleRO.Update(ref state);
 
       // TODO player gametime 
 
@@ -64,8 +61,8 @@ namespace SS.System {
 
       var triggerJob = new TriggerJob {
         entityTypeHandle = entityTypeHandle,
-        instanceTypeHandle = instanceTypeHandle,
-        triggerTypeHandle = triggerTypeHandle,
+        instanceTypeHandleRO = instanceTypeHandleRO,
+        triggerTypeHandleRO = triggerTypeHandleRO,
         CommandBuffer = commandBuffer.AsParallelWriter(),
 
         TrggerContinuous = triggerContinuous,
@@ -81,8 +78,8 @@ namespace SS.System {
     [BurstCompile]
     struct TriggerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
-      [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandle;
-      [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandle;
+      [ReadOnly] public ComponentTypeHandle<ObjectInstance> instanceTypeHandleRO;
+      [ReadOnly] public ComponentTypeHandle<ObjectInstance.Trigger> triggerTypeHandleRO;
       [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
       public bool TrggerContinuous;
@@ -90,8 +87,8 @@ namespace SS.System {
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var instances = chunk.GetNativeArray(ref instanceTypeHandle);
-        var triggers = chunk.GetNativeArray(ref triggerTypeHandle);
+        var instances = chunk.GetNativeArray(ref instanceTypeHandleRO);
+        var triggers = chunk.GetNativeArray(ref triggerTypeHandleRO);
 
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];

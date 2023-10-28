@@ -3,7 +3,6 @@ using SS.Resources;
 using System;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -17,8 +16,6 @@ namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpecialMeshSystem : SystemBase {
-    public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
-
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
     private EntityQuery removedMeshQuery;
@@ -30,26 +27,26 @@ namespace SS.System {
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
 
+    private MaterialProviderSystem materialProviderSystem;
+
     protected override void OnCreate() {
       base.OnCreate();
 
-      newMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<TexturedCuboid>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<MeshAddedTag>() },
-      });
+      RequireForUpdate<Level>();
 
-      activeMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<TexturedCuboid>(),
-          ComponentType.ReadOnly<LocalToWorld>(),
-          ComponentType.ReadOnly<MeshAddedTag>()
-        }
-      });
+      newMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<TexturedCuboid>()
+        .WithNone<MeshAddedTag>()
+        .Build(this);
 
-      removedMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<MeshAddedTag>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<TexturedCuboid>() },
-      });
+      activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<TexturedCuboid, LocalToWorld, MeshAddedTag>()
+        .Build(this);
+
+      removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<MeshAddedTag>()
+        .WithNone<TexturedCuboid>()
+        .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(SpecialPart),
@@ -95,6 +92,8 @@ namespace SS.System {
         receiveShadows: false,
         staticShadowCaster: false
       );
+
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
     }
 
     // TODO FIXME Almost equals to one in MaterialProviderSystem
@@ -143,8 +142,9 @@ namespace SS.System {
 
       // TODO FIXME improve, parallelize
 
+      var level = SystemAPI.GetSingleton<Level>();
+
       var vertexAttributes = this.vertexAttributes;
-      var mapMaterial = this.mapMaterial;
       var materials = this.materials;
 
       Entities
@@ -234,7 +234,9 @@ namespace SS.System {
             BatchMaterialID material;
 
             if ((SideTexture & 0x80) == 0x80) {
-              material = mapMaterial[(ushort)(SideTexture & 0x7F)];
+              byte textureMapIndex = (byte)(SideTexture & 0x7F);
+              ushort textureIndex = level.TextureMap[textureMapIndex];
+              material = materialProviderSystem.GetTextureMaterial(textureIndex);
             } else {
               material = materials[SideTexture & 0x7F];
             }
@@ -255,7 +257,9 @@ namespace SS.System {
             BatchMaterialID material;
 
             if ((TopBottomTexture & 0x80) == 0x80) {
-              material = mapMaterial[(ushort)(TopBottomTexture & 0x7F)];
+              byte textureMapIndex = (byte)(TopBottomTexture & 0x7F);
+              ushort textureIndex = level.TextureMap[textureMapIndex];
+              material = materialProviderSystem.GetTextureMaterial(textureIndex);
             } else {
               material = materials[TopBottomTexture & 0x7F];
             }
@@ -273,6 +277,7 @@ namespace SS.System {
 
           commandBuffer.AddComponent<MeshAddedTag>(entity);
         })
+        .WithoutBurst() // TODO remove!
         .Run();
 
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);

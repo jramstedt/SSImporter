@@ -59,24 +59,19 @@ namespace SS.System {
       RequireForUpdate<Level>();
       RequireForUpdate<AsyncLoadTag>();
 
-      newMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<MeshCachedTag>() },
-      });
+      newMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<MeshInfo>()
+        .WithNone<MeshCachedTag>()
+        .Build(this);
 
-      activeMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<MeshInfo>(),
-          ComponentType.ReadOnly<ObjectInstance>(),
-          ComponentType.ReadOnly<MeshCachedTag>(),
-          // ComponentType.ReadOnly<ModelPartRebuildTag>()
-        }
-      });
+      activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<MeshInfo, ObjectInstance, MeshCachedTag /*, ModelPartRebuildTag */>()
+        .Build(this);
 
-      removedMeshQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<MeshCachedTag>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<MeshInfo>() },
-      });
+      removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<MeshCachedTag>()
+        .WithNone<MeshInfo>()
+        .Build(this);
 
       animatedQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<AnimationData>()

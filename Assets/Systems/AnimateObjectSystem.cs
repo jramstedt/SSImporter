@@ -21,16 +21,16 @@ namespace SS.System {
     private Resources.ObjectProperties objectProperties;
 
     private EntityTypeHandle entityTypeHandle;
-    private ComponentTypeHandle<AnimationData> animationTypeHandle;
+    private ComponentTypeHandle<AnimationData> animationTypeHandleRW;
 
-    private ComponentLookup<MapElement> mapElementLookup;
-    private ComponentLookup<ObjectInstance> instanceLookup;
-    private ComponentLookup<ObjectInstance.Item> itemLookup;
-    private ComponentLookup<ObjectInstance.Enemy> enemyLookup;
-    private ComponentLookup<ObjectInstance.Trigger> triggerLookup;
-    private ComponentLookup<ObjectInstance.Interface> interfaceLookup;
-    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
-    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
+    private ComponentLookup<MapElement> mapElementLookupRW;
+    private ComponentLookup<ObjectInstance> instanceLookupRW;
+    private ComponentLookup<ObjectInstance.Item> itemLookupRO;
+    private ComponentLookup<ObjectInstance.Enemy> enemyLookupRO;
+    private ComponentLookup<ObjectInstance.Trigger> triggerLookupRW;
+    private ComponentLookup<ObjectInstance.Interface> interfaceLookupRW;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookupRW;
+    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookupRW;
     private NativeArray<Random> randoms;
     private EntityQuery animationQuery;
 
@@ -45,25 +45,25 @@ namespace SS.System {
       RequireForUpdate<AsyncLoadTag>();
 
       entityTypeHandle = GetEntityTypeHandle();
-      animationTypeHandle = GetComponentTypeHandle<AnimationData>();
-      mapElementLookup = GetComponentLookup<MapElement>();
-      instanceLookup = GetComponentLookup<ObjectInstance>();
-      itemLookup = GetComponentLookup<ObjectInstance.Item>(true);
-      enemyLookup = GetComponentLookup<ObjectInstance.Enemy>();
-      triggerLookup = GetComponentLookup<ObjectInstance.Trigger>();
-      interfaceLookup = GetComponentLookup<ObjectInstance.Interface>();
-      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>();
-      doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>();
+
+      animationTypeHandleRW = GetComponentTypeHandle<AnimationData>();
+
+      mapElementLookupRW = GetComponentLookup<MapElement>();
+      instanceLookupRW = GetComponentLookup<ObjectInstance>();
+      itemLookupRO = GetComponentLookup<ObjectInstance.Item>(true);
+      enemyLookupRO = GetComponentLookup<ObjectInstance.Enemy>(true);
+      triggerLookupRW = GetComponentLookup<ObjectInstance.Trigger>();
+      interfaceLookupRW = GetComponentLookup<ObjectInstance.Interface>();
+      decorationLookupRW = GetComponentLookup<ObjectInstance.Decoration>();
+      doorLookupRW = GetComponentLookup<ObjectInstance.DoorAndGrating>();
 
       randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      animationQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadWrite<AnimationData>()
-        }
-      });
+      animationQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAllRW<AnimationData>()
+        .Build(this);
 
       triggerEventArchetype = EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
@@ -96,15 +96,15 @@ namespace SS.System {
       var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
       entityTypeHandle.Update(this);
-      animationTypeHandle.Update(this);
-      mapElementLookup.Update(this);
-      instanceLookup.Update(this);
-      itemLookup.Update(this);
-      enemyLookup.Update(this);
-      triggerLookup.Update(this);
-      interfaceLookup.Update(this);
-      decorationLookup.Update(this);
-      doorLookup.Update(this);
+      animationTypeHandleRW.Update(this);
+      mapElementLookupRW.Update(this);
+      instanceLookupRW.Update(this);
+      itemLookupRO.Update(this);
+      enemyLookupRO.Update(this);
+      triggerLookupRW.Update(this);
+      interfaceLookupRW.Update(this);
+      decorationLookupRW.Update(this);
+      doorLookupRW.Update(this);
 
       var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
@@ -114,16 +114,17 @@ namespace SS.System {
 
       var animateJob = new AnimateAnimationJob {
         entityTypeHandle = entityTypeHandle,
-        animationTypeHandle = animationTypeHandle,
+
+        animationTypeHandleRW = animationTypeHandleRW,
 
         ObjectInstancesBlobAsset = level.ObjectInstances,
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
         TimeData = SystemAPI.Time,
         blockCounts = blockCounts,
-        InstanceLookup = instanceLookup,
-        DecorationLookup = decorationLookup,
-        ItemLookup = itemLookup,
-        EnemyLookup = enemyLookup,
+        InstanceLookupRW = instanceLookupRW,
+        DecorationLookupRW = decorationLookupRW,
+        ItemLookupRO = itemLookupRO,
+        EnemyLookupRO = enemyLookupRO,
 
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
@@ -136,14 +137,14 @@ namespace SS.System {
           TileMapBlobAsset = level.TileMap,
           ObjectInstancesBlobAsset = level.ObjectInstances,
 
-          MapElementLookup = mapElementLookup,
-          InstanceLookup = instanceLookup,
-          TriggerLookup = triggerLookup,
-          InterfaceLookup = interfaceLookup,
-          DecorationLookup = decorationLookup,
-          DoorLookup = doorLookup,
+          MapElementLookupRW = mapElementLookupRW,
+          InstanceLookupRW = instanceLookupRW,
+          TriggerLookupRW = triggerLookupRW,
+          InterfaceLookupRW = interfaceLookupRW,
+          DecorationLookupRW = decorationLookupRW,
+          DoorLookupRW = doorLookupRW,
 
-          Randoms = randoms,
+          RandomsRW = randoms,
 
           animationList = new AnimateObjectSystemData.Writer {
             commands = animationCommandListSystemData.commands.AsWriter()
@@ -159,7 +160,7 @@ namespace SS.System {
     [BurstCompile]
     struct AnimateAnimationJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
-      public ComponentTypeHandle<AnimationData> animationTypeHandle;
+      public ComponentTypeHandle<AnimationData> animationTypeHandleRW;
 
       [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
       [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
@@ -169,10 +170,10 @@ namespace SS.System {
 
       [ReadOnly] public NativeParallelHashMap<ushort, ushort> blockCounts;
 
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
-      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookup;
-      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookup;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookupRW;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
+      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookupRO;
+      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookupRO;
 
       public TriggerProcessor Processor;
 
@@ -180,7 +181,7 @@ namespace SS.System {
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var animationEntities = chunk.GetNativeArray(entityTypeHandle);
-        var animationDatas = chunk.GetNativeArray(ref animationTypeHandle);
+        var animationDatas = chunk.GetNativeArray(ref animationTypeHandleRW);
 
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
         Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
@@ -192,25 +193,25 @@ namespace SS.System {
           var animation = animationDatas[i];
 
           var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
-          var instanceData = InstanceLookup[entity];
+          var instanceData = InstanceLookupRW[entity];
 
           var frameCount = 1;
           if (instanceData.Class == ObjectClass.DoorAndGrating) {
             var resourceId = DoorResourceIdBase + ObjectDatasBlobAsset.Value.ClassPropertyIndex(instanceData);
             frameCount = blockCounts[(ushort)resourceId];
           } else if (instanceData.Class == ObjectClass.Decoration) {
-            var decoration = DecorationLookup[entity];
+            var decoration = DecorationLookupRW[entity];
             frameCount = decoration.Cosmetic;
             if (frameCount == 0) frameCount = 1;
           } else if (instanceData.Class == ObjectClass.Item) {
-            var item = ItemLookup[entity];
+            var item = ItemLookupRO[entity];
             frameCount = item.Cosmetic;
             if (frameCount == 0) frameCount = 4;
           } else if (instanceData.Class == ObjectClass.Enemy) {
             const int MAX_TELEPORT_FRAME = 10;
             const int DIEGO_DEATH_BATTLE_LEVEL = 8;
 
-            var enemy = EnemyLookup[entity];
+            var enemy = EnemyLookupRO[entity];
 
             if (instanceData.Triple == 0xe0401 && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && Level != DIEGO_DEATH_BATTLE_LEVEL) // DIEGO_TRIPLE
               frameCount = MAX_TELEPORT_FRAME;
@@ -276,7 +277,7 @@ namespace SS.System {
             }
           }
 
-          InstanceLookup[entity] = instanceData;
+          InstanceLookupRW[entity] = instanceData;
           animationDatas[i] = animation;
 
           CommandBuffer.AddComponent<AnimatedTag>(unfilteredChunkIndex, entity);
@@ -295,10 +296,10 @@ namespace SS.System {
             Debug.Log($"AnimationData.Callback.UnShodanize Setting stuff");
 
             if (instanceData.Class == ObjectClass.Decoration) {
-              var decoration = DecorationLookup[entity];
+              var decoration = DecorationLookupRW[entity];
               decoration.Data2 = SHODAN_STATIC_MAGIC_COOKIE | ((uint)TextureType.Custom << TPOLY_INDEX_BITS);
               decoration.Cosmetic = 0;
-              DecorationLookup[entity] = decoration;
+              DecorationLookupRW[entity] = decoration;
             }
             instanceData.Info.CurrentFrame = 0;
           } else {

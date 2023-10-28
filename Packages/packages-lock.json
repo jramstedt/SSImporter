@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.unity.burst": {
-      "version": "1.8.8",
+      "version": "1.8.9",
       "depth": 1,
       "source": "registry",
       "dependencies": {
@@ -10,15 +10,15 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.collab-proxy": {
-      "version": "2.1.0",
+      "version": "2.2.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
     "com.unity.collections": {
-      "version": "2.1.4",
-      "depth": 1,
+      "version": "2.2.0",
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.8.4",
@@ -127,11 +127,11 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.render-pipelines.core": {
-      "version": "17.0.0",
+      "version": "17.0.1",
       "depth": 1,
       "source": "builtin",
       "dependencies": {
-        "com.unity.collections": "1.4.0",
+        "com.unity.collections": "2.2.0",
         "com.unity.mathematics": "1.2.6",
         "com.unity.ugui": "2.0.0",
         "com.unity.modules.physics": "1.0.0",
@@ -141,14 +141,14 @@
       }
     },
     "com.unity.render-pipelines.universal": {
-      "version": "17.0.0",
+      "version": "17.0.1",
       "depth": 0,
       "source": "builtin",
       "dependencies": {
         "com.unity.mathematics": "1.2.1",
-        "com.unity.burst": "1.8.4",
-        "com.unity.render-pipelines.core": "17.0.0",
-        "com.unity.shadergraph": "17.0.0"
+        "com.unity.burst": "1.8.9",
+        "com.unity.render-pipelines.core": "17.0.1",
+        "com.unity.shadergraph": "17.0.1"
       }
     },
     "com.unity.rendering.light-transport": {
@@ -156,7 +156,7 @@
       "depth": 2,
       "source": "builtin",
       "dependencies": {
-        "com.unity.collections": "1.4.0",
+        "com.unity.collections": "2.2.0",
         "com.unity.mathematics": "1.2.4",
         "com.unity.render-pipelines.core": "17.0.0"
       }
@@ -186,11 +186,11 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.shadergraph": {
-      "version": "17.0.0",
+      "version": "17.0.1",
       "depth": 1,
       "source": "builtin",
       "dependencies": {
-        "com.unity.render-pipelines.core": "17.0.0",
+        "com.unity.render-pipelines.core": "17.0.1",
         "com.unity.searcher": "4.9.2"
       }
     },

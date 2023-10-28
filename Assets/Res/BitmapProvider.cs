@@ -216,11 +216,11 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct PrivatePalette {
+  public struct PrivatePalette {
     private readonly uint header;
-    private fixed byte values[256 * 3];
+    private unsafe fixed byte values[256 * 3];
 
-    public Color32 this[int index] {
+    public unsafe Color32 this[int index] {
       set {
         if (index > 255)
           throw new IndexOutOfRangeException();
@@ -233,7 +233,7 @@ namespace SS.Resources {
       }
     }
 
-    public Color32 Get(int index, bool opaque) {
+    public unsafe Color32 Get(int index, bool opaque) {
       if (index > 255)
         throw new IndexOutOfRangeException();
 

@@ -31,7 +31,7 @@ namespace SS.ObjectProperties {
 
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public unsafe struct Slow {
+    public struct Slow {
       public SixOf<byte> Colors;
     }
 

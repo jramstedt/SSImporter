@@ -2,6 +2,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using Unity.Collections;
 
 namespace SS {
   public static class Extensions {
@@ -69,6 +70,13 @@ namespace SS {
       foreach (byte b in ba)
         hex.AppendFormat("{0:x2}:", b);
       return hex.ToString();
+    }
+
+    public static unsafe void Deconstruct<TKey, TValue>(this KVPair<TKey, TValue> pair, out TKey key, out TValue value)
+      where TKey : unmanaged, IEquatable<TKey>
+      where TValue : unmanaged
+    {
+      pair.GetKeyValue(out key, out value);
     }
   }
 }

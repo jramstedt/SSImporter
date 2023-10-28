@@ -1,3 +1,4 @@
+using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -19,11 +20,9 @@ namespace SS.System {
 
       EntityManager.AddComponentData(SystemHandle, new AnimateObjectSystemData { commands = new UnsafeStream(JobsUtility.ThreadIndexCount, Allocator.TempJob) });
 
-      animationQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadWrite<AnimationData>()
-        }
-      });
+      animationQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAllRW<AnimationData>()
+        .Build(this);
 
       animationArchetype = EntityManager.CreateArchetype(
         typeof(AnimationData)

@@ -40,22 +40,19 @@ namespace SS.System {
       spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
       spriteMeshes = new NativeArray<SpriteMesh>(Base.NUM_OBJECT * 8, Allocator.Persistent);
 
-      newSpriteQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<SpriteInfo>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<SpriteAddedTag>() },
-      });
+      newSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<SpriteInfo>()
+        .WithNone<SpriteAddedTag>()
+        .Build(this);
 
-      activeSpriteQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<SpriteInfo>(),
-          ComponentType.ReadOnly<SpriteAddedTag>()
-        }
-      });
+      activeSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<SpriteInfo, SpriteAddedTag>()
+        .Build(this);
 
-      removedSpriteQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] { ComponentType.ReadOnly<SpriteAddedTag>() },
-        None = new ComponentType[] { ComponentType.ReadOnly<SpriteInfo>() },
-      });
+      removedSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<SpriteAddedTag>()
+        .WithNone<SpriteInfo>()
+        .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
         typeof(SpritePart),

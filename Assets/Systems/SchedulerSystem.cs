@@ -11,7 +11,7 @@ namespace SS.System {
   [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
   public partial struct SchedulerSystem : ISystem {
     private EntityTypeHandle entityTypeHandle;
-    private ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandle;
+    private ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandleRO;
 
     private EntityQuery eventQuery;
 
@@ -19,16 +19,14 @@ namespace SS.System {
       state.RequireForUpdate<Level>();
 
       entityTypeHandle = state.GetEntityTypeHandle();
-      scheduleEventTypeHandle = state.GetComponentTypeHandle<ScheduleEvent>();
+      scheduleEventTypeHandleRO = state.GetComponentTypeHandle<ScheduleEvent>(true);
 
-      eventQuery = state.GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<ScheduleEvent>(),
-        }
-      });
+      eventQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<ScheduleEvent>()
+        .Build(ref state);
     }
 
-    public void OnDestroy(ref SystemState state) { }
+    public readonly void OnDestroy(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state) {
       var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
@@ -37,11 +35,11 @@ namespace SS.System {
       var level = SystemAPI.GetSingleton<Level>();
 
       entityTypeHandle.Update(ref state);
-      scheduleEventTypeHandle.Update(ref state);
+      scheduleEventTypeHandleRO.Update(ref state);
 
       var schedulerJob = new SchedulerJob {
         entityTypeHandle = entityTypeHandle,
-        scheduleEventTypeHandle = scheduleEventTypeHandle,
+        scheduleEventTypeHandleRO = scheduleEventTypeHandleRO,
 
         TimeData = SystemAPI.Time,
         ObjectInstancesBlobAsset = level.ObjectInstances,
@@ -55,7 +53,7 @@ namespace SS.System {
     [BurstCompile]
     struct SchedulerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle entityTypeHandle;
-      [ReadOnly] public ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandle;
+      [ReadOnly] public ComponentTypeHandle<ScheduleEvent> scheduleEventTypeHandleRO;
 
       [ReadOnly] public TimeData TimeData;
       [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
@@ -64,7 +62,7 @@ namespace SS.System {
 
       public unsafe void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var entities = chunk.GetNativeArray(entityTypeHandle);
-        var scheduleEvents = chunk.GetNativeArray(ref scheduleEventTypeHandle);
+        var scheduleEvents = chunk.GetNativeArray(ref scheduleEventTypeHandleRO);
 
         var timestamp = TimeUtils.SecondsToTimestamp(TimeData.ElapsedTime); // TODO player gametime
 

@@ -21,11 +21,9 @@ namespace SS.System {
 
       RequireForUpdate<AsyncLoadTag>();
 
-      paletteEffectQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadWrite<PaletteEffect>()
-        }
-      });
+      paletteEffectQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAllRW<PaletteEffect>()
+        .Build(this);
 
       lastTicks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
 
@@ -44,7 +42,7 @@ namespace SS.System {
       lastTicks = ticks;
 
       var effectJob = new EffectJob {
-        paletteEffectTypeHandle = GetComponentTypeHandle<PaletteEffect>(),
+        paletteEffectTypeHandleRW = GetComponentTypeHandle<PaletteEffect>(),
         palette = palette,
         deltaTicks = delta
       };
@@ -70,33 +68,32 @@ namespace SS.System {
 
     [BurstCompile]
     struct EffectJob : IJobChunk {
-      public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandle;
+      public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandleRW;
 
       [NativeDisableParallelForRestriction] public NativeArray<Color32> palette;
 
       [ReadOnly] public int deltaTicks;
 
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-        var paletteEffects = chunk.GetNativeArray(ref paletteEffectTypeHandle);
+        var paletteEffects = chunk.GetNativeArray(ref paletteEffectTypeHandleRW);
 
-        using (var tmpPal = new NativeArray<Color32>(256, Allocator.Temp)) {
-          for (int i = 0; i < chunk.Count; ++i) {
-            var paletteEffect = paletteEffects[i];
+        using var tmpPal = new NativeArray<Color32>(256, Allocator.Temp);
+        for (int i = 0; i < chunk.Count; ++i) {
+          var paletteEffect = paletteEffects[i];
 
-            var colors = paletteEffect.Last - paletteEffect.First + 1;
+          var colors = paletteEffect.Last - paletteEffect.First + 1;
 
-            var frameDeltaTime = deltaTicks + paletteEffect.TimeRemaining;
-            var addToColor = (frameDeltaTime / paletteEffect.FrameTime) % colors;
-            paletteEffect.TimeRemaining = (ushort)(frameDeltaTime % paletteEffect.FrameTime);
+          var frameDeltaTime = deltaTicks + paletteEffect.TimeRemaining;
+          var addToColor = (frameDeltaTime / paletteEffect.FrameTime) % colors;
+          paletteEffect.TimeRemaining = (ushort)(frameDeltaTime % paletteEffect.FrameTime);
 
-            if (addToColor > 0) {
-              NativeArray<Color32>.Copy(palette, paletteEffect.First + addToColor, tmpPal, paletteEffect.First, colors - addToColor);
-              NativeArray<Color32>.Copy(palette, paletteEffect.First, tmpPal, paletteEffect.First + colors - addToColor, addToColor);
-              NativeArray<Color32>.Copy(tmpPal, paletteEffect.First, palette, paletteEffect.First, colors);
-            }
-
-            paletteEffects[i] = paletteEffect;
+          if (addToColor > 0) {
+            NativeArray<Color32>.Copy(palette, paletteEffect.First + addToColor, tmpPal, paletteEffect.First, colors - addToColor);
+            NativeArray<Color32>.Copy(palette, paletteEffect.First, tmpPal, paletteEffect.First + colors - addToColor, addToColor);
+            NativeArray<Color32>.Copy(tmpPal, paletteEffect.First, palette, paletteEffect.First, colors);
           }
+
+          paletteEffects[i] = paletteEffect;
         }
       }
     }

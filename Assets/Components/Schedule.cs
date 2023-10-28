@@ -17,10 +17,10 @@ namespace SS.Resources {
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public unsafe struct ScheduleEvent : IComponentData {
+  public struct ScheduleEvent : IComponentData {
     public ushort Timestamp;
     public EventType Type;
-    public fixed byte Data[4];
+    public unsafe fixed byte Data[4];
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]
@@ -76,7 +76,7 @@ namespace SS.Resources {
 
     public ushort DataMung; // version, munge
 
-    public byte Mung => (byte)(DataMung & 0xFF);
-    public TypeVersion Version => (TypeVersion)(DataMung >> 8);
+    public readonly byte Mung => (byte)(DataMung & 0xFF);
+    public readonly TypeVersion Version => (TypeVersion)(DataMung >> 8);
   }
 }

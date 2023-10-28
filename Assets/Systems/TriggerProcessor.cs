@@ -32,22 +32,22 @@ namespace SS.System {
     [ReadOnly] public BlobAssetReference<BlobArray<Entity>> TileMapBlobAsset;
     [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
 
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Trigger> TriggerLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Interface> InterfaceLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.DoorAndGrating> DoorLookup;
-    [NativeDisableContainerSafetyRestriction] public NativeArray<Random> Randoms;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookupRW;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookupRW;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Trigger> TriggerLookupRW;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Interface> InterfaceLookupRW;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
+    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.DoorAndGrating> DoorLookupRW;
+    [NativeDisableContainerSafetyRestriction] public NativeArray<Random> RandomsRW;
 
     public AnimateObjectSystemData.Writer animationList;
 
     public bool Activate(in Entity entity, out bool message) {
       message = false;
 
-      if (TriggerLookup.HasComponent(entity)) {
-        var instance = InstanceLookup[entity];
-        var trigger = TriggerLookup[entity];
+      if (TriggerLookupRW.HasComponent(entity)) {
+        var instance = InstanceLookupRW[entity];
+        var trigger = TriggerLookupRW[entity];
 
         //Debug.Log($"Activate e:{entity.Index} o:{trigger.Link.ObjectIndex}");
 
@@ -62,9 +62,9 @@ namespace SS.System {
           ProcessTrigger(entity);
 
         return true;
-      } else if (InterfaceLookup.HasComponent(entity)) {
-        var instance = InstanceLookup[entity];
-        var fixture = InterfaceLookup[entity];
+      } else if (InterfaceLookupRW.HasComponent(entity)) {
+        var instance = InstanceLookupRW[entity];
+        var fixture = InterfaceLookupRW[entity];
 
         uint comparator = instance.SubClass switch {
           1 /* FIXTURE_SUBCLASS_RECEPTACLE */   => 0,
@@ -82,10 +82,10 @@ namespace SS.System {
     }
 
     private unsafe void ProcessTrigger(in Entity entity) {
-      if (!TriggerLookup.HasComponent(entity)) return;
+      if (!TriggerLookupRW.HasComponent(entity)) return;
 
-      var instance = InstanceLookup[entity];
-      var trigger = TriggerLookup[entity]; // TODO interfaces
+      var instance = InstanceLookupRW[entity];
+      var trigger = TriggerLookupRW[entity]; // TODO interfaces
 
       var actionParam1 = trigger.ActionParam1;
       var actionParam2 = trigger.ActionParam2;
@@ -146,9 +146,9 @@ namespace SS.System {
           var randomTime = QuestDataParse((ushort)actionParam4);
           if (randomTime != 0) {
             var threadIndex = JobsUtility.ThreadIndex;
-            var random = Randoms[threadIndex];
+            var random = RandomsRW[threadIndex];
             timeStamp += (ushort)random.NextUInt((uint)randomTime);
-            Randoms[threadIndex] = random;
+            RandomsRW[threadIndex] = random;
           }
 
           var scheduleEvent = new ScheduleEvent {
@@ -199,7 +199,7 @@ namespace SS.System {
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
       }
 
-      TriggerLookup[entity] = trigger;
+      TriggerLookupRW[entity] = trigger;
     }
 
     // TODO interfaces
@@ -233,8 +233,8 @@ namespace SS.System {
         var secondEntity = ObjectInstancesBlobAsset.Value[secondObjID];
         //if (!InstanceFromEntity.HasComponent(ulEntity) || !InstanceFromEntity.HasComponent(lrEntity)) return;
 
-        var firstObj = InstanceLookup[firstEntity];
-        var secondObj = InstanceLookup[secondEntity];
+        var firstObj = InstanceLookupRW[firstEntity];
+        var secondObj = InstanceLookupRW[secondEntity];
 
         rectMin = int2(min(firstObj.Location.TileX, secondObj.Location.TileX), min(firstObj.Location.TileY, secondObj.Location.TileY));
         rectMax = int2(max(firstObj.Location.TileX, secondObj.Location.TileX), max(firstObj.Location.TileY, secondObj.Location.TileY));
@@ -284,7 +284,7 @@ namespace SS.System {
       for (var y = rectMin.y; y <= rectMax.y; ++y) {
         for (var x = rectMin.x; x <= rectMax.x; ++x) {
           var mapEntity = TileMapBlobAsset.Value[y * LevelInfo.Width + x];
-          var mapElement = MapElementLookup[mapEntity];
+          var mapElement = MapElementLookupRW[mapEntity];
 
           if (actionParam3 == 3) { // Radial
             var delta = length(float2(
@@ -313,7 +313,7 @@ namespace SS.System {
           else
             mapElement.ShadeCeilingModifier = tempLight;
 
-          MapElementLookup[mapEntity] = mapElement;
+          MapElementLookupRW[mapEntity] = mapElement;
 
           CommandBuffer.AddComponent<LightmapRebuildTag>(unfilteredChunkIndex, mapEntity);
         }
@@ -340,24 +340,24 @@ namespace SS.System {
       if (objectIndex == 0) return;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-      if (TriggerLookup.HasComponent(entity)) {
-        var trigger = TriggerLookup[entity];
+      if (TriggerLookupRW.HasComponent(entity)) {
+        var trigger = TriggerLookupRW[entity];
 
         if (parameterNumber == 1) trigger.ActionParam1 = value;
         if (parameterNumber == 2) trigger.ActionParam2 = value;
         if (parameterNumber == 3) trigger.ActionParam3 = value;
         if (parameterNumber == 4) trigger.ActionParam4 = value;
 
-        TriggerLookup[entity] = trigger;
-      } else if (InterfaceLookup.HasComponent(entity)) {
-        var fixture = InterfaceLookup[entity];
+        TriggerLookupRW[entity] = trigger;
+      } else if (InterfaceLookupRW.HasComponent(entity)) {
+        var fixture = InterfaceLookupRW[entity];
 
         if (parameterNumber == 1) fixture.ActionParam1 = value;
         if (parameterNumber == 2) fixture.ActionParam2 = value;
         if (parameterNumber == 3) fixture.ActionParam3 = value;
         if (parameterNumber == 4) fixture.ActionParam4 = value;
 
-        InterfaceLookup[entity] = fixture;
+        InterfaceLookupRW[entity] = fixture;
       }
     }
 
@@ -365,19 +365,19 @@ namespace SS.System {
       if (objectIndex == 0) return;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-      if (InstanceLookup.HasComponent(entity)) {
-        var instance = InstanceLookup[entity];
+      if (InstanceLookupRW.HasComponent(entity)) {
+        var instance = InstanceLookupRW[entity];
 
         if (!instance.Active) return;
 
         if (instance.Class == ObjectClass.Decoration) {
-          var decoration = DecorationLookup[entity];
+          var decoration = DecorationLookupRW[entity];
           if (actionParam2 != uint.MaxValue) decoration.Cosmetic = (ushort)actionParam2;
           if (actionParam3 != uint.MaxValue) decoration.Data1 = actionParam3;
           if (actionParam4 != uint.MaxValue) decoration.Data2 = actionParam4;
-          DecorationLookup[entity] = decoration;
+          DecorationLookupRW[entity] = decoration;
         } else if (instance.Class == ObjectClass.DoorAndGrating) {
-          var door = DoorLookup[entity];
+          var door = DoorLookupRW[entity];
           if (actionParam2 != uint.MaxValue) door.Lock = (ushort)actionParam2;
           if (actionParam3 != uint.MaxValue) {
             door.LockMessage = (byte)(actionParam3 >> 8);
@@ -387,7 +387,7 @@ namespace SS.System {
             door.AccessLevel = (byte)(actionParam4 >> 8);
             door.AutocloseTime = (byte)(actionParam4 & 0xFF);
           }
-          DoorLookup[entity] = door;
+          DoorLookupRW[entity] = door;
         } else if (instance.Class == ObjectClass.Interface || instance.Class == ObjectClass.Trigger) {
           SetTrapData(objectIndex, (byte)actionParam2, actionParam3);
         }
@@ -400,13 +400,13 @@ namespace SS.System {
       byte frames = 0;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-      if (InstanceLookup.HasComponent(entity) && DecorationLookup.HasComponent(entity)) {
-        var instance = InstanceLookup[entity];
+      if (InstanceLookupRW.HasComponent(entity) && DecorationLookupRW.HasComponent(entity)) {
+        var instance = InstanceLookupRW[entity];
 
         if (!instance.Active) return;
         if (instance.Info.Hitpoints == 0) return;
 
-        frames = (byte)DecorationLookup[entity].Cosmetic;
+        frames = (byte)DecorationLookupRW[entity].Cosmetic;
 
         if (frames == 0) frames = 4;
 
@@ -437,7 +437,7 @@ namespace SS.System {
             animationList.AddAnimation(objectIndex, false, reverse, cycle, 0, AnimationData.Callback.Null, 0, AnimationData.AnimationCallbackType.Null);
         }
 
-        InstanceLookup[entity] = instance;
+        InstanceLookupRW[entity] = instance;
       }
     }
 
@@ -445,7 +445,7 @@ namespace SS.System {
       if (objectIndex == 0) return;
 
       var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-      if (TriggerLookup.HasComponent(entity)) {
+      if (TriggerLookupRW.HasComponent(entity)) {
         Activate(entity, out bool message);
       } else { // TODO Interfaces?
         // TODO
@@ -478,7 +478,7 @@ namespace SS.System {
       }
     }
 
-    private bool ComparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
+    private readonly bool ComparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
       specialCode = 0;
       return true;
     }

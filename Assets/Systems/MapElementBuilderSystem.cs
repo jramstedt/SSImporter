@@ -22,8 +22,6 @@ using Collider = Unity.Physics.Collider;
 namespace SS.System {
   [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MapElementBuilderSystem : SystemBase {
-    public NativeHashMap<ushort, BatchMaterialID>.ReadOnly mapMaterial;
-
     private EntityArchetype viewPartArchetype;
     private EntityArchetype physicsArchetype;
 
@@ -35,6 +33,8 @@ namespace SS.System {
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
 
     private RenderMeshDescription renderMeshDescription;
+
+    private MaterialProviderSystem materialProviderSystem;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -65,20 +65,13 @@ namespace SS.System {
         typeof(RenderBounds)
       );
 
-      mapElementQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<TileLocation>(),
-          ComponentType.ReadOnly<MapElement>(),
-          ComponentType.ReadOnly<LevelViewPartRebuildTag>()
-        }
-      });
+      mapElementQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<TileLocation, MapElement, LevelViewPartRebuildTag>()
+        .Build(this);
 
-      viewPartQuery = GetEntityQuery(new EntityQueryDesc {
-        All = new ComponentType[] {
-          ComponentType.ReadOnly<LevelViewPart>(),
-          ComponentType.ReadOnly<Parent>()
-        }
-      });
+      viewPartQuery = new EntityQueryBuilder(Allocator.Temp)
+          .WithAll<LevelViewPart, Parent>()
+          .Build(this);
 
       vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
@@ -93,6 +86,8 @@ namespace SS.System {
         receiveShadows: false,
         staticShadowCaster: false
       );
+
+      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
     }
 
     protected override void OnDestroy() {
@@ -126,7 +121,7 @@ namespace SS.System {
 
       var cleanJob = new DestroyOldViewPartsJob {
         entityTypeHandle = GetEntityTypeHandle(),
-        parentTypeHandle = GetComponentTypeHandle<Parent>(true),
+        parentTypeHandleRO = GetComponentTypeHandle<Parent>(true),
         updateMapElements = entities,
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
@@ -139,9 +134,9 @@ namespace SS.System {
 
       var buildJob = new BuildMapElementMeshJob {
         entityTypeHandle = GetEntityTypeHandle(),
-        tileLocationTypeHandle = GetComponentTypeHandle<TileLocation>(true),
-        mapElementTypeHandle = GetComponentTypeHandle<MapElement>(true),
-        allMapElements = GetComponentLookup<MapElement>(true),
+        tileLocationTypeHandleRO = GetComponentTypeHandle<TileLocation>(true),
+        mapElementTypeHandleRO = GetComponentTypeHandle<MapElement>(true),
+        allMapElementsRO = GetComponentLookup<MapElement>(true),
         ChunkBaseEntityIndices = chunkBaseEntityIndices,
 
         map = level,
@@ -221,12 +216,17 @@ namespace SS.System {
         for (sbyte subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 
+          var textureMapIndex = textureIndices[subMesh];
+          ushort textureIndex = level.TextureMap[textureMapIndex];
+
+          var materialId = materialProviderSystem.GetTextureMaterial(textureIndex);
+
           var viewPart = commandBuffer.Instantiate(prototype);
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
           commandBuffer.SetComponent(viewPart, renderBounds);
           commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
             MeshID = meshID,
-            MaterialID = mapMaterial[textureIndices[subMesh]],
+            MaterialID = materialId,
             Submesh = subMesh
           });
 
@@ -249,7 +249,7 @@ namespace SS.System {
   struct DestroyOldViewPartsJob : IJobChunk {
     [ReadOnly] public EntityTypeHandle entityTypeHandle;
 
-    [ReadOnly] public ComponentTypeHandle<Parent> parentTypeHandle;
+    [ReadOnly] public ComponentTypeHandle<Parent> parentTypeHandleRO;
 
     [ReadOnly] public NativeArray<Entity> updateMapElements;
 
@@ -257,7 +257,7 @@ namespace SS.System {
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var entities = chunk.GetNativeArray(entityTypeHandle);
-      var parents = chunk.GetNativeArray(ref parentTypeHandle);
+      var parents = chunk.GetNativeArray(ref parentTypeHandleRO);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var entity = entities[i];
@@ -273,10 +273,10 @@ namespace SS.System {
   struct BuildMapElementMeshJob : IJobChunk {
     [ReadOnly] public EntityTypeHandle entityTypeHandle;
 
-    [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandle;
-    [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandle;
-    [ReadOnly] public ComponentLookup<MapElement> allMapElements;
-    [ReadOnly][DeallocateOnJobCompletion] public NativeArray<int> ChunkBaseEntityIndices;
+    [ReadOnly] public ComponentTypeHandle<TileLocation> tileLocationTypeHandleRO;
+    [ReadOnly] public ComponentTypeHandle<MapElement> mapElementTypeHandleRO;
+    [ReadOnly] public ComponentLookup<MapElement> allMapElementsRO;
+    [ReadOnly, DeallocateOnJobCompletion] public NativeArray<int> ChunkBaseEntityIndices;
 
     [ReadOnly] public Level map;
     [ReadOnly] public LevelInfo levelInfo;
@@ -290,8 +290,8 @@ namespace SS.System {
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var entities = chunk.GetNativeArray(entityTypeHandle);
-      var tileLocations = chunk.GetNativeArray(ref tileLocationTypeHandle);
-      var mapElements = chunk.GetNativeArray(ref mapElementTypeHandle);
+      var tileLocations = chunk.GetNativeArray(ref tileLocationTypeHandleRO);
+      var mapElements = chunk.GetNativeArray(ref mapElementTypeHandleRO);
 
       int baseEntityIndex = ChunkBaseEntityIndices[unfilteredChunkIndex];
 
@@ -369,7 +369,7 @@ namespace SS.System {
       #region North Wall
       {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y + 1) * levelInfo.Width + tileLocation.X];
-        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+        MapElement adjacentTile = allMapElementsRO[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
@@ -385,7 +385,7 @@ namespace SS.System {
       #region East Wall
       if (tile.TileType != TileType.OpenDiagonalSW && tile.TileType != TileType.OpenDiagonalNW) {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X + 1];
-        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+        MapElement adjacentTile = allMapElementsRO[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).x;
         subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 2, 3, ref adjacentTile, 1, 0, flip, adjacentTile.TileType == TileType.OpenDiagonalNE || adjacentTile.TileType == TileType.OpenDiagonalSE);
@@ -395,7 +395,7 @@ namespace SS.System {
       #region South Wall
       {
         var adjacentTileEntity = map.TileMap.Value[(tileLocation.Y - 1) * levelInfo.Width + tileLocation.X];
-        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+        MapElement adjacentTile = allMapElementsRO[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).y;
 
@@ -411,7 +411,7 @@ namespace SS.System {
       #region West Wall
       if (tile.TileType != TileType.OpenDiagonalSE && tile.TileType != TileType.OpenDiagonalNE) {
         var adjacentTileEntity = map.TileMap.Value[tileLocation.Y * levelInfo.Width + tileLocation.X - 1];
-        MapElement adjacentTile = allMapElements[adjacentTileEntity];
+        MapElement adjacentTile = allMapElementsRO[adjacentTileEntity];
 
         var flip = IsWallTextureFlipped(tileLocation, tile).x;
         subMeshAccumulator += CreateWall(tile, mesh, ref colliderBlobs, ref textureIndices, subMeshAccumulator, 0, 1, ref adjacentTile, 3, 2, flip, adjacentTile.TileType == TileType.OpenDiagonalNW || adjacentTile.TileType == TileType.OpenDiagonalSW);
