@@ -66,7 +66,6 @@ namespace SS.System {
       for (var materialIndex = 0; materialIndex < materials.Length; ++materialIndex) {
         var material = new Material(Shader.Find("Shader Graphs/URP CLUT"));
         material.EnableKeyword(@"_LIGHTGRID");
-        material.enableInstancing = true;
 
         materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
 

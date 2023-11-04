@@ -62,13 +62,9 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      clutMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP CLUT")) {
-        enableInstancing = true
-      };
+      clutMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP CLUT"));
 
-      clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal")) {
-        enableInstancing = true
-      };
+      clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
 
       clutColorMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT Color"));
       clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
@@ -78,11 +74,8 @@ namespace SS.System {
       clutColorMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
       clutColorMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
       clutColorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      clutColorMaterialTemplate.enableInstancing = true;
 
-      decalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP Decal")) {
-        enableInstancing = true
-      };
+      decalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP Decal"));
 
       cameraMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
       cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
@@ -91,17 +84,15 @@ namespace SS.System {
       cameraMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
       cameraMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
       cameraMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      cameraMaterialTemplate.enableInstancing = true;
 
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(clutColorMaterialTemplate);
 
       {
         noiseBitmapSet = CreateNoiseTexture();
         noiseMaterial = new Material(clutMaterialTemplate);
-        noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), noiseBitmapSet.Texture);
+        noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
-        noiseMaterial.renderQueue = (int)RenderQueue.Geometry;
 
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
       }
