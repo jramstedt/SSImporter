@@ -18,6 +18,8 @@ namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MaterialProviderSystem : SystemBase {
+    public static readonly int shaderTextureName = Shader.PropertyToID(@"_Texture");
+
     private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
     private NativeParallelHashMap<ushort, BatchMaterialID> textureMaterials;
@@ -60,14 +62,9 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      clutMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      clutMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      clutMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      clutMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      clutMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-      clutMaterialTemplate.enableInstancing = true;
+      clutMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP CLUT")) {
+        enableInstancing = true
+      };
 
       clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal")) {
         enableInstancing = true
@@ -77,7 +74,7 @@ namespace SS.System {
       clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
       clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
       clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      clutColorMaterialTemplate.EnableKeyword(@"LIGHTGRID");
+      clutColorMaterialTemplate.EnableKeyword(@"_LIGHTGRID");
       clutColorMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
       clutColorMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
       clutColorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
@@ -103,7 +100,7 @@ namespace SS.System {
         noiseMaterial = new Material(clutMaterialTemplate);
         noiseMaterial.SetTexture(Shader.PropertyToID(@"_BaseMap"), noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        noiseMaterial.DisableKeyword(@"LIGHTGRID");
+        noiseMaterial.DisableKeyword(@"_LIGHTGRID");
         noiseMaterial.renderQueue = (int)RenderQueue.Geometry;
 
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
@@ -184,15 +181,15 @@ namespace SS.System {
         return batchMaterialID; // Res already loaded. Skip loading.
 
       Material material = new(decal ? clutDecalMaterialTemplate : clutMaterialTemplate);
-      if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
-      else material.DisableKeyword(@"LIGHTGRID");
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (bitmapMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
         materialIDToBitmapResourceRef[batchMaterialID] = resRef;
 
-        LoadBitmapToMaterial(resId, blockIndex, decal, material);
+        LoadBitmapToMaterial(resId, blockIndex, material);
 
         return batchMaterialID;
       }
@@ -207,7 +204,7 @@ namespace SS.System {
         return batchMaterialID; // Res already loaded. Skip loading.
 
       Material material = new(clutMaterialTemplate);
-      material.EnableKeyword(@"LIGHTGRID");
+      material.EnableKeyword(@"_LIGHTGRID");
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
@@ -234,20 +231,15 @@ namespace SS.System {
 
       var bitmapSet = await bitmapSetLoadOp;
 
-      material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+      material.SetTexture(shaderTextureName, bitmapSet.Texture);
 
-      if (bitmapSet.Description.Transparent) {
-        material.SetFloat("_AlphaClip", 1);
+      if (bitmapSet.Description.Transparent)
         material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.AlphaTest;
-      } else {
-        material.SetFloat("_AlphaClip", 0);
+      else
         material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.Geometry;
-      }
     }
 
-    private async void LoadBitmapToMaterial(ushort resId, ushort blockIndex, bool decal, Material material) {
+    private async void LoadBitmapToMaterial(ushort resId, ushort blockIndex, Material material) {
       var resRef = (uint)((resId << 16) | blockIndex);
 
       if (!bitmapSetLoaders.TryGetValue(resRef, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
@@ -255,21 +247,14 @@ namespace SS.System {
         bitmapSetLoaders.TryAdd(resRef, bitmapSetLoadOp);
       }
 
-      var textureName = decal ? Shader.PropertyToID(@"Base_Map") : Shader.PropertyToID(@"_BaseMap");
-
       var bitmapSet = await bitmapSetLoadOp;
 
-      material.SetTexture(textureName, bitmapSet.Texture);
+      material.SetTexture(shaderTextureName, bitmapSet.Texture);
 
-      if (bitmapSet.Description.Transparent) {
-        material.SetFloat("_AlphaClip", 1);
+      if (bitmapSet.Description.Transparent)
         material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.AlphaTest;
-      } else {
-        material.SetFloat("_AlphaClip", 0);
+      else
         material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.Geometry;
-      }
     }
 
     public BatchMaterialID GetCameraMaterial(int cameraIndex, bool lightmapped, bool decal) {
@@ -277,19 +262,14 @@ namespace SS.System {
         return batchMaterialID; // Res already loaded. Skip loading.
 
       Material material = new(decal ? decalMaterialTemplate : cameraMaterialTemplate);
-      if (lightmapped) material.EnableKeyword(@"LIGHTGRID");
-      else material.DisableKeyword(@"LIGHTGRID");
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (cameraMaterials.TryAdd((cameraIndex, lightmapped, decal), batchMaterialID)) {
         var cameraTexture = cameraRenderTextures[cameraIndex];
-
-        if (decal)
-          material.SetTexture(Shader.PropertyToID(@"Base_Map"), cameraTexture);
-        else
-          material.SetTexture(Shader.PropertyToID(@"_BaseMap"), cameraTexture);
-
+        material.SetTexture(shaderTextureName, cameraTexture);
         return batchMaterialID;
       }
 

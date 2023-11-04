@@ -64,14 +64,8 @@ namespace SS.System {
 
       // TODO FIXME should be accessible from Services.
       for (var materialIndex = 0; materialIndex < materials.Length; ++materialIndex) {
-        var material = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT"));
-        material.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-        material.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-        material.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-        material.EnableKeyword(@"LIGHTGRID");
-        material.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-        material.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-        material.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+        var material = new Material(Shader.Find("Shader Graphs/URP CLUT"));
+        material.EnableKeyword(@"_LIGHTGRID");
         material.enableInstancing = true;
 
         materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
@@ -100,17 +94,12 @@ namespace SS.System {
     private async void LoadBitmapToMaterial(int materialIndex, Material material) {
       var bitmapSet = await Res.Load<BitmapSet>((ushort)(CustomTextureIdBase + materialIndex));
 
-      material.SetTexture(Shader.PropertyToID(@"_BaseMap"), bitmapSet.Texture);
+      material.SetTexture(MaterialProviderSystem.shaderTextureName, bitmapSet.Texture);
 
-      if (bitmapSet.Description.Transparent) {
-        material.SetFloat("_AlphaClip", 1);
+      if (bitmapSet.Description.Transparent)
         material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.AlphaTest;
-      } else {
-        material.SetFloat("_AlphaClip", 0);
+      else
         material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-        material.renderQueue = (int)RenderQueue.Geometry;
-      }
     }
 
     protected override void OnDestroy() {

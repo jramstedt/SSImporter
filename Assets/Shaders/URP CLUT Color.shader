@@ -65,8 +65,8 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _ALPHAMODULATE_ON
 
-            #pragma multi_compile _ LINEAR
-            #pragma multi_compile _ LIGHTGRID
+            #pragma multi_compile _ _BILINEAR
+            #pragma multi_compile _ _LIGHTGRID
 
             // -------------------------------------
             // Unity defined keywords
@@ -97,7 +97,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
                 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
-            #if defined(LIGHTGRID)
+            #if defined(_LIGHTGRID)
             TEXTURE2D(_LightGrid);
             SAMPLER(sampler_LightGrid);
             uniform float4 _LightGrid_TexelSize;
@@ -108,7 +108,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
 
-                #if defined(LIGHTGRID)
+                #if defined(_LIGHTGRID)
                 half lightblend : TEXCOORD1;
                 #endif
 
@@ -124,7 +124,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
             {
                 float color : TEXCOORD0;
 
-                #if defined(LIGHTGRID)
+                #if defined(_LIGHTGRID)
                 float3 uvwLight : TEXCOORD1;
                 #endif
 
@@ -175,7 +175,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
                 output.positionCS = vertexInput.positionCS;
                 output.color = input.uv.x;
 
-                #if defined(LIGHTGRID)
+                #if defined(_LIGHTGRID)
                 output.uvwLight = float3((vertexInput.positionWS.x + 0.5) * _LightGrid_TexelSize.x, (vertexInput.positionWS.z + 0.5) * _LightGrid_TexelSize.y, input.lightblend);
                 #endif
 
@@ -202,7 +202,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
             }
 
             half4 clut(half index, half shade) {
-              #if defined(LINEAR)
+              #if !defined(_BILINEAR)
                 half4 c = SAMPLE_TEXTURE2D(_CLUT, sampler_CLUT, half2(index, shade));
               #else
                 shade -= 0.5 / 16.0;
@@ -229,7 +229,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-            #if defined(LIGHTGRID)
+            #if defined(_LIGHTGRID)
                 half2 lightmap = SAMPLE_TEXTURE2D(_LightGrid, sampler_LightGrid, input.uvwLight.xy).rg;
                 half shade = lerp(lightmap.r, lightmap.g, input.uvwLight.z);
             #else

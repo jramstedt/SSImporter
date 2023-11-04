@@ -34,8 +34,17 @@ namespace SS.Resources {
     [RuntimeInitializeOnLoadMethod]
     private static async Awaitable InitAsync() {
       // TODO Settings
-      var linear = GlobalKeyword.Create(@"LINEAR");
-      Shader.EnableKeyword(linear);
+      var bilinear = GlobalKeyword.Create(@"_BILINEAR");
+      Shader.DisableKeyword(bilinear);
+      // Shader.EnableKeyword(bilinear);
+
+      var preciseShade = GlobalKeyword.Create(@"_PRECISE_SHADE");
+      // Shader.DisableKeyword(preciseShade);
+      Shader.EnableKeyword(preciseShade);
+
+      var smootShade = GlobalKeyword.Create(@"_SMOOTH_SHADE");
+      Shader.DisableKeyword(smootShade);
+      // Shader.EnableKeyword(smootShade);
 
       var resourceFileNames = new List<string> {
         "gamepal.res",

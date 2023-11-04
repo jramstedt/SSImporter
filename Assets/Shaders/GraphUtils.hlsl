@@ -3,18 +3,14 @@
 #define GRAPH_UTILS_INCLUDED
 
 void shade_float(UnityTexture2D lightGridTexture, half3 worldPosition, half lightGridInterpolation, out half shade) {
-  #if defined(LIGHTGRID)
     half4 texelSize = lightGridTexture.texelSize;
 
     half2 lightmap = SAMPLE_TEXTURE2D(lightGridTexture, lightGridTexture.samplerstate, (worldPosition.xz + 0.5) * texelSize.xy).rg;
     shade = lerp(lightmap.r, lightmap.g, lightGridInterpolation);
-  #else
-    shade = 0.0;
-  #endif
 }
 
 half4 clut(UnityTexture2D CLUT, half index, half shade) {
-  #if defined(LINEAR)
+  #if !defined(_BILINEAR)
     half4 c = SAMPLE_TEXTURE2D(CLUT, CLUT.samplerstate, half2(index, shade));
   #else
     shade -= 0.5 / 16.0;
@@ -30,10 +26,10 @@ half4 clut(UnityTexture2D CLUT, half index, half shade) {
   return c;
 }
 
-void colorLookup_float(UnityTexture2D CLUT, UnityTexture2D indexTexture, half2 uv, half shade, out half4 output) {
-  #if defined(LINEAR)
+void colorLookup_float(UnityTexture2D CLUT, UnityTexture2D indexTexture, half2 uv, half shade, out half3 color, out half alpha) {
+  #if !defined(_BILINEAR)
     half index = SAMPLE_TEXTURE2D(indexTexture, indexTexture.samplerstate, uv).r;
-    output = clut(CLUT, index, shade);
+    half4 result = clut(CLUT, index, shade);
   #else
     half4 texelSize = indexTexture.texelSize;
 
@@ -53,8 +49,11 @@ void colorLookup_float(UnityTexture2D CLUT, UnityTexture2D indexTexture, half2 u
 
     half4 tA = lerp(tl, tr, f.x);
     half4 tB = lerp(bl, br, f.x);
-    output = lerp(tA, tB, f.y);
+    half4 result = lerp(tA, tB, f.y);
   #endif
+    
+    color = result.rgb;
+    alpha = result.a;
 }
 
 void translucency_float(half3 background, half opacity, half purity, half3 color, out half3 output) {

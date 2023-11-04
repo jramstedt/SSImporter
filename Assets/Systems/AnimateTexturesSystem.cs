@@ -83,16 +83,12 @@ namespace SS.System {
         var materialID = materialProviderSystem.GetTextureMaterial(textureIndex);
         var material = entitiesGraphicsSystem.GetMaterial(materialID);
 
-        material.SetTexture(Shader.PropertyToID(@"_BaseMap"), newBitmapSet.Texture);
-        if (newBitmapSet.Description.Transparent) {
-          material.SetFloat("_AlphaClip", 1);
+        material.SetTexture(MaterialProviderSystem.shaderTextureName, newBitmapSet.Texture);
+
+        if (newBitmapSet.Description.Transparent)
           material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-          material.renderQueue = (int)RenderQueue.AlphaTest;
-        } else {
-          material.SetFloat("_AlphaClip", 0);
+        else
           material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-          material.renderQueue = (int)RenderQueue.Geometry;
-        }
       }
     }
 
