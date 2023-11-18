@@ -25,6 +25,7 @@ namespace SS.System {
 
     private ComponentLookup<ObjectInstance> instanceLookup;
     private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
+    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
     private MaterialProviderSystem materialProviderSystem;
@@ -70,6 +71,7 @@ namespace SS.System {
 
       instanceLookup = GetComponentLookup<ObjectInstance>(true);
       decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
+      doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>(true);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
@@ -83,6 +85,7 @@ namespace SS.System {
     protected override void OnUpdate() {
       instanceLookup.Update(this);
       decorationLookup.Update(this);
+      doorLookup.Update(this);
 
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
@@ -107,6 +110,7 @@ namespace SS.System {
            materialProviderSystem,
            instanceLookup,
            decorationLookup,
+           doorLookup,
            animationData.AsReadOnly(),
            true,
            out ushort refWidthOverride);
@@ -144,6 +148,7 @@ namespace SS.System {
             materialProviderSystem,
             instanceLookup,
             decorationLookup,
+            doorLookup,
             animationData.AsReadOnly(),
             true,
             out ushort refWidthOverride);

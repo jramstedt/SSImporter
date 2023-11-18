@@ -148,7 +148,16 @@
         "com.unity.mathematics": "1.2.1",
         "com.unity.burst": "1.8.9",
         "com.unity.render-pipelines.core": "17.0.1",
-        "com.unity.shadergraph": "17.0.1"
+        "com.unity.shadergraph": "17.0.1",
+        "com.unity.render-pipelines.universal-config": "17.0.1"
+      }
+    },
+    "com.unity.render-pipelines.universal-config": {
+      "version": "17.0.1",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.render-pipelines.core": "17.0.1"
       }
     },
     "com.unity.rendering.light-transport": {

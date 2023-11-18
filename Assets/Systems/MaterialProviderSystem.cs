@@ -7,6 +7,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
+using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -20,9 +21,12 @@ namespace SS.System {
   public partial class MaterialProviderSystem : SystemBase {
     public static readonly int shaderTextureName = Shader.PropertyToID(@"_Texture");
 
+    private NativeParallelHashMap<byte, (float opacity, float purity, Color32 color)> translucencyTable;
+
     private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
     private NativeParallelHashMap<ushort, BatchMaterialID> textureMaterials;
+    private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
     private NativeParallelHashMap<BatchMaterialID, uint> materialIDToBitmapResourceRef;
     private readonly Dictionary<uint, IResHandle<BitmapSet>> bitmapSetLoaders = new();
@@ -33,19 +37,21 @@ namespace SS.System {
 
     private BatchMaterialID colorMaterialID;
     private BatchMaterialID noiseMaterialID;
+    private BatchMaterialID decalNoiseMaterialID;
 
     private Material clutMaterialTemplate;
     private Material clutDecalMaterialTemplate;
     private Material clutColorMaterialTemplate;
+    private Material translucencyMaterialTemplate;
 
     private Material decalMaterialTemplate;
     private Material cameraMaterialTemplate;
 
-    private Material noiseMaterial;
     private BitmapSet noiseBitmapSet;
 
     private BitmapDesc[] cameraBitmapDescs;
     private RenderTexture[] cameraRenderTextures;
+    private BitmapDesc defaultBitmapDesc;
 
     protected override void OnCreate() {
       base.OnCreate();
@@ -53,6 +59,7 @@ namespace SS.System {
       bitmapMaterials = new(1024, Allocator.Persistent);
       cameraMaterials = new(128, Allocator.Persistent);
       textureMaterials = new(128, Allocator.Persistent);
+      translucentMaterials = new(256, Allocator.Persistent);
 
       materialIDToBitmapResourceRef = new(1024, Allocator.Persistent);
 
@@ -65,6 +72,8 @@ namespace SS.System {
       clutMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP CLUT"));
 
       clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
+
+      translucencyMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/ForceField"));
 
       clutColorMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT Color"));
       clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
@@ -89,12 +98,19 @@ namespace SS.System {
 
       {
         noiseBitmapSet = CreateNoiseTexture();
-        noiseMaterial = new Material(clutMaterialTemplate);
+        Material noiseMaterial = new(clutMaterialTemplate);
         noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
+
+        noiseMaterial = new(clutDecalMaterialTemplate);
+        noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
+        noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+        noiseMaterial.DisableKeyword(@"_LIGHTGRID");
+
+        decalNoiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
       }
 
       {
@@ -126,6 +142,32 @@ namespace SS.System {
           };
         }
       }
+
+      {
+        (float opacity, float purity) fog = (0x3000 / (float)0xFFFF, 0x6000 / (float)0xFFFF);
+        (float opacity, float purity) force = (0x5000 / (float)0xFFFF, 0x8000 / (float)0xFFFF);
+
+        translucencyTable = new (9, Allocator.Persistent)
+        {
+          [249] = (fog.opacity, fog.purity, new Color32(255,   0,   0,   0)),
+          [250] = (fog.opacity, fog.purity, new Color32(  0, 255,   0,   0)),
+          [251] = (fog.opacity, fog.purity, new Color32(  0,   0, 255,   0)),
+          [248] = (fog.opacity, fog.purity, new Color32(170, 170, 170,   0)),
+          [252] = (fog.opacity, fog.purity, new Color32(240, 240, 240,   0)),
+          [247] = (fog.opacity, fog.purity, new Color32(120, 120, 120,   0)),
+          
+          [255] = (force.opacity, force.purity, new Color32(255,   0,   0,   0)),
+          [254] = (force.opacity, force.purity, new Color32(  0, 255,   0,   0)),
+          [253] = (force.opacity, force.purity, new Color32(  0,   0, 255,   0)),
+        };
+      }
+
+      defaultBitmapDesc = new() {
+        Transparent = false,
+        Size = new(64, 64),
+        AnchorPoint = new(),
+        AnchorRect = new()
+      };
     }
 
     protected override void OnDestroy() {
@@ -276,12 +318,14 @@ namespace SS.System {
     public async Awaitable<BitmapDesc> GetBitmapDesc(BatchMaterialID materialID) {
       var cameraIndex = cameraMaterials.GetValueArray(Allocator.Temp).IndexOf(materialID);
 
-      if (materialID == noiseMaterialID)
+      if (materialID == noiseMaterialID || materialID == decalNoiseMaterialID)
         return noiseBitmapSet.Description;
       if (cameraIndex != -1)
         return cameraBitmapDescs[cameraIndex];
-      else
+      else if (materialIDToBitmapResourceRef.ContainsKey(materialID))
         return (await bitmapSetLoaders[materialIDToBitmapResourceRef[materialID]]).Description;
+      else
+        return defaultBitmapDesc;
     }
 
     public IResHandle<BitmapSet> GetBitmapLoader(BatchMaterialID materialID) {
@@ -314,7 +358,7 @@ namespace SS.System {
           // else
           // return noiseMaterialID;
         } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
-          return noiseMaterialID;
+          return decal ? decalNoiseMaterialID : noiseMaterialID;
         } else if (index >= FIRST_AUTOMAP_MAGIC_COOKIE && index <= (FIRST_AUTOMAP_MAGIC_COOKIE + NUM_AUTOMAP_MAGIC_COOKIES)) {
           return GetMaterial(CustomTextureIdBase, 0, lightmapped, decal); // TODO FIXME PLACEHOLDER
           // ret automap bitmap
@@ -323,7 +367,7 @@ namespace SS.System {
         var defaultMaterial = GetMaterial((ushort)(CustomTextureIdBase + index), 0, lightmapped, decal);
 
         if (defaultMaterial == BatchMaterialID.Null)
-          return noiseMaterialID;
+          return decal ? decalNoiseMaterialID : noiseMaterialID;
 
         return defaultMaterial;
       } else if (type == TextureType.Text) {
@@ -364,6 +408,40 @@ namespace SS.System {
       };
 
       return noiseBitmapSet;
+    }
+
+    public BatchMaterialID GetTranslucentMaterial(byte colorIndex) {
+      if (translucentMaterials.TryGetValue(colorIndex, out var batchMaterialID))
+        return batchMaterialID; // Res already loaded. Skip loading.
+
+      Material material = new(translucencyMaterialTemplate);
+
+      if (translucencyTable.TryGetValue(colorIndex, out var attributes)) {
+        material.SetFloat(@"_Opacity", attributes.opacity);
+        material.SetFloat(@"_Purity", attributes.purity);
+        material.SetColor(@"_Color", attributes.color);
+      } else {
+        material.SetFloat(@"_Opacity", 1f);
+        material.SetFloat(@"_Purity", 0f);
+        material.SetColor(@"_Color", new Color32(128, 128, 128, 0)); // TODO clut lookup colorIndex
+      }
+
+      /*
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
+      */
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (translucentMaterials.TryAdd(colorIndex, batchMaterialID)) {
+
+
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetTranslucentMaterial failed for {colorIndex}.");
+
+      return BatchMaterialID.Null;
     }
 
     private class MipMapLoader : LoaderBase<BitmapSet> {

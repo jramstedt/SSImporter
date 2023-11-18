@@ -373,6 +373,8 @@ namespace SS.Resources {
           } else {
             Debug.LogWarning($"Unsupported special type {instanceData.Triple}.");
           }
+        } else if (baseData.DrawType == DrawType.TranslucentPolygon) {
+          entityManager.AddComponentData(entity, new FlatTextureInfo { });
         } else {
           Debug.LogWarning($"Unsupported draw type {baseData.DrawType}.");
         }
@@ -452,7 +454,7 @@ namespace SS.Resources {
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,
         DrawColliderEdges = 0,
-        DrawColliderAabbs = 1,
+        DrawColliderAabbs = 0,
         DrawBroadphase = 0,
         DrawMassProperties = 0,
         DrawContacts = 0,

@@ -4,6 +4,7 @@ using SS.System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace SS {
@@ -101,6 +102,7 @@ namespace SS {
       in MaterialProviderSystem materialProviderSystem,
       in ComponentLookup<ObjectInstance> instanceLookup,
       in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
       in NativeArray<AnimationData>.ReadOnly animationData,
       in bool decal,
       out ushort refWidthOverride
@@ -154,6 +156,22 @@ namespace SS {
           // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
           return materialProviderSystem.GetMaterial((ushort)(DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal);
         }
+      } else if (baseProperties.DrawType == DrawType.TranslucentPolygon) {
+        byte colorIndex = 0;
+
+        // TODO ObjectClass.Item
+
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+          colorIndex = (byte)decorationData.Data2;
+        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          var doorData = doorLookup.GetRefRO(entity).ValueRO;
+          colorIndex = doorData.Color;
+        }
+
+        if (colorIndex == 0) colorIndex = 0xFF;
+
+        return materialProviderSystem.GetTranslucentMaterial(colorIndex);
       }
 
       return BatchMaterialID.Null;
