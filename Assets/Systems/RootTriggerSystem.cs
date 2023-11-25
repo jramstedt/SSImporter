@@ -38,8 +38,6 @@ namespace SS.System {
       // TODO listen Level singleton add and remove
     }
 
-    public readonly void OnDestroy(ref SystemState state) { }
-
     public readonly void OnStartRunning(ref SystemState state) { }
 
     public readonly void OnStopRunning(ref SystemState state) {

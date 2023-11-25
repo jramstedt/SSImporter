@@ -11,6 +11,7 @@ using UnityEngine.Rendering;
 using static SS.System.ProjectedTextureSystem;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
+using static UnityEditor.MaterialProperty;
 using Vertex = SS.Data.Vertex;
 
 namespace SS.System {
@@ -127,6 +128,8 @@ namespace SS.System {
           if (instanceData.Class != ObjectClass.DoorAndGrating) continue; // Only ObjectClass.DoorAndGrating are handled here.
 
           if (childLookup.TryGetBuffer(entity, out DynamicBuffer<Child> children)) {
+            // TODO should use AddComponents to make sure bounds and other stuff is updated?
+
             var viewPart = children[0].Value;
             commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
             commandBuffer.RemoveComponent<AnimatedTag>(entity);
@@ -140,27 +143,27 @@ namespace SS.System {
 
         ProcessEntities(level, newEntities, entityMeshInfos, animationData);
 
-        var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-        RenderMeshUtility.AddComponents(
-          prototype,
-          EntityManager,
-          renderMeshDescription,
-          new RenderMeshArray(new Material[0], new Mesh[0])
-        );
+        for (var index = 0; index < newEntities.Length; ++index) {
+          var entity = newEntities[index];
+          var meshInfo = entityMeshInfos[index];
 
-        var createSpriteEntitiesJob = new CreateSpriteEntitiesJob() {
-          commandBuffer = commandBuffer.AsParallelWriter(),
+          if (meshInfo.MeshID == BatchMeshID.Null) continue;
+          if (meshInfo.MaterialID == BatchMaterialID.Null) continue;
 
-          prototype = prototype,
+          var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
 
-          entities = newEntities,
-          meshInfos = entityMeshInfos
-        };
+          RenderMeshUtility.AddComponents(
+            viewPart,
+            EntityManager,
+            renderMeshDescription,
+            meshInfo
+          );
 
-        Dependency = createSpriteEntitiesJob.Schedule(newEntities.Length, 64, Dependency);
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
 
-        var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
-        finalizeCommandBuffer.DestroyEntity(prototype);
+          commandBuffer.AddComponent<FlatTextureMeshAddedTag>(entity);
+        }
       }
     }
 
@@ -202,7 +205,7 @@ namespace SS.System {
         materialMeshInfo = new MaterialMeshInfo {
           MaterialID = materialID,
           MeshID = entitiesGraphicsSystem.RegisterMesh(mesh),
-          Submesh = 0
+          SubMesh = 0
         };
 
         entityMeshInfos[entityIndex] = materialMeshInfo;

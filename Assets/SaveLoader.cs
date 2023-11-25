@@ -295,8 +295,8 @@ namespace SS.Resources {
 
         if (baseData.DrawType == DrawType.TexturedPolygon) {
           // TODO parallel?
-          var mesInfo = await Res.Load<MeshInfo>((ushort)(ModelResourceIdBase + baseData.MfdId));
-          entityManager.AddComponentData(entity, mesInfo);
+          var meshInfo = await Res.Load<MeshInfo>((ushort)(ModelResourceIdBase + baseData.MfdId));
+          entityManager.AddComponentData(entity, meshInfo);
         } else if (baseData.DrawType == DrawType.Bitmap) {
           entityManager.AddComponentData(entity, new SpriteInfo { });
         } else if (baseData.DrawType == DrawType.TerrainPolygon) {

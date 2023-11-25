@@ -1,6 +1,7 @@
 using SS.Data;
 using SS.Resources;
 using System;
+using System.Collections.Concurrent;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -23,6 +24,8 @@ namespace SS.System {
     private EntityArchetype viewPartArchetype;
 
     private NativeArray<BatchMaterialID> materials;
+    private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
+    private readonly NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
@@ -34,17 +37,12 @@ namespace SS.System {
 
       RequireForUpdate<Level>();
 
-      newMeshQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<TexturedCuboid>()
-        .WithNone<MeshAddedTag>()
-        .Build(this);
-
       activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<TexturedCuboid, LocalToWorld, MeshAddedTag>()
+        .WithAll<TexturedCuboid, LocalToWorld, MeshCachedTag>()
         .Build(this);
 
       removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<MeshAddedTag>()
+        .WithAll<MeshCachedTag>()
         .WithNone<TexturedCuboid>()
         .Build(this);
 
@@ -104,31 +102,23 @@ namespace SS.System {
     protected override void OnDestroy() {
       base.OnDestroy();
 
+      entityMeshIDs.Dispose();
       materials.Dispose();
       vertexAttributes.Dispose();
     }
 
     protected override void OnUpdate() {
+      int entityCount = newMeshQuery.CalculateEntityCount();
+      if (entityCount == 0) return;
+
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
-      int entityCount = newMeshQuery.CalculateEntityCount();
+      var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
+
+      using var entities = newMeshQuery.ToEntityArray(Allocator.TempJob);
+
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
-
-      var meshes = new Mesh[entityCount];
-      for (var i = 0; i < entityCount; ++i)
-        meshes[i] = new Mesh();
-
-      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      EntityManager.SetComponentData(prototype, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f) } });
-      RenderMeshUtility.AddComponents(
-        prototype,
-        EntityManager,
-        renderMeshDescription,
-        new RenderMeshArray(new Material[0], meshes) // TODO reuse meshes and don't recreate mesharray all the time
-      );
-
-      // TODO FIXME improve, parallelize
 
       var level = SystemAPI.GetSingleton<Level>();
 
@@ -136,12 +126,10 @@ namespace SS.System {
       var materials = this.materials;
 
       Entities
+        .WithStoreEntityQueryInField(ref newMeshQuery)
         .WithAll<TexturedCuboid, ObjectInstance>()
-        .WithNone<MeshAddedTag>()
+        .WithNone<MeshCachedTag>()
         .ForEach((Entity entity, int entityInQueryIndex, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
-          var SideTexture = texturedCuboid.SideTexture;
-          var TopBottomTexture = texturedCuboid.TopBottomTexture;
-
           var meshData = meshDataArray[entityInQueryIndex];
 
           meshData.subMeshCount = 2;
@@ -215,7 +203,52 @@ namespace SS.System {
           meshData.SetSubMesh(0, new SubMeshDescriptor(0, 2 * 6, MeshTopology.Triangles));
           meshData.SetSubMesh(1, new SubMeshDescriptor(2 * 6, 4 * 6, MeshTopology.Triangles));
 
-          // TODO var renderBounds = new RenderBounds { Value = mesh.bounds.ToAABB() };
+        })
+        .ScheduleParallel();
+
+      #region Cache mesh of new entities
+      var meshes = new Mesh[entityCount];
+      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        var entity = entities[entityIndex];
+        meshes[entityIndex] = entityMeshes.GetOrAdd(entity, entity => {
+          var mesh = new Mesh();
+          // mesh.MarkDynamic();
+
+          if (entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh)) == false) {
+            UnityEngine.Object.Destroy(mesh);
+            throw new Exception(@"Failed to add registered mesh.");
+          }
+
+          commandBuffer.AddComponent<MeshCachedTag>(entity);
+
+          return mesh;
+        });
+      }
+      #endregion
+
+      CompleteDependency();
+
+      Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
+
+      for (int i = 0; i < meshes.Length; ++i) {
+        var mesh = meshes[i];
+        mesh.RecalculateNormals();
+        // mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
+        mesh.UploadMeshData(true);
+      }
+
+      // TODO physics
+
+      Entities
+        .WithAll<TexturedCuboid, ObjectInstance>()
+        .WithNone<MeshCachedTag>()
+        .ForEach((Entity entity, int entityInQueryIndex, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
+          var SideTexture = texturedCuboid.SideTexture;
+          var TopBottomTexture = texturedCuboid.TopBottomTexture;
+
+          if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
+            return;
 
           #region Sides
           {
@@ -229,14 +262,20 @@ namespace SS.System {
               material = materials[SideTexture & 0x7F];
             }
 
-            var viewPart = commandBuffer.Instantiate(prototype);
+            var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+            RenderMeshUtility.AddComponents(
+              viewPart,
+              EntityManager,
+              renderMeshDescription,
+              new MaterialMeshInfo {
+                MeshID = meshID,
+                MaterialID = material,
+                SubMesh = 0
+              }
+            );
+
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
             commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
-            commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
-              Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
-              MaterialID = material,
-              Submesh = 0
-            });
           }
           #endregion
 
@@ -252,39 +291,31 @@ namespace SS.System {
               material = materials[TopBottomTexture & 0x7F];
             }
 
-            var viewPart = commandBuffer.Instantiate(prototype);
+            var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+            RenderMeshUtility.AddComponents(
+              viewPart,
+              EntityManager,
+              renderMeshDescription,
+              new MaterialMeshInfo {
+                MeshID = meshID,
+                MaterialID = material,
+                SubMesh = 1
+              }
+            );
+
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
             commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
-            commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
-              Mesh = MaterialMeshInfo.ArrayIndexToStaticIndex(entityInQueryIndex),
-              MaterialID = material,
-              Submesh = 1
-            });
           }
           #endregion
-
-          commandBuffer.AddComponent<MeshAddedTag>(entity);
         })
-        .WithoutBurst() // TODO remove!
+        .WithStructuralChanges()
         .Run();
-
-      Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
-      for (int i = 0; i < entityCount; ++i) {
-        var mesh = meshes[i];
-        mesh.RecalculateNormals();
-        // mesh.RecalculateTangents();
-        mesh.RecalculateBounds();
-        mesh.UploadMeshData(true);
-      }
-
-      var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
-      finalizeCommandBuffer.DestroyEntity(prototype);
     }
   }
 
   public struct SpecialPart : IComponentData { }
 
-  internal struct MeshAddedTag : ICleanupComponentData { }
+  internal struct MeshCachedTag : ICleanupComponentData { }
 
   public struct TexturedCuboid : IComponentData {
     public float SizeX;

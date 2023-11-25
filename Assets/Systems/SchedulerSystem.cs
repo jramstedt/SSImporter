@@ -26,8 +26,6 @@ namespace SS.System {
         .Build(ref state);
     }
 
-    public readonly void OnDestroy(ref SystemState state) { }
-
     public void OnUpdate(ref SystemState state) {
       var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
       var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);

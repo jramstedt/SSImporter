@@ -12,6 +12,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
+using static UnityEditor.MaterialProperty;
 
 namespace SS.System {
   [BurstCompile]
@@ -122,14 +123,6 @@ namespace SS.System {
     protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
 
-      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      RenderMeshUtility.AddComponents(
-        prototype,
-        EntityManager,
-        renderMeshDescription,
-        new RenderMeshArray(new Material[0], new Mesh[0])
-      );
-
       var objectProperties = this.objectProperties;
       var spriteBase = this.spriteBase;
       var spriteMeshes = this.spriteMeshes;
@@ -155,20 +148,26 @@ namespace SS.System {
           if (baseData.IsDoubleSize)
             scale *= 2f;
 
-          var viewPart = commandBuffer.Instantiate(entityInQueryIndex, prototype);
+          var viewPart = EntityManager.CreateEntity(viewPartArchetype);
+          RenderMeshUtility.AddComponents(
+            viewPart,
+            EntityManager,
+            renderMeshDescription,
+            new MaterialMeshInfo {
+              MeshID = spriteMesh.Mesh,
+              MaterialID = spriteMesh.Material,
+              SubMesh = 0
+            }
+          );
+
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new SpritePart { CurrentFrame = currentFrame });
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, new Parent { Value = entity });
           commandBuffer.SetComponent(entityInQueryIndex, viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale));
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new RenderBounds { Value = new AABB { Center = float3(0f), Extents = float3(0.5f / scale) } });
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new MaterialMeshInfo {
-            MeshID = spriteMesh.Mesh,
-            MaterialID = spriteMesh.Material,
-            Submesh = 0
-          });
 
           commandBuffer.AddComponent<SpriteAddedTag>(entityInQueryIndex, entity);
         })
-        .ScheduleParallel();
+        .WithStructuralChanges()
+        .Run();
 
       var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
 
@@ -181,9 +180,6 @@ namespace SS.System {
           localTransform.Rotation = math.mul(towardsCameraRotation, math.inverse(parentTransform.Rotation));
         })
         .ScheduleParallel();
-
-      var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
-      finalizeCommandBuffer.DestroyEntity(prototype);
     }
 
     [BurstCompile]

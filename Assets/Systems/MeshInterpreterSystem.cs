@@ -27,8 +27,8 @@ namespace SS.System {
 
     private EntityArchetype viewPartArchetype;
 
-    private ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
-    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
+    private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
+    private readonly NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     #region Dynamic mesh job variables
     private readonly VertexState[] vertexBuffer = new VertexState[1000];
@@ -154,32 +154,37 @@ namespace SS.System {
         .Run();
       #endregion
 
-      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
 
       var entityCount = activeMeshQuery.CalculateEntityCount();
       if (entityCount > 0) {
+        instanceLookup.Update(this);
+        decorationLookup.Update(this);
+
         // TODO Jobify
 
         using var entities = activeMeshQuery.ToEntityArray(Allocator.Temp);
-        using var instanceDatas = activeMeshQuery.ToComponentDataArray<ObjectInstance>(Allocator.Temp);
 
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
         var meshes = new Mesh[entityCount];
 
         var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
+        var textureDatas = new NativeArray<int>(entityCount, Allocator.Temp);
 
         subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp);
         subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp);
 
+        using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
+
         var textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
-
+          
           if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
             throw new Exception(@"No mesh in cache.");
 
-          var meshInfo = SystemAPI.GetComponent<MeshInfo>(entity);
-          var localTransform = SystemAPI.GetComponent<LocalTransform>(entity);
+          var instanceData = instanceLookup.GetRefRO(entity).ValueRO;
+          var meshInfo = SystemAPI.GetComponentRO<MeshInfo>(entity).ValueRO;
+          var localTransform = SystemAPI.GetComponentRO<LocalTransform>(entity).ValueRO;
 
           #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
           {
@@ -229,6 +234,17 @@ namespace SS.System {
             submeshKeys.Dispose();
           }
           #endregion
+
+          var level = SystemAPI.GetSingleton<Level>();
+          var baseProperties = objectProperties.BasePropertyData(instanceData);
+
+          // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
+
+          // TODO could more fo this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
+          var objectIndex = level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
+          var isAnimating = IsAnimated(objectIndex, animationData.AsReadOnly());
+
+          textureDatas[entityIndex] = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
         }
 
         // Debug.Log($"textureIdAccumulator {textureIdAccumulator} entities {entityCount} max {textureIds.Length}");
@@ -243,25 +259,9 @@ namespace SS.System {
           mesh.UploadMeshData(false);
         }
 
-        var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-        EntityManager.SetComponentData(prototype, LocalTransform.Identity);
-        RenderMeshUtility.AddComponents(
-          prototype,
-          EntityManager,
-          renderMeshDescription,
-          new RenderMeshArray(new Material[0], new Mesh[0])
-        );
-
-        var level = SystemAPI.GetSingleton<Level>();
-
-        // Needs to be updated here, after creating the prototype
-        instanceLookup.Update(this);
-        decorationLookup.Update(this);
-
         textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
-          var instanceData = instanceDatas[entityIndex];
 
           if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
             continue;
@@ -277,31 +277,10 @@ namespace SS.System {
             childCount = children.Length;
           }
 
-          var baseProperties = objectProperties.BasePropertyData(instanceData);
-
-          // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
-
-          var objectIndex = level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
-          var isAnimating = IsAnimated(objectIndex, animationData.AsReadOnly());
-
-          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
-          var texturedMaterialID = materialProviderSystem.ParseTextureData(textureData, true, false, out var textureType, out var scale);
+          var texturedMaterialID = materialProviderSystem.ParseTextureData(textureDatas[entityIndex], true, false, out var textureType, out var scale);
 
           var submeshCount = mesh.subMeshCount;
           for (sbyte submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
-            Entity modelPart;
-            if (submeshIndex < childCount) {
-              modelPart = children[submeshIndex].Value;
-
-              if (submeshIndex >= submeshCount) {
-                commandBuffer.DestroyEntity(modelPart);
-                continue;
-              }
-            } else {
-              modelPart = commandBuffer.Instantiate(prototype);
-              commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
-            }
-
             var textureId = textureIds[textureIdAccumulator++];
 
             var materialID = textureId switch {
@@ -313,20 +292,46 @@ namespace SS.System {
             if (materialID == BatchMaterialID.Null)
               materialID = materialProviderSystem.GetMaterial((ushort)(ModelTextureIdBase + textureId), 0, true, false);
 
-            commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
-            commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {
-              MeshID = meshID,
-              MaterialID = materialID,
-              Submesh = submeshIndex
-            });
+            if (submeshIndex < childCount) {
+              var modelPart = children[submeshIndex].Value;
+
+              if (submeshIndex >= submeshCount) {
+                commandBuffer.DestroyEntity(modelPart);
+                continue;
+              }
+
+              // Update mesh bounds and material
+              commandBuffer.SetComponent(modelPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
+              commandBuffer.SetComponent(modelPart, new MaterialMeshInfo {
+                MeshID = meshID,
+                MaterialID = materialID,
+                SubMesh = submeshIndex
+              });
+            } else {
+              var modelPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+              RenderMeshUtility.AddComponents( // TODO should this be after if (see commented out section)
+                modelPart,
+                EntityManager,
+                renderMeshDescription,
+                new MaterialMeshInfo {
+                  MeshID = meshID,
+                  MaterialID = materialID,
+                  SubMesh = submeshIndex
+                }
+              );
+
+              commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
+              commandBuffer.SetComponent(modelPart, LocalTransform.Identity);
+            }
 
             // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
           }
         }
 
         textureIds.Dispose();
-
-        commandBuffer.DestroyEntity(prototype);
+        textureDatas.Dispose();
+        subMeshIndices.Dispose();
+        subMeshVertices.Dispose();
 
         // entityManager.RemoveComponent<ModelPartRebuildTag>(activeMeshQuery);
       }

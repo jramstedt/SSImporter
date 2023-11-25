@@ -30,7 +30,7 @@ namespace SS.System {
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
     private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
-    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
+    private readonly NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
 
     private RenderMeshDescription renderMeshDescription;
 
@@ -161,8 +161,10 @@ namespace SS.System {
         meshes[entityIndex] = entityMeshes.GetOrAdd(entity, entity => {
           var mesh = new Mesh();
           // mesh.MarkDynamic();
-          if (entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh)) == false)
+          if (entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh)) == false) {
+            UnityEngine.Object.Destroy(mesh);
             throw new Exception(@"Failed to add registered mesh.");
+          }
 
           return mesh;
         });
@@ -185,15 +187,6 @@ namespace SS.System {
         SceneGUID = new Unity.Entities.Hash128 { Value = level.Id }
       };
 
-      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      EntityManager.SetComponentData(prototype, LocalTransform.Identity);
-      RenderMeshUtility.AddComponents(
-        prototype,
-        EntityManager,
-        renderMeshDescription,
-        new RenderMeshArray(new UnityEngine.Material[0], new Mesh[0])
-      );
-
       var physicsPrototype = EntityManager.CreateEntity(physicsArchetype); // Sync point
       EntityManager.SetComponentData(physicsPrototype, LocalTransform.Identity);
       EntityManager.SetSharedComponentManaged(physicsPrototype, new PhysicsWorldIndex { Value = 0 });
@@ -211,8 +204,6 @@ namespace SS.System {
 
         var textureIndices = submeshTextureIndex.GetSubArray(entityIndex * 6, 6);
 
-        var renderBounds = new RenderBounds { Value = mesh.bounds.ToAABB() };
-
         for (sbyte subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 
@@ -221,14 +212,20 @@ namespace SS.System {
 
           var materialId = materialProviderSystem.GetTextureMaterial(textureIndex);
 
-          var viewPart = commandBuffer.Instantiate(prototype);
+          var viewPart = EntityManager.CreateEntity(viewPartArchetype);
+          RenderMeshUtility.AddComponents(
+            viewPart,
+            EntityManager,
+            renderMeshDescription,
+            new MaterialMeshInfo {
+              MeshID = meshID,
+              MaterialID = materialId,
+              SubMesh = subMesh
+            }
+          );
+
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, renderBounds);
-          commandBuffer.SetComponent(viewPart, new MaterialMeshInfo {
-            MeshID = meshID,
-            MaterialID = materialId,
-            Submesh = subMesh
-          });
+          commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
 
           sceneTileTag.SectionIndex = entityIndex;
           commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
@@ -236,12 +233,12 @@ namespace SS.System {
 
         var bodyPart = commandBuffer.Instantiate(physicsPrototype);
         commandBuffer.SetComponent(bodyPart, new Parent { Value = entity });
-        commandBuffer.SetComponent(bodyPart, renderBounds);
+        commandBuffer.SetComponent(bodyPart, new RenderBounds { Value = mesh.bounds.ToAABB() });
         commandBuffer.SetComponent(bodyPart, new PhysicsCollider { Value = colliderArray[entityIndex] });
       }
 
       var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
-      finalizeCommandBuffer.DestroyEntity(prototype);
+      finalizeCommandBuffer.DestroyEntity(physicsPrototype);
     }
   }
 
