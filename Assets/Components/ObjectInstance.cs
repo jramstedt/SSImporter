@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 using Unity.Entities;
-using static UnityEditor.FilePathAttribute;
 
 namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -108,6 +107,13 @@ namespace SS.Resources {
 
       public readonly uint SoftwareVersion => Cosmetic;
       public readonly uint SoftwareSubclass => Data1;
+
+      #region Words
+      public readonly byte WordStyle => (byte)(Data1 & 0x0F);
+      public readonly byte WordScale => (byte)((Data1 & 0xF0) >> 4);
+      public readonly byte WordColor => (byte)((Data1 & 0xFF0000) >> 16);
+      public readonly ushort WordIndex => Cosmetic;
+      #endregion
 
       #region Mesh data
       public readonly uint SizeX => Data1 & 0x0F;

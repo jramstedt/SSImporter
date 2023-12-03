@@ -25,14 +25,12 @@ namespace SS.System {
 
     private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
-    private NativeParallelHashMap<ushort, BatchMaterialID> textureMaterials;
+    private NativeParallelHashMap<(ushort wordIndex, byte color, byte style), BatchMaterialID> wordMaterials;
     private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
-    private NativeParallelHashMap<BatchMaterialID, uint> materialIDToBitmapResourceRef;
-    private readonly Dictionary<uint, IResHandle<BitmapSet>> bitmapSetLoaders = new();
+    private readonly Dictionary<BatchMaterialID, IResHandle<BitmapSet>> bitmapSetLoaders = new();
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
-
     private NativeArray<Random> randoms;
 
     private BatchMaterialID colorMaterialID;
@@ -47,10 +45,7 @@ namespace SS.System {
     private Material decalMaterialTemplate;
     private Material cameraMaterialTemplate;
 
-    private BitmapSet noiseBitmapSet;
-
-    private BitmapDesc[] cameraBitmapDescs;
-    private RenderTexture[] cameraRenderTextures;
+    private CameraBitmapSet[] cameraBitmapSets;
     private BitmapDesc defaultBitmapDesc;
 
     protected override void OnCreate() {
@@ -58,10 +53,8 @@ namespace SS.System {
 
       bitmapMaterials = new(1024, Allocator.Persistent);
       cameraMaterials = new(128, Allocator.Persistent);
-      textureMaterials = new(128, Allocator.Persistent);
+      wordMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
       translucentMaterials = new(256, Allocator.Persistent);
-
-      materialIDToBitmapResourceRef = new(1024, Allocator.Persistent);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
@@ -97,13 +90,14 @@ namespace SS.System {
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(clutColorMaterialTemplate);
 
       {
-        noiseBitmapSet = CreateNoiseTexture();
+        var noiseBitmapSet = CreateTexture(@"Noise", 32, 32);
         Material noiseMaterial = new(clutMaterialTemplate);
         noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
+        bitmapSetLoaders.Add(noiseMaterialID, new CompletedLoader<BitmapSet>(noiseBitmapSet));
 
         noiseMaterial = new(clutDecalMaterialTemplate);
         noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
@@ -111,34 +105,25 @@ namespace SS.System {
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
         decalNoiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
+        bitmapSetLoaders.Add(decalNoiseMaterialID, new CompletedLoader<BitmapSet>(noiseBitmapSet));
       }
 
       {
-        cameraBitmapDescs = new BitmapDesc[NUM_HACK_CAMERAS];
-        cameraRenderTextures = new RenderTexture[NUM_HACK_CAMERAS];
-        /*
-          RenderTextureFormat format;
-          if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8))
-            format = RenderTextureFormat.R8;
-          else if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGB32))
-            format = RenderTextureFormat.ARGB32;
-          else
-            throw new Exception("No supported TextureFormat found.");
-        */
-        var format = RenderTextureFormat.ARGB32;
+        cameraBitmapSets = new CameraBitmapSet[NUM_HACK_CAMERAS];
 
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
-          cameraRenderTextures[i] = new RenderTexture(new RenderTextureDescriptor(128, 128, format, 16)) {
-            name = @"Camera",
-            filterMode = FilterMode.Point,
-            wrapMode = TextureWrapMode.Repeat
-          };
-
-          cameraBitmapDescs[i] = new BitmapDesc() {
-            Transparent = false,
-            Size = new(32, 32),
-            AnchorPoint = new(),
-            AnchorRect = new()
+          cameraBitmapSets[i] = new CameraBitmapSet() {
+            Texture = new RenderTexture(new RenderTextureDescriptor(128, 128, RenderTextureFormat.ARGB32, 16)) {
+              name = @"Camera",
+              filterMode = FilterMode.Point,
+              wrapMode = TextureWrapMode.Repeat
+            },
+            Description = new BitmapDesc() {
+              Transparent = false,
+              Size = new(32, 32),
+              AnchorPoint = new(),
+              AnchorRect = new()
+            }
           };
         }
       }
@@ -175,29 +160,30 @@ namespace SS.System {
 
       bitmapMaterials.Dispose();
       cameraMaterials.Dispose();
-      textureMaterials.Dispose();
-
-      materialIDToBitmapResourceRef.Dispose();
+      wordMaterials.Dispose();
 
       randoms.Dispose();
     }
 
     protected override void OnUpdate() {
-      if (noiseBitmapSet?.Texture != null) {
-        var noiseTexture = noiseBitmapSet.Texture;
-        var noiseTextureData = noiseTexture.GetRawTextureData<byte>();
-        var fillStaticTextureJob = new FillNoiseTexture() {
-          ColorBase = Palette.GRAY_8_BASE,
-          Stride = noiseTexture.format == TextureFormat.R8 ? 1 : 4,
-          TextureData = noiseTextureData,
-          Randoms = randoms
-        };
+      if (bitmapSetLoaders.TryGetValue(noiseMaterialID, out var noiseBitmapSetLoader)) {
+        if (noiseBitmapSetLoader.IsCompleted) {
+          var noiseTexture = noiseBitmapSetLoader.Result.Texture;
+          var noiseTextureData = noiseTexture.GetRawTextureData<byte>();
 
-        Dependency = fillStaticTextureJob.ScheduleBatch(noiseTextureData.Length, 32, Dependency);
+          var fillStaticTextureJob = new FillNoiseTexture() {
+            ColorBase = Palette.GRAY_8_BASE,
+            Stride = noiseTexture.format == TextureFormat.R8 ? 1 : 4,
+            TextureData = noiseTextureData,
+            Randoms = randoms
+          };
 
-        CompleteDependency();
+          Dependency = fillStaticTextureJob.ScheduleBatch(noiseTextureData.Length, 32, Dependency);
 
-        noiseTexture.Apply(false, false);
+          CompleteDependency();
+
+          noiseTexture.Apply(false, false);
+        }
       }
     }
 
@@ -220,10 +206,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (bitmapMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
-        materialIDToBitmapResourceRef[batchMaterialID] = resRef;
-
-        LoadBitmapToMaterial(resId, blockIndex, material);
-
+        LoadBitmapToMaterial(resRef, batchMaterialID);
         return batchMaterialID;
       }
 
@@ -233,61 +216,7 @@ namespace SS.System {
     }
 
     public BatchMaterialID GetTextureMaterial(ushort textureIndex) {
-      if (textureMaterials.TryGetValue(textureIndex, out var batchMaterialID))
-        return batchMaterialID; // Res already loaded. Skip loading.
-
-      Material material = new(clutMaterialTemplate);
-      material.EnableKeyword(@"_LIGHTGRID");
-
-      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
-
-      if (textureMaterials.TryAdd(textureIndex, batchMaterialID)) {
-        materialIDToBitmapResourceRef[batchMaterialID] = (uint)((0x03E8 + textureIndex) << 16); // Uses the 128x128 resource id
-
-        LoadTextureToMaterial(textureIndex, material);
-
-        return batchMaterialID;
-      }
-
-      Debug.LogWarning($"GetTextureMaterial failed for {textureIndex}.");
-
-      return BatchMaterialID.Null;
-    }
-
-    private async void LoadTextureToMaterial(ushort textureIndex, Material material) {
-      var resRef = (uint)((0x03E8 + textureIndex) << 16); // Uses the 128x128 resource id
-
-      if (!bitmapSetLoaders.TryGetValue(resRef, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
-        bitmapSetLoadOp = new MipMapLoader(textureIndex);
-        bitmapSetLoaders.TryAdd(resRef, bitmapSetLoadOp);
-      }
-
-      var bitmapSet = await bitmapSetLoadOp;
-
-      material.SetTexture(shaderTextureName, bitmapSet.Texture);
-
-      if (bitmapSet.Description.Transparent)
-        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-      else
-        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-    }
-
-    private async void LoadBitmapToMaterial(ushort resId, ushort blockIndex, Material material) {
-      var resRef = (uint)((resId << 16) | blockIndex);
-
-      if (!bitmapSetLoaders.TryGetValue(resRef, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
-        bitmapSetLoadOp = Res.Load<BitmapSet>(resId, blockIndex);
-        bitmapSetLoaders.TryAdd(resRef, bitmapSetLoadOp);
-      }
-
-      var bitmapSet = await bitmapSetLoadOp;
-
-      material.SetTexture(shaderTextureName, bitmapSet.Texture);
-
-      if (bitmapSet.Description.Transparent)
-        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-      else
-        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+      return GetMaterial((ushort)(0x03E8 + textureIndex), 0, true, false); // Uses the 128x128 resource id
     }
 
     public BatchMaterialID GetCameraMaterial(int cameraIndex, bool lightmapped, bool decal) {
@@ -301,7 +230,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (cameraMaterials.TryAdd((cameraIndex, lightmapped, decal), batchMaterialID)) {
-        var cameraTexture = cameraRenderTextures[cameraIndex];
+        var cameraTexture = cameraBitmapSets[cameraIndex].Texture;
         material.SetTexture(shaderTextureName, cameraTexture);
         return batchMaterialID;
       }
@@ -312,24 +241,118 @@ namespace SS.System {
     }
 
     public RenderTexture GetCameraRenderTexture(int cameraIndex) {
-      return cameraRenderTextures[cameraIndex];
+      return cameraBitmapSets[cameraIndex].Texture;
+    }
+
+    public BatchMaterialID GetWordMaterial (ushort wordIndex, byte color, byte style) {
+      if (wordMaterials.TryGetValue((wordIndex, color, style), out var batchMaterialID))
+        return batchMaterialID; // Word already rendered. Skip rendering.
+
+      Material material = new(clutDecalMaterialTemplate);
+      material.EnableKeyword(@"_LIGHTGRID");
+      material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (wordMaterials.TryAdd((wordIndex, color, style), batchMaterialID)) {
+        RenderTextAsync(batchMaterialID, TextType.Word, wordIndex, color, style);
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetWordMaterial failed for {wordIndex}.");
+
+      return BatchMaterialID.Null;
+    }
+
+    public BatchMaterialID GetTranslucentMaterial(byte colorIndex) {
+      if (translucentMaterials.TryGetValue(colorIndex, out var batchMaterialID))
+        return batchMaterialID; // Res already loaded. Skip loading.
+
+      Material material = new(translucencyMaterialTemplate);
+
+      if (translucencyTable.TryGetValue(colorIndex, out var attributes)) {
+        material.SetFloat(@"_Opacity", attributes.opacity);
+        material.SetFloat(@"_Purity", attributes.purity);
+        material.SetColor(@"_Color", attributes.color);
+      } else {
+        material.SetFloat(@"_Opacity", 1f);
+        material.SetFloat(@"_Purity", 0f);
+        material.SetColor(@"_Color", new Color32(128, 128, 128, 0)); // TODO clut lookup colorIndex
+      }
+
+      /*
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
+      */
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (translucentMaterials.TryAdd(colorIndex, batchMaterialID)) {
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetTranslucentMaterial failed for {colorIndex}.");
+
+      return BatchMaterialID.Null;
+    }
+
+    private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID) {
+      if (!bitmapSetLoaders.TryGetValue(batchMaterialID, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
+        bitmapSetLoadOp = Res.Load<BitmapSet>(resRef);
+        bitmapSetLoaders.TryAdd(batchMaterialID, bitmapSetLoadOp);
+      }
+
+      bitmapSetLoaders.TryAdd(batchMaterialID, bitmapSetLoadOp);
+
+      var bitmapSet = await bitmapSetLoadOp;
+
+      var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
+      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+
+      if (bitmapSet.Description.Transparent)
+        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+      else
+        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+    }
+
+    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, ushort wordIndex, byte color, byte style) {
+      var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
+      var bitmapSet = CreateTexture(@"Word decal", settings.Width, settings.Height, true);
+
+      bitmapSetLoaders.TryAdd(batchMaterialID, new CompletedLoader<BitmapSet>(bitmapSet));
+
+      unsafe {
+        var rawData = bitmapSet.Texture.GetRawTextureData<byte>();
+        UnsafeUtility.MemClear(rawData.GetUnsafePtr(), rawData.Length);
+      }
+
+      var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
+      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+
+      var fontSet = await Res.Load<FontSet>(fontRes);
+      var fullText = await Res.Load<string>(settings.ResId, wordIndex);
+
+      var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+      var textPos = (new int2(settings.Width, settings.Height) - textSize) >> 1;
+
+      // TODO Scrolling
+
+      GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
     }
 
     public async Awaitable<BitmapDesc> GetBitmapDesc(BatchMaterialID materialID) {
-      var cameraIndex = cameraMaterials.GetValueArray(Allocator.Temp).IndexOf(materialID);
+      if (bitmapSetLoaders.TryGetValue(materialID, out var bitmapSetLoader))
+        return (await bitmapSetLoader).Description;
 
-      if (materialID == noiseMaterialID || materialID == decalNoiseMaterialID)
-        return noiseBitmapSet.Description;
+      var cameraIndex = cameraMaterials.GetValueArray(Allocator.Temp).IndexOf(materialID);
       if (cameraIndex != -1)
-        return cameraBitmapDescs[cameraIndex];
-      else if (materialIDToBitmapResourceRef.ContainsKey(materialID))
-        return (await bitmapSetLoaders[materialIDToBitmapResourceRef[materialID]]).Description;
-      else
-        return defaultBitmapDesc;
+        return cameraBitmapSets[cameraIndex].Description;
+
+      return defaultBitmapDesc;
     }
 
     public IResHandle<BitmapSet> GetBitmapLoader(BatchMaterialID materialID) {
-      return bitmapSetLoaders[materialIDToBitmapResourceRef[materialID]];
+      return bitmapSetLoaders[materialID];
     }
 
     public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, bool decal, out TextureType type, out int scale) {
@@ -384,64 +407,30 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    private BitmapSet CreateNoiseTexture () {
-      Texture2D noiseTexture;
+    private BitmapSet CreateTexture (string name, int width, int height, bool transparent = false) {
+      Texture2D texture;
       if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
-        noiseTexture = new Texture2D(32, 32, TextureFormat.R8, false, true);
+        texture = new Texture2D(width, height, TextureFormat.R8, false, true);
       } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
-        noiseTexture = new Texture2D(32, 32, TextureFormat.RGBA32, false, true);
+        texture = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
       } else {
         throw new Exception("No supported TextureFormat found.");
       }
-      noiseTexture.name = @"Noise";
-      noiseTexture.filterMode = FilterMode.Point;
-      noiseTexture.wrapMode = TextureWrapMode.Repeat;
+      texture.name = name;
+      texture.filterMode = FilterMode.Point;
+      texture.wrapMode = TextureWrapMode.Clamp;
 
-      BitmapSet noiseBitmapSet = new() {
-        Texture = noiseTexture,
+      BitmapSet bitmapSet = new() {
+        Texture = texture,
         Description = new() {
-          Transparent = false,
-          Size = new(noiseTexture.width, noiseTexture.height),
+          Transparent = transparent,
+          Size = new(texture.width, texture.height),
           AnchorPoint = new(),
           AnchorRect = new()
         }
       };
 
-      return noiseBitmapSet;
-    }
-
-    public BatchMaterialID GetTranslucentMaterial(byte colorIndex) {
-      if (translucentMaterials.TryGetValue(colorIndex, out var batchMaterialID))
-        return batchMaterialID; // Res already loaded. Skip loading.
-
-      Material material = new(translucencyMaterialTemplate);
-
-      if (translucencyTable.TryGetValue(colorIndex, out var attributes)) {
-        material.SetFloat(@"_Opacity", attributes.opacity);
-        material.SetFloat(@"_Purity", attributes.purity);
-        material.SetColor(@"_Color", attributes.color);
-      } else {
-        material.SetFloat(@"_Opacity", 1f);
-        material.SetFloat(@"_Purity", 0f);
-        material.SetColor(@"_Color", new Color32(128, 128, 128, 0)); // TODO clut lookup colorIndex
-      }
-
-      /*
-      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
-      else material.DisableKeyword(@"_LIGHTGRID");
-      */
-
-      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
-
-      if (translucentMaterials.TryAdd(colorIndex, batchMaterialID)) {
-
-
-        return batchMaterialID;
-      }
-
-      Debug.LogWarning($"GetTranslucentMaterial failed for {colorIndex}.");
-
-      return BatchMaterialID.Null;
+      return bitmapSet;
     }
 
     private class MipMapLoader : LoaderBase<BitmapSet> {
@@ -510,6 +499,15 @@ namespace SS.System {
         }
 
         Randoms[threadIndex] = random;
+      }
+    }
+
+    private class CameraBitmapSet : IDisposable {
+      public RenderTexture Texture;
+      public BitmapDesc Description;
+
+      public void Dispose() {
+        if (Texture != null) UnityEngine.Object.Destroy(Texture);
       }
     }
   }

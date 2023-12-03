@@ -32,6 +32,7 @@ namespace SS.Resources {
         for (var i = 0; i < offsets.Length; ++i)
           offsets[i] = msbr.ReadUInt16();
 
+        /*
         var fontTextureWidth = offsets[^1] + PADDING * offsetsCount; // +1 pixel padding on all sides and between characters
         var fontTextureHeight = font.Rows + PADDING * 2;             //
 
@@ -73,6 +74,8 @@ namespace SS.Resources {
         if (font.DataType == BitmapFont.BitmapDataType.Mono && SystemInfo.SupportsTextureFormat(TextureFormat.Alpha8)) {
           fontTexture = new Texture2D(fontTextureWidth, fontTextureHeight, TextureFormat.Alpha8, false, true);
 
+          Debug.Log($"Font tex Alpha8 {fontTextureWidth} {fontTextureHeight}", fontTexture);
+
           var textureData = fontTexture.GetRawTextureData<byte>();
           unsafe {
             UnsafeUtility.MemClear(textureData.GetUnsafePtr(), textureData.Length);
@@ -95,6 +98,8 @@ namespace SS.Resources {
         } else if (font.DataType == BitmapFont.BitmapDataType.Color && SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
           fontTexture = new Texture2D(fontTextureWidth, fontTextureHeight, TextureFormat.R8, false, true);
 
+          Debug.Log($"Font tex R8 {fontTextureWidth} {fontTextureHeight}", fontTexture);
+
           var textureData = fontTexture.GetRawTextureData<byte>();
           unsafe {
             UnsafeUtility.MemClear(textureData.GetUnsafePtr(), textureData.Length);
@@ -110,6 +115,8 @@ namespace SS.Resources {
           }
         } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
           fontTexture = new Texture2D(fontTextureWidth, fontTextureHeight, TextureFormat.RGBA32, false, true);
+
+          Debug.Log($"Font tex RGBA32 {fontTextureWidth} {fontTextureHeight}", fontTexture);
 
           var textureData = fontTexture.GetRawTextureData<byte>();
           var stride = UnsafeUtility.SizeOf<Color32>();
@@ -156,11 +163,14 @@ namespace SS.Resources {
 
         fontTexture.wrapMode = TextureWrapMode.Clamp;
         fontTexture.filterMode = FilterMode.Point;
+        fontTexture.Apply(true, false);
         #endregion
+        */
 
         return new FontSet() {
-          Texture = fontTexture,
-          CharacterInfo = characterInfo
+          Font = font,
+          Offsets = offsets,
+          Data = msbr.ReadBytes(font.RowBytes * font.Rows)
         };
       }
     }
@@ -173,6 +183,7 @@ namespace SS.Resources {
     }
   }
 
+  /*
   public class FontSet : IDisposable {
     public Texture2D Texture;
     public CharacterInfo[] CharacterInfo;
@@ -180,6 +191,13 @@ namespace SS.Resources {
     public void Dispose() {
       if (Texture != null) UnityEngine.Object.Destroy(Texture);
     }
+  }
+  */
+
+  public struct FontSet {
+    public BitmapFont Font;
+    public ushort[] Offsets;
+    public byte[] Data;
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -203,5 +221,10 @@ namespace SS.Resources {
 
     public ushort RowBytes;
     public ushort Rows;
+
+    /* Resource continues with
+     * ushort[LastAscii - FirstAscii + 1] offsets
+     * byte[RowBytes * Rows] data
+     */
   }
 }

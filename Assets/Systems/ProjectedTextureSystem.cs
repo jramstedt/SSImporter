@@ -14,7 +14,7 @@ namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class ProjectedTextureSystem : SystemBase {
-    private Dictionary<Entity, DecalProjector> resourceDecalProjectors;
+    private Dictionary<Entity, DecalProjector> entityDecalProjectors = new();
 
     private EntityQuery newFlatTextureQuery;
     private EntityQuery activeDecalProjectorQuery;
@@ -38,8 +38,6 @@ namespace SS.System {
 
       RequireForUpdate<Level>();
       RequireForUpdate<AsyncLoadTag>();
-
-      resourceDecalProjectors = new();
 
       newFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<FlatTextureInfo, ObjectInstance>()
@@ -65,8 +63,7 @@ namespace SS.System {
         typeof(LocalTransform),
         typeof(Parent),
 
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
+        typeof(LocalToWorld)
       );
 
       instanceLookup = GetComponentLookup<ObjectInstance>(true);
@@ -121,7 +118,7 @@ namespace SS.System {
             materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true);
           }
 
-          if (resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
+          if (entityDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
             UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
 
             commandBuffer.RemoveComponent<AnimatedTag>(entity);
@@ -159,7 +156,7 @@ namespace SS.System {
             materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true);
           }
 
-          if (!resourceDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
+          if (!entityDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
             var gameObject = new GameObject {
               name = $"Decal Projector {entity}"
             };
@@ -175,7 +172,7 @@ namespace SS.System {
 
             commandBuffer.AddComponent<DecalProjectorAddedTag>(entity);
 
-            resourceDecalProjectors.Add(entity, decalProjector);
+            entityDecalProjectors.Add(entity, decalProjector);
           }
 
           UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
@@ -201,11 +198,11 @@ namespace SS.System {
 
       float scale = 1f;
       if (refWidthOverride > 0)
-        scale = refWidthOverride / bitmapDesc.Size.x;
+        scale = refWidthOverride / (float)bitmapDesc.Size.x;
 
       var realSize = scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 64f;
 
-      decalProjector.size = new() { x = realSize.x, y = realSize.y, z = 0.2f };
+      decalProjector.size = new(realSize.x, realSize.y, 0.2f);
     }
 
     private struct AsyncLoadTag : IComponentData { }

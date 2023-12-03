@@ -21,9 +21,9 @@ namespace SS.Resources {
 
     private static readonly Dictionary<ContentType, IResProvider[]> contentProviders = new() {
         { ContentType.Palette, new[]{ new PaletteProvider() } },
-        // String
+        { ContentType.String, new[]{ new StringProvider() } },
         { ContentType.Image, new[]{ new BitmapProvider() } },
-        { ContentType.Font, new []{ new FontProvider() } }, 
+        { ContentType.Font, new[]{ new FontProvider() } }, 
         // Animation
         { ContentType.Voc, new[]{ new AudioClipProvider() } },
         { ContentType.Obj3D, new[]{ new MeshProvider() } },

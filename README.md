@@ -2,8 +2,7 @@
 System Shock's assets importer for Unity.
 
 ## Features
-- Addressables
-- DOTS Hybrid Renderer
+- Entities Graphics
 - Loads runtime
 
 ## Thanks

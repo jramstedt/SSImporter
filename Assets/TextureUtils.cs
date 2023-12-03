@@ -4,7 +4,6 @@ using SS.System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace SS {
@@ -143,8 +142,22 @@ namespace SS {
       } else if (baseProperties.DrawType == DrawType.FlatTexture) {
         if (instanceData.Class == ObjectClass.Decoration) {
           if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
-            // TODO
-            return BatchMaterialID.Null;
+            const byte MEDIAN_WORD_SCALE = 4;
+
+            var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+            byte size = (byte)decorationData.WordScale;
+
+            var colorIndex = decorationData.WordColor;
+            var style = decorationData.WordStyle;
+            var wordIndex = decorationData.WordIndex;
+            var textType = TextType.Word;
+
+            if (size != 0)
+              size -= MEDIAN_WORD_SCALE;
+
+            refWidthOverride = (ushort)(size == 0 ? 128 : (1 << (7 + size))); // 1 << 7 = 128 is default word size
+
+            return materialProviderSystem.GetWordMaterial(wordIndex, colorIndex, style);
           } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
             return materialProviderSystem.GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
           } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
