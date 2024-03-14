@@ -11,7 +11,7 @@ namespace SS.ObjectProperties {
     public short Hitpoints;
     public byte Armour;
     public DrawType DrawType;
-    public byte PhysicsModel;  // ?? physics_model
+    public PhysicsModel PhysicsModel;
     public byte Hardness; // ?? hardness
     public byte Pep; // ?? ubyte pep; 
     public byte PhysicsX;
@@ -93,5 +93,13 @@ namespace SS.ObjectProperties {
     DirectionalSprite,      // FAUBJ_MULTIVIEW
     Special,                // FAUBJ_SPECIAL
     TranslucentPolygon      // FAUBJ_TL_POLY
+  }
+
+  public enum PhysicsModel : byte {
+    None,
+    Robot,
+    Pelvis,
+    Jello,
+    Particle // Dirac
   }
 }

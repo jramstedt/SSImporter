@@ -229,6 +229,14 @@ namespace SS.Resources {
                 new SphereGeometry {
                   Center = physicsTranslation,
                   Radius = r
+                },
+                CollisionFilter.Default,
+                new Unity.Physics.Material {
+                  FrictionCombinePolicy = CombinePolicy.GeometricMean,
+                  RestitutionCombinePolicy = CombinePolicy.GeometricMean,
+                  Friction = 0.5f,
+                  Restitution = 0f,
+                  CollisionResponse = CollisionResponsePolicy.RaiseTriggerEvents
                 }
               );
             } else {
@@ -446,6 +454,44 @@ namespace SS.Resources {
       unsafe {
         if (hackerState.initialShodanSecurityLevels[hackerState.currentLevel] == -1)
           hackerState.initialShodanSecurityLevels[hackerState.currentLevel] = hackerState.GetQuestVar(Shodan.GetShodanQuestVar(hackerState.currentLevel));
+      }
+
+      {
+        // TODO FIXME New game only
+
+        const byte INITIAL_PLAYER_X = 0x1E;
+        const byte INITIAL_PLAYER_Y = 0x16;
+
+
+        var baseData = objectProperties.BasePropertyData(new Triple { Class = ObjectClass.Enemy, SubClass = 0, Type = 6 });
+
+        var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+
+        var floorHeight = tileMap[INITIAL_PLAYER_X, INITIAL_PLAYER_Y].FloorHeight / (float)levelInfo.HeightDivisor;
+
+        var position = new float3(INITIAL_PLAYER_X + .5f, floorHeight, INITIAL_PLAYER_Y + .5f);
+        var rotation = quaternion.EulerZXY(0f, 192f / 256f * math.PI * 2f, 0f);
+
+        entityManager.AddComponentData(hackerEntity, LocalTransform.FromPositionRotation(position, rotation));
+        entityManager.AddSharedComponentManaged(hackerEntity, new PhysicsWorldIndex { Value = 0 });
+        entityManager.AddComponentData(hackerEntity, new PhysicsCollider() {
+          Value = Unity.Physics.CapsuleCollider.Create(
+            new CapsuleGeometry {
+              Radius = radius,
+              Vertex0 = new(0f, radius, 0f),
+              Vertex1 = new(0f, (0xbd00 / (float)0xFFFF) - radius, 0f)
+            },
+            CollisionFilter.Default,
+            new Unity.Physics.Material {
+              FrictionCombinePolicy = CombinePolicy.Minimum,
+              RestitutionCombinePolicy = CombinePolicy.Minimum,
+              Friction = 0f,
+              Restitution = 0f,
+              CollisionResponse = CollisionResponsePolicy.Collide
+            }
+          )
+        });
+        entityManager.AddComponentData(hackerEntity, PhysicsVelocity.Zero);
       }
 
       entityManager.SetComponentData(hackerEntity, hackerState);

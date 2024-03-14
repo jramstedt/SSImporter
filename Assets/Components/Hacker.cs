@@ -43,6 +43,13 @@ namespace SS.Resources {
     public const int COMBAT_DIFF_QUEST_VAR = 0xF;
     public const int PUZZLE_DIFF_QUEST_VAR = 0x1E;
 
+    public const int CONTROL_XVEL  = 0; // x translation
+    public const int CONTROL_YVEL  = 1; // y translation
+    public const int CONTROL_ZVEL  = 2; // z translation
+    public const int CONTROL_XYROT = 3; // xy rotation
+    public const int CONTROL_YZROT = 4; // yz rotation
+    public const int CONTROL_XZROT = 5; // xz rotation
+
     public enum MFDStatus : byte {
       Empty,
       Flash,
@@ -188,10 +195,11 @@ namespace SS.Resources {
     public int numDeaths;
 
     // from this point on - data is taking the time_to_level space
-    public long eyePosition;       // physics eye position
+    public long eyeAngle;       // physics eye position
 
     // let's hope State stays at 12 fixes
-    public unsafe fixed int edmsState[12];
+    //public unsafe fixed int edmsState[12];
+    public PhysicsState edmsState;
 
     // the player's actively selected inventory category.  
     public byte currentActiveCategory;
@@ -334,5 +342,24 @@ namespace SS.Resources {
       public readonly byte Heat => ammo;
       public readonly byte Setting => ammo_type;
     }
+  }
+
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct PhysicsState {
+    public int X;
+    public int Y;
+    public int Z;
+
+    public int Alpha; // Location.Yaw?
+    public int Beta; // Location.Roll?
+    public int Gamma; // Location Pitch?
+
+    // Velocities
+    public int Xvel;
+    public int Yvel;
+    public int Zvel;
+    public int AlphaVel;
+    public int BetaVel;
+    public int GammaVel;
   }
 }

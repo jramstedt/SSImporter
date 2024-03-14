@@ -304,10 +304,9 @@ namespace SS.Resources {
     /// <summary>8.8</summary>
     public ushort Y;
     public byte Z;
-    public byte Pitch;
-    public byte Yaw;
-    public byte Roll;
-
+    public byte Pitch; // FIXME Heading, Y axis
+    public byte Yaw; // FIXME Pitch, X axis
+    public byte Roll; // FIXME Bank, Z axis
 
     public readonly int TileX => X >> 8;
     public readonly int TileY => Y >> 8;
@@ -317,7 +316,7 @@ namespace SS.Resources {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Info {
-    public byte AIIndex;
+    public byte PhysicsHandle;
     public byte Type;
     public ushort Hitpoints;
     public byte MakerDetails;
