@@ -55,7 +55,7 @@ namespace SS {
     }
 
     private class CreateLightmap : LoaderBase<Texture2D> {
-      public CreateLightmap () {
+      public CreateLightmap() {
         Texture2D lightmap;
         if (SystemInfo.SupportsTextureFormat(TextureFormat.RG16))
           lightmap = new(64, 64, TextureFormat.RG16, false, true);

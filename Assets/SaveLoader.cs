@@ -105,7 +105,7 @@ namespace SS.Resources {
 
       var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
       using var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Temp);
-      
+
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
 
@@ -499,7 +499,7 @@ namespace SS.Resources {
       var physicsConfigEntity = entityManager.CreateEntity();
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,
-        DrawColliderEdges = 0,
+        DrawColliderEdges = 1,
         DrawColliderAabbs = 0,
         DrawBroadphase = 0,
         DrawMassProperties = 0,

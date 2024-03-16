@@ -23,7 +23,7 @@ namespace SS.Resources {
         }
       }
 
-      public AudioClipLoader (ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      public AudioClipLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
         LoadAsync(resFile, resInfo, blockIndex);
       }
 

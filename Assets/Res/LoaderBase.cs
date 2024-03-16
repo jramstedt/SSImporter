@@ -64,12 +64,12 @@ namespace SS.Resources {
 
   public class FileByteLoader : LoaderBase<byte[]> {
     private readonly string filePath;
-    public FileByteLoader (string filePath) {
+    public FileByteLoader(string filePath) {
       this.filePath = filePath;
       LoadAsync();
     }
 
-    private async void LoadAsync () {
+    private async void LoadAsync() {
       using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
       if (stream.Length > int.MaxValue)

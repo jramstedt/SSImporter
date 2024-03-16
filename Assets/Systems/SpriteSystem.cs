@@ -4,7 +4,6 @@ using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
@@ -121,6 +120,15 @@ namespace SS.System {
     protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
 
+      /*
+      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+      RenderMeshUtility.AddComponents(
+        prototype,
+        EntityManager,
+        renderMeshDescription
+      );
+      */
+
       var objectProperties = this.objectProperties;
       var spriteBase = this.spriteBase;
       var spriteMeshes = this.spriteMeshes;
@@ -146,6 +154,7 @@ namespace SS.System {
           if (baseData.IsDoubleSize)
             scale *= 2f;
 
+          //var viewPart = commandBuffer.Instantiate(entityInQueryIndex, prototype);
           var viewPart = EntityManager.CreateEntity(viewPartArchetype);
           RenderMeshUtility.AddComponents(
             viewPart,
@@ -166,6 +175,7 @@ namespace SS.System {
         })
         .WithStructuralChanges()
         .Run();
+      //.ScheduleParallel();
 
       var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
 
@@ -178,6 +188,9 @@ namespace SS.System {
           localTransform.Rotation = mul(towardsCameraRotation, inverse(parentTransform.Rotation));
         })
         .ScheduleParallel();
+
+      //var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
+      //finalizeCommandBuffer.DestroyEntity(prototype);
     }
 
     [BurstCompile]

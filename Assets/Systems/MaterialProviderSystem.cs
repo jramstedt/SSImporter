@@ -27,7 +27,8 @@ namespace SS.System {
     private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
     private NativeParallelHashMap<(ushort wordIndex, byte color, byte style), BatchMaterialID> wordMaterials;
-    private NativeParallelHashMap<(ushort textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> textMaterials;
+    private NativeParallelHashMap<(ushort textIndex, byte color, byte style, bool lightmapped, bool decal, bool scroll), BatchMaterialID> textMaterials;
+    private NativeParallelHashMap<(UnityEngine.Hash128 textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> freeTextMaterials;
     private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
     private readonly Dictionary<BatchMaterialID, IResHandle<BitmapSet>> bitmapSetLoaders = new();
@@ -57,6 +58,7 @@ namespace SS.System {
       cameraMaterials = new(128, Allocator.Persistent);
       wordMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
       textMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
+      freeTextMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
       translucentMaterials = new(256, Allocator.Persistent);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
@@ -135,18 +137,17 @@ namespace SS.System {
         (float opacity, float purity) fog = (0x3000 / (float)0xFFFF, 0x6000 / (float)0xFFFF);
         (float opacity, float purity) force = (0x5000 / (float)0xFFFF, 0x8000 / (float)0xFFFF);
 
-        translucencyTable = new (9, Allocator.Persistent)
-        {
-          [249] = (fog.opacity, fog.purity, new Color32(255,   0,   0,   0)),
-          [250] = (fog.opacity, fog.purity, new Color32(  0, 255,   0,   0)),
-          [251] = (fog.opacity, fog.purity, new Color32(  0,   0, 255,   0)),
-          [248] = (fog.opacity, fog.purity, new Color32(170, 170, 170,   0)),
-          [252] = (fog.opacity, fog.purity, new Color32(240, 240, 240,   0)),
-          [247] = (fog.opacity, fog.purity, new Color32(120, 120, 120,   0)),
-          
-          [255] = (force.opacity, force.purity, new Color32(255,   0,   0,   0)),
-          [254] = (force.opacity, force.purity, new Color32(  0, 255,   0,   0)),
-          [253] = (force.opacity, force.purity, new Color32(  0,   0, 255,   0)),
+        translucencyTable = new(9, Allocator.Persistent) {
+          [249] = (fog.opacity, fog.purity, new Color32(255, 0, 0, 0)),
+          [250] = (fog.opacity, fog.purity, new Color32(0, 255, 0, 0)),
+          [251] = (fog.opacity, fog.purity, new Color32(0, 0, 255, 0)),
+          [248] = (fog.opacity, fog.purity, new Color32(170, 170, 170, 0)),
+          [252] = (fog.opacity, fog.purity, new Color32(240, 240, 240, 0)),
+          [247] = (fog.opacity, fog.purity, new Color32(120, 120, 120, 0)),
+
+          [255] = (force.opacity, force.purity, new Color32(255, 0, 0, 0)),
+          [254] = (force.opacity, force.purity, new Color32(0, 255, 0, 0)),
+          [253] = (force.opacity, force.purity, new Color32(0, 0, 255, 0)),
         };
       }
 
@@ -165,6 +166,7 @@ namespace SS.System {
       cameraMaterials.Dispose();
       wordMaterials.Dispose();
       textMaterials.Dispose();
+      freeTextMaterials.Dispose();
 
       randoms.Dispose();
     }
@@ -248,7 +250,7 @@ namespace SS.System {
       return cameraBitmapSets[cameraIndex].Texture;
     }
 
-    public BatchMaterialID GetWordMaterial (ushort wordIndex, byte color, byte style) {
+    public BatchMaterialID GetWordMaterial(ushort wordIndex, byte color, byte style) {
       if (wordMaterials.TryGetValue((wordIndex, color, style), out var batchMaterialID))
         return batchMaterialID; // Word already rendered. Skip rendering.
 
@@ -259,7 +261,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (wordMaterials.TryAdd((wordIndex, color, style), batchMaterialID)) {
-        RenderTextAsync(batchMaterialID, TextType.Word, wordIndex, color, style);
+        RenderTextAsync(batchMaterialID, TextType.Word, wordIndex, color, style, false);
         return batchMaterialID;
       }
 
@@ -268,23 +270,46 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    public BatchMaterialID GetTextMaterial(ushort textIndex, byte color, byte style, bool lightmapped, bool decal) {
-      if (textMaterials.TryGetValue((textIndex, color, style, lightmapped, decal), out var batchMaterialID))
+    public BatchMaterialID GetTextMaterial(ushort textIndex, byte color, byte style, bool lightmapped, bool decal, bool scroll) {
+      if (textMaterials.TryGetValue((textIndex, color, style, lightmapped, decal, scroll), out var batchMaterialID))
         return batchMaterialID; // Word already rendered. Skip rendering.
 
-      Material material = new(decal ? decalMaterialTemplate : cameraMaterialTemplate);
+      Material material = new(decal ? decalMaterialTemplate : clutMaterialTemplate);
       if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
       else material.DisableKeyword(@"_LIGHTGRID");
       material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
-      if (textMaterials.TryAdd((textIndex, color, style, lightmapped, decal), batchMaterialID)) {
-        RenderTextAsync(batchMaterialID, TextType.Screen, textIndex, color, style);
+      if (textMaterials.TryAdd((textIndex, color, style, lightmapped, decal, scroll), batchMaterialID)) {
+        RenderTextAsync(batchMaterialID, TextType.Screen, textIndex, color, style, scroll);
         return batchMaterialID;
       }
 
       Debug.LogWarning($"GetTextMaterial failed for {textIndex}.");
+
+      return BatchMaterialID.Null;
+    }
+
+    public BatchMaterialID GetTextMaterial(string fullText, byte color, byte style, bool lightmapped, bool decal) {
+      var hash = UnityEngine.Hash128.Compute(fullText);
+
+      if (freeTextMaterials.TryGetValue((hash, color, style, lightmapped, decal), out var batchMaterialID))
+        return batchMaterialID; // Word already rendered. Skip rendering.
+
+      Material material = new(decal ? decalMaterialTemplate : clutMaterialTemplate);
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
+      material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (freeTextMaterials.TryAdd((hash, color, style, lightmapped, decal), batchMaterialID)) {
+        RenderTextAsync(batchMaterialID, TextType.Screen, fullText, color, style);
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetTextMaterial failed for {fullText}.");
 
       return BatchMaterialID.Null;
     }
@@ -340,9 +365,9 @@ namespace SS.System {
         material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
     }
 
-    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, ushort wordIndex, byte color, byte style) {
+    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, ushort wordIndex, byte color, byte style, bool scroll) {
       var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
-      var bitmapSet = CreateTexture(@"Word decal", settings.Width, settings.Height, true);
+      var bitmapSet = CreateTexture(@"Rendered text", settings.Width, settings.Height, true);
 
       bitmapSetLoaders.TryAdd(batchMaterialID, new CompletedLoader<BitmapSet>(bitmapSet));
 
@@ -355,12 +380,49 @@ namespace SS.System {
       material.SetTexture(shaderTextureName, bitmapSet.Texture);
 
       var fontSet = await Res.Load<FontSet>(fontRes);
-      var fullText = await Res.Load<string>(settings.ResId, wordIndex);
+
+      if (scroll) {
+        byte scrollIndex = 0;
+        var textPos = new int2(1, 1);
+
+        while (textPos.y < settings.Height) {
+          var fullText = await Res.Load<string>(settings.ResId, (ushort)(wordIndex + scrollIndex));
+
+          var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+
+          GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
+
+          textPos.y += textSize.y + 1;
+          ++scrollIndex;
+        }
+      } else {
+        var fullText = await Res.Load<string>(settings.ResId, wordIndex);
+
+        var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+        var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
+
+        GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
+      }
+    }
+
+    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, string fullText, byte color, byte style) {
+      var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
+      var bitmapSet = CreateTexture(@"Rendered text", settings.Width, settings.Height, true);
+
+      bitmapSetLoaders.TryAdd(batchMaterialID, new CompletedLoader<BitmapSet>(bitmapSet));
+
+      unsafe {
+        var rawData = bitmapSet.Texture.GetRawTextureData<byte>();
+        UnsafeUtility.MemClear(rawData.GetUnsafePtr(), rawData.Length);
+      }
+
+      var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
+      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+
+      var fontSet = await Res.Load<FontSet>(fontRes);
 
       var textSize = GraphicUtils.MeasureString(fontSet, fullText);
       var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
-
-      // TODO Scrolling
 
       GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
     }
@@ -420,19 +482,21 @@ namespace SS.System {
         return defaultMaterial;
       } else if (type == TextureType.Text) {
         if (index == RANDOM_TEXT_MAGIC_COOKIE) {
-          // TODO randomize text
-          // TODO DRAW TEXT CANVAS
+          var seed = TimeUtils.SecondsToFastTicks(SystemAPI.Time.ElapsedTime) >> 7;
+          var number = ((seed * 9277 + 7) % 14983) % 10;
+
+          return GetTextMaterial($"{number}", 0 /* style >> 16 */, style, lightmapped, decal);
         } else {
-          return GetTextMaterial(index, 0 /* style >> 16 */, style, lightmapped, decal);
+          return GetTextMaterial(index, 0 /* style >> 16 */, style, lightmapped, decal, false);
         }
       } else if (type == TextureType.ScrollText) {
-        // TODO DRAW TEXT CANVAS
+        return GetTextMaterial(index, 0 /* style >> 16 */, style, lightmapped, decal, true);
       }
 
       return BatchMaterialID.Null;
     }
 
-    private BitmapSet CreateTexture (string name, int width, int height, bool transparent = false) {
+    private BitmapSet CreateTexture(string name, int width, int height, bool transparent = false) {
       Texture2D texture;
       if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
         texture = new Texture2D(width, height, TextureFormat.R8, false, true);

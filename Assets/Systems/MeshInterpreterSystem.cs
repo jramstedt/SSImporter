@@ -178,7 +178,7 @@ namespace SS.System {
         var textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
-          
+
           if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
             throw new Exception(@"No mesh in cache.");
 

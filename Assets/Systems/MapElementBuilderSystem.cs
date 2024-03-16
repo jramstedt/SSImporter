@@ -16,8 +16,8 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
-using MeshCollider = Unity.Physics.MeshCollider;
 using Collider = Unity.Physics.Collider;
+using MeshCollider = Unity.Physics.MeshCollider;
 
 namespace SS.System {
   [UpdateInGroup(typeof(InitializationSystemGroup))]

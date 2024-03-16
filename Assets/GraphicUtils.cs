@@ -109,7 +109,7 @@ namespace SS {
     }
 
     [BurstCompile]
-    public static int2 MeasureString (FontSet fontSet, string fullText) {
+    public static int2 MeasureString(FontSet fontSet, string fullText) {
       var font = fontSet.Font;
       var offsets = fontSet.Offsets;
 
@@ -141,7 +141,7 @@ namespace SS {
     }
 
     [BurstCompile]
-    public static  (TextTargetSettings settings, byte color, ushort fontRes) GetTextProperties(TextType type, byte colorIndex, byte style) {
+    public static (TextTargetSettings settings, byte color, ushort fontRes) GetTextProperties(TextType type, byte colorIndex, byte style) {
       TextTargetSettings settings = type switch {
         TextType.Word => new() { Width = 128, Height = 32, Transparent = true, ResId = 0x868 /* RES_words */ },
         TextType.Screen => new() { Width = 64, Height = 64, Transparent = false, ResId = 0x877 /* RES_screenText */ },

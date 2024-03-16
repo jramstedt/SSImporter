@@ -26,24 +26,24 @@ namespace SS.Resources {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct Palette {
-    public const byte PURPLE_8_BASE       = 0x20;
-    public const byte MAIZE_8_BASE        = 0x28;
-    public const byte RED_8_BASE          = 0x33;
-    public const byte ORANGE_8_BASE       = 0x41;
-    public const byte YELLOW_8_BASE       = 0x4b;
-    public const byte GREEN_8_BASE        = 0x59;
-    public const byte AQUA_8_BASE         = 0x66;
-    public const byte BLUE_8_BASE         = 0x76;
-    public const byte REDBROWN_8_BASE     = 0x85;
-    public const byte BROWN_8_BASE        = 0x94;
-    public const byte GRAYGREEN_8_BASE    = 0xA0;
-    public const byte BRIGHTBROWN_8_BASE  = 0xA8;
-    public const byte METALBLUE_8_BASE    = 0xB6;
-    public const byte LIGHTBROWN_8_BASE   = 0xC6;
-    public const byte GRAY_8_BASE         = 0xD6;
+    public const byte PURPLE_8_BASE = 0x20;
+    public const byte MAIZE_8_BASE = 0x28;
+    public const byte RED_8_BASE = 0x33;
+    public const byte ORANGE_8_BASE = 0x41;
+    public const byte YELLOW_8_BASE = 0x4b;
+    public const byte GREEN_8_BASE = 0x59;
+    public const byte AQUA_8_BASE = 0x66;
+    public const byte BLUE_8_BASE = 0x76;
+    public const byte REDBROWN_8_BASE = 0x85;
+    public const byte BROWN_8_BASE = 0x94;
+    public const byte GRAYGREEN_8_BASE = 0xA0;
+    public const byte BRIGHTBROWN_8_BASE = 0xA8;
+    public const byte METALBLUE_8_BASE = 0xB6;
+    public const byte LIGHTBROWN_8_BASE = 0xC6;
+    public const byte GRAY_8_BASE = 0xD6;
 
-    public const byte PULSE_RED           = 0x1c;
-    public const byte PULSE_GREEN         = 0x0d;
+    public const byte PULSE_RED = 0x1c;
+    public const byte PULSE_GREEN = 0x0d;
 
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 3)]
     private readonly byte[] rgb; // RGBRGB...

@@ -53,7 +53,7 @@ namespace SS.System {
         .Build(this);
 
       animatedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll< FlatTextureMeshAddedTag, AnimatedTag, FlatTextureInfo, ObjectInstance>()
+        .WithAll<FlatTextureMeshAddedTag, AnimatedTag, FlatTextureInfo, ObjectInstance>()
         .Build(this);
 
       removedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -214,7 +214,7 @@ namespace SS.System {
       }
     }
 
-    private async void UpdatePlaneMeshAsync (BatchMaterialID materialID, ushort refWidthOverride, Mesh mesh) {
+    private async void UpdatePlaneMeshAsync(BatchMaterialID materialID, ushort refWidthOverride, Mesh mesh) {
       var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
 
       float scale = 1f;

@@ -80,7 +80,7 @@ namespace SS.Resources {
 
       #region Load archive.dat
       Debug.Log(@"Load archive.dat");
-      await SaveLoader.LoadMap(1, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
+      await SaveLoader.LoadMap(2, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
       #endregion
     }
 
@@ -91,13 +91,13 @@ namespace SS.Resources {
 
       var palette = await Res.Load<Palette>(0x02BC);
       Debug.Log($"{palette}");
-      
+
       var bitmapSet = await Res.Load<BitmapSet>(0x004D, 10);
       Debug.Log($"{bitmapSet}");
 
       var meshInfo = await Res.Load<MeshInfo>(0x8FC);
       Debug.Log($"{meshInfo}");
-      
+
       var fontSet = await Res.Load<FontSet>(0x25D);
       Debug.Log($"{fontSet}");
     }

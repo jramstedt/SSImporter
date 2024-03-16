@@ -129,7 +129,7 @@ namespace SS.System {
       {
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
 
-        foreach (var (instanceData, entity) in 
+        foreach (var (instanceData, entity) in
           SystemAPI.Query<ObjectInstance>()
           .WithAll<FlatTextureInfo>()
           .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
@@ -191,7 +191,7 @@ namespace SS.System {
         .Run();
     }
 
-    async void UpdateProjectorAsync (DecalProjector decalProjector, BatchMaterialID materialID, ushort refWidthOverride) {
+    async void UpdateProjectorAsync(DecalProjector decalProjector, BatchMaterialID materialID, ushort refWidthOverride) {
       decalProjector.material = entitiesGraphicsSystem.GetMaterial(materialID);
 
       var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);

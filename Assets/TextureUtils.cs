@@ -150,7 +150,6 @@ namespace SS {
             var colorIndex = decorationData.WordColor;
             var style = decorationData.WordStyle;
             var wordIndex = decorationData.WordIndex;
-            var textType = TextType.Word;
 
             if (size != 0)
               size -= MEDIAN_WORD_SCALE;

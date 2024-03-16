@@ -1,7 +1,3 @@
-using SS;
-using SS.Resources;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 /*
 public class ForceFieldRendererFeature : ScriptableRendererFeature {
   private AsyncOperationHandle<Palette> palette;

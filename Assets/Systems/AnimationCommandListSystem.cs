@@ -55,7 +55,7 @@ namespace SS.System {
         CachedAnimations = cachedAnimations,
         CommandBuffer = listProcessCommandBuffer.AsParallelWriter()
       };
-        
+
       Dependency = processAnimationCommands.Schedule(commands.ForEachCount, 1, Dependency);
       if (commands.IsCreated) commands.Dispose(Dependency);
 

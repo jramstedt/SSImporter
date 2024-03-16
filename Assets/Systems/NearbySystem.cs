@@ -101,16 +101,16 @@ namespace SS.System {
           if (type == TextureType.Custom && index == SHODAN_STATIC_MAGIC_COOKIE) {
             // if ((rand() & STOCHASTIC_SHODAN_MASK) == 1) {
 
-              Debug.Log($"CheckNearbyJob SHODAN_STATIC_MAGIC_COOKIE {decorationData.Link.ObjectIndex}");
+            Debug.Log($"CheckNearbyJob SHODAN_STATIC_MAGIC_COOKIE {decorationData.Link.ObjectIndex}");
 
-              decorationData.Data2 = Shodan.FIRST_SHODAN_ANIM;
-              decorationData.Cosmetic = Shodan.NUM_SHODAN_FRAMES;
-              objectInstance.Info.CurrentFrame = 0;
+            decorationData.Data2 = Shodan.FIRST_SHODAN_ANIM;
+            decorationData.Cosmetic = Shodan.NUM_SHODAN_FRAMES;
+            objectInstance.Info.CurrentFrame = 0;
 
-              DecorationLookup[objectEntity] = decorationData;
-              objectInstances[i] = objectInstance;
+            DecorationLookup[objectEntity] = decorationData;
+            objectInstances[i] = objectInstance;
 
-              animationList.AddAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
+            animationList.AddAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
             // }
           }
         }

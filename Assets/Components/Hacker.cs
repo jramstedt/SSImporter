@@ -43,9 +43,9 @@ namespace SS.Resources {
     public const int COMBAT_DIFF_QUEST_VAR = 0xF;
     public const int PUZZLE_DIFF_QUEST_VAR = 0x1E;
 
-    public const int CONTROL_XVEL  = 0; // x translation
-    public const int CONTROL_YVEL  = 1; // y translation
-    public const int CONTROL_ZVEL  = 2; // z translation
+    public const int CONTROL_XVEL = 0; // x translation
+    public const int CONTROL_YVEL = 1; // y translation
+    public const int CONTROL_ZVEL = 2; // z translation
     public const int CONTROL_XYROT = 3; // xy rotation
     public const int CONTROL_YZROT = 4; // yz rotation
     public const int CONTROL_XZROT = 5; // xz rotation
@@ -132,8 +132,8 @@ namespace SS.Resources {
     public unsafe fixed byte mfdCurrentSlots[NUM_MFDS];                // ptrs to mfd's curr slots
     public unsafe fixed byte mfdEmptyFuncs[NUM_MFDS];                  // ptrs to mfd's empty func
     public unsafe fixed byte mfdAccessPuzzles[64];             // this is 4 times as much as that hardcoded 8 up there
-                                                        // who knows how much we really need, hopefully in soon
-                                                        // KLC - changed to 64
+                                                               // who knows how much we really need, hopefully in soon
+                                                               // KLC - changed to 64
     public unsafe fixed sbyte mfdSaveSlot[NUM_MFDS];
 
     // Inventory stuff, in general, a value of zero will indicate an empty slot

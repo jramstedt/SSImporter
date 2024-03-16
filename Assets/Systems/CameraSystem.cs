@@ -1,11 +1,11 @@
 using SS.Resources;
+using System;
 using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Unity.Mathematics;
-using System;
-using Unity.Physics;
 
 namespace SS.System {
   public partial class CameraSystem : SystemBase {
