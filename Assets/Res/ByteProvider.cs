@@ -1,5 +1,3 @@
-using System;
-using System.Text;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {

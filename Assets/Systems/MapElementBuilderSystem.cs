@@ -204,7 +204,7 @@ namespace SS.System {
 
         var textureIndices = submeshTextureIndex.GetSubArray(entityIndex * 6, 6);
 
-        for (sbyte subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
+        for (ushort subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 
           var textureMapIndex = textureIndices[subMesh];
@@ -591,10 +591,10 @@ namespace SS.System {
         return 1;
       } else { // Possibly two part wall
         ReadOnlySpan<int> portalPoints = stackalloc int[] {
-          math.max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)), // Bottom left
-          math.min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)), // Top left
-          math.min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)), // Top right
-          math.max(tile.FloorCornerHeight(rightCorner), adjacent.FloorCornerHeight(adjacentRightCorner)) // Bottom right
+          max(tile.FloorCornerHeight(leftCorner), adjacent.FloorCornerHeight(adjacentLeftCorner)), // Bottom left
+          min(tile.CeilingCornerHeight(leftCorner), adjacent.CeilingCornerHeight(adjacentLeftCorner)), // Top left
+          min(tile.CeilingCornerHeight(rightCorner), adjacent.CeilingCornerHeight(adjacentRightCorner)), // Top right
+          max(tile.FloorCornerHeight(rightCorner), adjacent.FloorCornerHeight(adjacentRightCorner)) // Bottom right
         };
 
         bool floorAboveCeiling = portalPoints[0] > portalPoints[1] ^ portalPoints[3] > portalPoints[2]; // Other corner of ceiling is above and other below floor
@@ -605,10 +605,10 @@ namespace SS.System {
 
         // Upper portal border is below ceiling
         if (portalPoints[1] < tile.CeilingCornerHeight(leftCorner) || portalPoints[2] < tile.CeilingCornerHeight(rightCorner)) {
-          wallVertices[0].y = (floorAboveCeiling ? portalPoints[1] : math.max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
+          wallVertices[0].y = (floorAboveCeiling ? portalPoints[1] : max(portalPoints[1], tile.FloorCornerHeight(leftCorner))) * mapScale;
           wallVertices[1].y = tile.CeilingCornerHeight(leftCorner) * mapScale;
           wallVertices[2].y = tile.CeilingCornerHeight(rightCorner) * mapScale;
-          wallVertices[3].y = (floorAboveCeiling ? portalPoints[2] : math.max(portalPoints[2], tile.FloorCornerHeight(leftCorner))) * mapScale;
+          wallVertices[3].y = (floorAboveCeiling ? portalPoints[2] : max(portalPoints[2], tile.FloorCornerHeight(leftCorner))) * mapScale;
 
           vertices[vertexStart + 0] = new Vertex { pos = wallVertices[0], uv = half2(uvs[0].x, (half)(wallVertices[0].y - textureVerticalOffset)), light = wallVertices[0].y / wallVertices[1].y };
           vertices[vertexStart + 1] = new Vertex { pos = wallVertices[1], uv = half2(uvs[1].x, (half)(wallVertices[1].y - textureVerticalOffset)), light = 1f };
@@ -626,8 +626,8 @@ namespace SS.System {
         // Lower border is above floor
         if (portalPoints[0] > tile.FloorCornerHeight(leftCorner) || portalPoints[3] > tile.FloorCornerHeight(rightCorner)) {
           wallVertices[0].y = tile.FloorCornerHeight(leftCorner) * mapScale;
-          wallVertices[1].y = math.min(portalPoints[0], math.max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
-          wallVertices[2].y = math.min(portalPoints[3], math.max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          wallVertices[1].y = min(portalPoints[0], max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
+          wallVertices[2].y = min(portalPoints[3], max(tile.CeilingCornerHeight(leftCorner), tile.CeilingCornerHeight(rightCorner))) * mapScale;
           wallVertices[3].y = tile.FloorCornerHeight(rightCorner) * mapScale;
 
           vertices[vertexStart + 0] = new Vertex { pos = wallVertices[0], uv = half2(uvs[0].x, (half)(wallVertices[0].y - textureVerticalOffset)), light = 0f };

@@ -25,9 +25,9 @@ namespace SS {
     public const int SCALE_MASK = 0x0600;
     public const int STYLE_MASK = 0x0800;
 
-    public const int RANDOM_TEXT_MAGIC_COOKIE = 0x7F;
-    public const int REGULAR_STATIC_MAGIC_COOKIE = 0x77;
-    public const int SHODAN_STATIC_MAGIC_COOKIE = 0x76;
+    public const byte RANDOM_TEXT_MAGIC_COOKIE = 0x7F;
+    public const byte REGULAR_STATIC_MAGIC_COOKIE = 0x77;
+    public const byte SHODAN_STATIC_MAGIC_COOKIE = 0x76;
 
     public const int NUM_HACK_CAMERAS = 8;
 

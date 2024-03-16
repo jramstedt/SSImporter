@@ -280,7 +280,7 @@ namespace SS.System {
           var texturedMaterialID = materialProviderSystem.ParseTextureData(textureDatas[entityIndex], true, false, out var textureType, out var scale);
 
           var submeshCount = mesh.subMeshCount;
-          for (sbyte submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
+          for (ushort submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
             var textureId = textureIds[textureIdAccumulator++];
 
             var materialID = textureId switch {

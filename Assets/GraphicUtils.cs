@@ -1,5 +1,4 @@
 using SS.Resources;
-using SS.System;
 using System;
 using Unity.Burst;
 using Unity.Mathematics;
@@ -121,15 +120,15 @@ namespace SS {
       for (int index = 0; index < fullText.Length; index++) {
         char chr = fullText[index];
 
-        if (chr > font.LastAscii || chr < font.FirstAscii || chr == SOFTSP)
-          continue;
-
         if (chr == '\n' || chr == SOFTCR) {
           if (lineWide > widestLine) widestLine = lineWide;
           lineWide = 0;
           height += font.Rows;
           continue;
         }
+
+        if (chr > font.LastAscii || chr < font.FirstAscii || chr == SOFTSP)
+          continue;
 
         int xOffset = offsets[chr - font.FirstAscii];
         lineWide += offsets[chr - font.FirstAscii + 1] - xOffset;

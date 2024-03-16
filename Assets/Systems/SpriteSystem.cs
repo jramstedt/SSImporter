@@ -3,7 +3,6 @@ using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
@@ -12,7 +11,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
-using static UnityEditor.MaterialProperty;
 
 namespace SS.System {
   [BurstCompile]
@@ -177,7 +175,7 @@ namespace SS.System {
           if (parent.Value == Entity.Null) return;
 
           var parentTransform = SystemAPI.GetComponent<LocalToWorld>(parent.Value);
-          localTransform.Rotation = math.mul(towardsCameraRotation, math.inverse(parentTransform.Rotation));
+          localTransform.Rotation = mul(towardsCameraRotation, inverse(parentTransform.Rotation));
         })
         .ScheduleParallel();
     }

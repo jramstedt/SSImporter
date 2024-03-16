@@ -4,10 +4,10 @@ using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
-using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using static Unity.Mathematics.math;
 
 namespace SS.System {
   [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -71,7 +71,7 @@ namespace SS.System {
         if (textureAnimation.TotalFrames == 0) continue;
 
         var newTextureOffset = (textureAnimation.CurrentFrame + textureProperties.GroupPosition) % textureAnimation.TotalFrames;
-        var newTextureMapIndex = math.min(textureMapIndex + newTextureOffset, TextureMap.NUM_LOADED_TEXTURES - 1); // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
+        var newTextureMapIndex = min(textureMapIndex + newTextureOffset, TextureMap.NUM_LOADED_TEXTURES - 1); // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
 
         var newMaterialID = materialProviderSystem.GetTextureMaterial(textureMap[newTextureMapIndex]);
         var newBitmapSetOp = materialProviderSystem.GetBitmapLoader(newMaterialID);

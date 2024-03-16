@@ -1,9 +1,6 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {

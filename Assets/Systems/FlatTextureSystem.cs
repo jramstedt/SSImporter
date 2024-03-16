@@ -11,7 +11,6 @@ using UnityEngine.Rendering;
 using static SS.System.ProjectedTextureSystem;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
-using static UnityEditor.MaterialProperty;
 using Vertex = SS.Data.Vertex;
 
 namespace SS.System {

@@ -1,12 +1,10 @@
 using SS.Resources;
 using Unity.Entities;
-using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Mathematics;
 using System;
-using Unity.Collections;
 using Unity.Physics;
 
 namespace SS.System {

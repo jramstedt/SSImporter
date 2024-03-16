@@ -13,6 +13,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using static SS.TextureUtils;
+using static Unity.Mathematics.math;
 using Random = Unity.Mathematics.Random;
 
 namespace SS.System {
@@ -26,6 +27,7 @@ namespace SS.System {
     private NativeParallelHashMap<(uint resRef, bool lightmapped, bool decal), BatchMaterialID> bitmapMaterials;
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
     private NativeParallelHashMap<(ushort wordIndex, byte color, byte style), BatchMaterialID> wordMaterials;
+    private NativeParallelHashMap<(ushort textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> textMaterials;
     private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
     private readonly Dictionary<BatchMaterialID, IResHandle<BitmapSet>> bitmapSetLoaders = new();
@@ -54,6 +56,7 @@ namespace SS.System {
       bitmapMaterials = new(1024, Allocator.Persistent);
       cameraMaterials = new(128, Allocator.Persistent);
       wordMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
+      textMaterials = new(ObjectConstants.NUM_OBJECTS_BIGSTUFF, Allocator.Persistent);
       translucentMaterials = new(256, Allocator.Persistent);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
@@ -161,6 +164,7 @@ namespace SS.System {
       bitmapMaterials.Dispose();
       cameraMaterials.Dispose();
       wordMaterials.Dispose();
+      textMaterials.Dispose();
 
       randoms.Dispose();
     }
@@ -264,6 +268,27 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
+    public BatchMaterialID GetTextMaterial(ushort textIndex, byte color, byte style, bool lightmapped, bool decal) {
+      if (textMaterials.TryGetValue((textIndex, color, style, lightmapped, decal), out var batchMaterialID))
+        return batchMaterialID; // Word already rendered. Skip rendering.
+
+      Material material = new(decal ? decalMaterialTemplate : cameraMaterialTemplate);
+      if (lightmapped) material.EnableKeyword(@"_LIGHTGRID");
+      else material.DisableKeyword(@"_LIGHTGRID");
+      material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
+
+      batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
+
+      if (textMaterials.TryAdd((textIndex, color, style, lightmapped, decal), batchMaterialID)) {
+        RenderTextAsync(batchMaterialID, TextType.Screen, textIndex, color, style);
+        return batchMaterialID;
+      }
+
+      Debug.LogWarning($"GetTextMaterial failed for {textIndex}.");
+
+      return BatchMaterialID.Null;
+    }
+
     public BatchMaterialID GetTranslucentMaterial(byte colorIndex) {
       if (translucentMaterials.TryGetValue(colorIndex, out var batchMaterialID))
         return batchMaterialID; // Res already loaded. Skip loading.
@@ -333,7 +358,7 @@ namespace SS.System {
       var fullText = await Res.Load<string>(settings.ResId, wordIndex);
 
       var textSize = GraphicUtils.MeasureString(fontSet, fullText);
-      var textPos = (new int2(settings.Width, settings.Height) - textSize) >> 1;
+      var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
 
       // TODO Scrolling
 
@@ -365,10 +390,10 @@ namespace SS.System {
 
       textureData &= DATA_MASK;
 
-      var index = textureData & INDEX_MASK;
+      byte index = (byte)(textureData & INDEX_MASK);
       type = (TextureType)((textureData & TYPE_MASK) >> TPOLY_INDEX_BITS);
       scale = (textureData & SCALE_MASK) >> (TPOLY_INDEX_BITS + TPOLY_TYPE_BITS);
-      var style = (textureData & STYLE_MASK) == STYLE_MASK ? 2 : 3;
+      byte style = (textureData & STYLE_MASK) == STYLE_MASK ? (byte)2 : (byte)3;
 
       if (type == TextureType.Alt) {
         return GetMaterial((ushort)(SmallTextureIdBase + index), 0, lightmapped, decal);
@@ -398,7 +423,7 @@ namespace SS.System {
           // TODO randomize text
           // TODO DRAW TEXT CANVAS
         } else {
-          // TODO DRAW TEXT CANVAS
+          return GetTextMaterial(index, 0 /* style >> 16 */, style, lightmapped, decal);
         }
       } else if (type == TextureType.ScrollText) {
         // TODO DRAW TEXT CANVAS
