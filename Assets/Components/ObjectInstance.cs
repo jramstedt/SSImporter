@@ -116,11 +116,12 @@ namespace SS.Resources {
       #endregion
 
       #region Mesh data
-      public readonly uint SizeX => Data1 & 0x0F;
-      public readonly uint SizeY => (Data1 & 0xF0) >> 4;
-      public readonly uint SizeZ => (Data1 & 0xFF00) >> 8;
-      public readonly uint SideTexture => (Data1 & 0xFF0000) >> 16;
-      public readonly uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      public readonly byte SizeX => (byte)(Data1 & 0x0F);
+      public readonly byte SizeY => (byte)((Data1 & 0xF0) >> 4);
+      public readonly byte SizeZ => (byte)((Data1 & 0xFF00) >> 8);
+      public readonly byte SideTexture => (byte)((Data1 & 0xFF0000) >> 16);
+      public readonly byte TopBottomTexture => (byte)((Data1 & 0xFF000000) >> 24);
+      public readonly byte Color => (byte)(Data2 & 0xFF);
       #endregion
     }
 
@@ -133,11 +134,12 @@ namespace SS.Resources {
       public uint Data2;
 
       #region Mesh data
-      public readonly uint SizeX => Data1 & 0x0F;
-      public readonly uint SizeY => (Data1 & 0xF0) >> 4;
-      public readonly uint SizeZ => (Data1 & 0xFF00) >> 8;
-      public readonly uint SideTexture => (Data1 & 0xFF0000) >> 16;
-      public readonly uint TopBottomTexture => (Data1 & 0xFF000000) >> 24;
+      public readonly byte SizeX => (byte)(Data1 & 0x0F);
+      public readonly byte SizeY => (byte)((Data1 & 0xF0) >> 4);
+      public readonly byte SizeZ => (byte)((Data1 & 0xFF00) >> 8);
+      public readonly byte SideTexture => (byte)((Data1 & 0xFF0000) >> 16);
+      public readonly byte TopBottomTexture => (byte)((Data1 & 0xFF000000) >> 24);
+      public readonly byte Color => (byte)(Data2 & 0xFF);
       #endregion
     }
 
@@ -219,8 +221,8 @@ namespace SS.Resources {
 
       public uint Data;
 
-      public readonly uint SideTexture => Data & 0xFF;
-      public readonly uint TopBottomTexture => (Data & 0xFF00) >> 8;
+      public readonly byte SideTexture => (byte)(Data & 0xFF);
+      public readonly byte TopBottomTexture => (byte)((Data & 0xFF00) >> 8);
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

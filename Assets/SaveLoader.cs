@@ -315,7 +315,7 @@ namespace SS.Resources {
           entityManager.AddComponentData(entity, new FlatTextureInfo { });
         } else if (baseData.DrawType == DrawType.Special) {
           // TODO FIXME move outside somewhere out of the loop
-          using var defaults = new NativeParallelHashMap<int, (uint SizeX, uint SizeY, uint SizeZ, uint SideTexture, uint TopBottomTexture)>(8, Allocator.Persistent) {
+          using var defaults = new NativeParallelHashMap<int, (byte SizeX, byte SizeY, byte SizeZ, byte SideTexture, byte TopBottomTexture)>(8, Allocator.Persistent) {
             [0x70700] = (0x04, 0x04, 0x01, 0x80, 0x80),
             [0x70701] = (0x02, 0x04, 0x01, 0x80, 0x80),
             [0x70706] = (0x02, 0x02, 0xB0, 0x80, 0x81),
@@ -349,34 +349,35 @@ namespace SS.Resources {
           } else if (instanceData.Triple == 0x70707 /* FORCE_BRIJ_TRIPLE */ || instanceData.Triple == 0x70709 /* FORCE_BRIJ2_TRIPLE */) {
             var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
 
-            entityManager.AddComponentData(entity, new TransparentCuboid {
-              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
-              Color = decorationInstanceData.Data2,
-              Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT
-            });
-          } else if (instanceData.Triple == 0x70700 /* BRIDGE_TRIPLE */ || instanceData.Triple == 0x70701 /* CATWALK_TRIPLE */ || instanceData.Triple == 0x70706 /* PILLAR_TRIPLE */) {
-            var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
-
-            entityManager.AddComponentData(entity, new TexturedCuboid {
+            entityManager.AddComponentData(entity, new Cuboid {
               SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               Offset = 0,
-              SideTexture = (byte)(decorationInstanceData.SideTexture != 0 ? decorationInstanceData.SideTexture : instanceDefault.SideTexture),
-              TopBottomTexture = (byte)(decorationInstanceData.TopBottomTexture != 0 ? decorationInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture)
+              SideTexture = (short)-decorationInstanceData.Color,
+              TopBottomTexture = (short)-decorationInstanceData.Color,
+            });
+          } else if (instanceData.Triple == 0x70700 /* BRIDGE_TRIPLE */ || instanceData.Triple == 0x70701 /* CATWALK_TRIPLE */ || instanceData.Triple == 0x70706 /* PILLAR_TRIPLE */) {
+            var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
+
+            entityManager.AddComponentData(entity, new Cuboid {
+              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
+              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Offset = 0,
+              SideTexture = decorationInstanceData.SideTexture != 0 ? decorationInstanceData.SideTexture : instanceDefault.SideTexture,
+              TopBottomTexture = decorationInstanceData.TopBottomTexture != 0 ? decorationInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture
             });
           } else if (instanceData.Triple == 0xD0000 /* SML_CRT_TRIPLE */ || instanceData.Triple == 0xD0001 /* LG_CRT_TRIPLE */ || instanceData.Triple == 0xD0002 /* SECURE_CONTR_TRIPLE */) {
             var containerInstanceData = containerInstances[instanceData.SpecIndex];
 
-            entityManager.AddComponentData(entity, new TexturedCuboid {
+            entityManager.AddComponentData(entity, new Cuboid {
               SizeX = ((containerInstanceData.SizeX != 0 ? containerInstanceData.SizeX : instanceDefault.SizeX) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeY = ((containerInstanceData.SizeY != 0 ? containerInstanceData.SizeY : instanceDefault.SizeY) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeZ = ((containerInstanceData.SizeZ != 0 ? containerInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT,
-              SideTexture = (byte)(containerInstanceData.SideTexture != 0 ? containerInstanceData.SideTexture : instanceDefault.SideTexture),
-              TopBottomTexture = (byte)(containerInstanceData.TopBottomTexture != 0 ? containerInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture)
+              SideTexture = containerInstanceData.SideTexture != 0 ? containerInstanceData.SideTexture : instanceDefault.SideTexture,
+              TopBottomTexture = containerInstanceData.TopBottomTexture != 0 ? containerInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture
             });
           } else {
             Debug.LogWarning($"Unsupported special type {instanceData.Triple}.");
@@ -499,7 +500,7 @@ namespace SS.Resources {
       var physicsConfigEntity = entityManager.CreateEntity();
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,
-        DrawColliderEdges = 1,
+        DrawColliderEdges = 0,
         DrawColliderAabbs = 0,
         DrawBroadphase = 0,
         DrawMassProperties = 0,

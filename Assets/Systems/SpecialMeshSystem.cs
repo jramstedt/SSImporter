@@ -38,12 +38,12 @@ namespace SS.System {
       RequireForUpdate<Level>();
 
       activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<TexturedCuboid, LocalToWorld, MeshCachedTag>()
+        .WithAll<Cuboid, LocalToWorld, MeshCachedTag>()
         .Build(this);
 
       removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<MeshCachedTag>()
-        .WithNone<TexturedCuboid>()
+        .WithNone<Cuboid>()
         .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -127,9 +127,9 @@ namespace SS.System {
 
       Entities
         .WithStoreEntityQueryInField(ref newMeshQuery)
-        .WithAll<TexturedCuboid, ObjectInstance>()
+        .WithAll<Cuboid, ObjectInstance>()
         .WithNone<MeshCachedTag>()
-        .ForEach((Entity entity, int entityInQueryIndex, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
+        .ForEach((Entity entity, int entityInQueryIndex, in Cuboid cuboid, in ObjectInstance instanceData) => {
           var meshData = meshDataArray[entityInQueryIndex];
 
           meshData.subMeshCount = 2;
@@ -148,16 +148,16 @@ namespace SS.System {
 
           ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
             // Top
-            float3(-texturedCuboid.SizeX, texturedCuboid.SizeZ * 2f, -texturedCuboid.SizeY),
-            float3(texturedCuboid.SizeX, texturedCuboid.SizeZ * 2f, -texturedCuboid.SizeY),
-            float3(texturedCuboid.SizeX, texturedCuboid.SizeZ * 2f, texturedCuboid.SizeY),
-            float3(-texturedCuboid.SizeX, texturedCuboid.SizeZ * 2f, texturedCuboid.SizeY),
+            float3(-cuboid.SizeX, cuboid.SizeZ * 2f, -cuboid.SizeY),
+            float3(cuboid.SizeX, cuboid.SizeZ * 2f, -cuboid.SizeY),
+            float3(cuboid.SizeX, cuboid.SizeZ * 2f, cuboid.SizeY),
+            float3(-cuboid.SizeX, cuboid.SizeZ * 2f, cuboid.SizeY),
 
             // Bottom
-            float3(-texturedCuboid.SizeX, 0f, -texturedCuboid.SizeY),
-            float3(texturedCuboid.SizeX, 0f, -texturedCuboid.SizeY),
-            float3(texturedCuboid.SizeX, 0f, texturedCuboid.SizeY),
-            float3(-texturedCuboid.SizeX, 0f, texturedCuboid.SizeY)
+            float3(-cuboid.SizeX, 0f, -cuboid.SizeY),
+            float3(cuboid.SizeX, 0f, -cuboid.SizeY),
+            float3(cuboid.SizeX, 0f, cuboid.SizeY),
+            float3(-cuboid.SizeX, 0f, cuboid.SizeY)
           };
           var vertices = meshData.GetVertexData<Vertex>();
 
@@ -241,11 +241,11 @@ namespace SS.System {
       // TODO physics
 
       Entities
-        .WithAll<TexturedCuboid, ObjectInstance>()
+        .WithAll<Cuboid, ObjectInstance>()
         .WithNone<MeshCachedTag>()
-        .ForEach((Entity entity, int entityInQueryIndex, in TexturedCuboid texturedCuboid, in ObjectInstance instanceData) => {
-          var SideTexture = texturedCuboid.SideTexture;
-          var TopBottomTexture = texturedCuboid.TopBottomTexture;
+        .ForEach((Entity entity, int entityInQueryIndex, in Cuboid cuboid, in ObjectInstance instanceData) => {
+          var SideTexture = cuboid.SideTexture;
+          var TopBottomTexture = cuboid.TopBottomTexture;
 
           if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
             return;
@@ -254,7 +254,9 @@ namespace SS.System {
           {
             BatchMaterialID material;
 
-            if ((SideTexture & 0x80) == 0x80) {
+            if (SideTexture < 0) {
+              material = materialProviderSystem.GetTranslucentMaterial((byte)(-SideTexture));
+            } else if ((SideTexture & 0x80) == 0x80) {
               byte textureMapIndex = (byte)(SideTexture & 0x7F);
               ushort textureIndex = level.TextureMap[textureMapIndex];
               material = materialProviderSystem.GetTextureMaterial(textureIndex);
@@ -275,7 +277,7 @@ namespace SS.System {
             );
 
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
+            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
           }
           #endregion
 
@@ -283,7 +285,9 @@ namespace SS.System {
           {
             BatchMaterialID material;
 
-            if ((TopBottomTexture & 0x80) == 0x80) {
+            if (TopBottomTexture < 0) {
+              material = materialProviderSystem.GetTranslucentMaterial((byte)(-TopBottomTexture));
+            } else if ((TopBottomTexture & 0x80) == 0x80) {
               byte textureMapIndex = (byte)(TopBottomTexture & 0x7F);
               ushort textureIndex = level.TextureMap[textureMapIndex];
               material = materialProviderSystem.GetTextureMaterial(textureIndex);
@@ -304,7 +308,7 @@ namespace SS.System {
             );
 
             commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -texturedCuboid.Offset, 0f));
+            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
           }
           #endregion
         })
@@ -317,20 +321,12 @@ namespace SS.System {
 
   internal struct MeshCachedTag : ICleanupComponentData { }
 
-  public struct TexturedCuboid : IComponentData {
+  public struct Cuboid : IComponentData {
     public float SizeX;
     public float SizeY;
     public float SizeZ;
     public float Offset;
-    public byte SideTexture;
-    public byte TopBottomTexture;
-  }
-
-  public struct TransparentCuboid : IComponentData {
-    public float SizeX;
-    public float SizeY;
-    public float SizeZ;
-    public float Offset;
-    public uint Color;
+    public short SideTexture;
+    public short TopBottomTexture;
   }
 }
