@@ -14,7 +14,7 @@ namespace SS.System {
     private NativeArray<Color32> palette;
 
     private EntityQuery paletteEffectQuery;
-    private int lastTicks;
+    private long lastTicks;
 
     protected override async void OnCreate() {
       base.OnCreate();
@@ -36,7 +36,7 @@ namespace SS.System {
 
     protected override void OnUpdate() {
       var ticks = TimeUtils.SecondsToSlowTicks(SystemAPI.Time.ElapsedTime);
-      var delta = ticks - lastTicks;
+      int delta = (int)(ticks - lastTicks);
 
       if (delta <= 0) return;
       lastTicks = ticks;
