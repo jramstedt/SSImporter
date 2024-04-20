@@ -53,9 +53,11 @@ namespace SS.System {
           EntityManager.AddComponentObject(entity, camera);
           EntityManager.AddComponentObject(entity, urpCameraData);
           EntityManager.AddComponentData(entity, new CameraAdded() {
-            go = gameObject
+            go = gameObject,
+            CameraIndex = surveillanceSource.CameraIndex
           });
 
+          ++materialProviderSystem.cameraSourceCount[surveillanceSource.CameraIndex];
           camera.targetTexture = materialProviderSystem.GetCameraRenderTexture(surveillanceSource.CameraIndex);
         })
         .WithoutBurst()
@@ -73,6 +75,7 @@ namespace SS.System {
         .WithAll<CameraAdded>()
         .WithNone<SurveillanceSource>()
         .ForEach((Entity entity, CameraAdded cameraData) => {
+          --materialProviderSystem.cameraSourceCount[cameraData.CameraIndex];
           GameObject.Destroy(cameraData.go);
           EntityManager.RemoveComponent<CameraAdded>(entity);
         })
@@ -83,10 +86,11 @@ namespace SS.System {
   }
 
   public struct SurveillanceSource : IComponentData {
-    public int CameraIndex;
+    public byte CameraIndex;
   }
 
   internal class CameraAdded : ICleanupComponentData {
     public GameObject go;
+    public byte CameraIndex;
   }
 }

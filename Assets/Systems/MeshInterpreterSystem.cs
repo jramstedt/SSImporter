@@ -240,7 +240,7 @@ namespace SS.System {
 
           // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
 
-          // TODO could more fo this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
+          // TODO could more of this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
           var objectIndex = level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
           var isAnimating = IsAnimated(objectIndex, animationData.AsReadOnly());
 
@@ -410,7 +410,7 @@ namespace SS.System {
             for (int i = 0; i < vertexCount; ++i) {
               var vertexState = vertexBuffer[vertexIndices[i]];
 
-              // TODO can we use 0 instaed of MaxValue?
+              // TODO can we use 0 instead of MaxValue?
 
               //if (drawState.gouraud == Gouraud.normal)
               subMeshVertices.Add(new Vertex { pos = vertexState.position, uv = colorUV });

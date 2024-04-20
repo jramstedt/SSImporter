@@ -400,7 +400,7 @@ namespace SS.Resources {
         surveillanceSourceEntities[i] = entity;
 
         entityManager.AddComponentData(entity, new SurveillanceSource() {
-          CameraIndex = i
+          CameraIndex = (byte)i
         });
       }
 

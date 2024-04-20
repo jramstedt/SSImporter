@@ -70,6 +70,9 @@ namespace SS.System {
 
           if (ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= ExpandTimestamp(timestamp, timestamp)) continue;
 
+
+          // TODO handle other ScheduleEvent.Types
+
           if (scheduleEvent.Type == EventType.Trap) {
             TrapScheduleEvent trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
 
@@ -77,9 +80,9 @@ namespace SS.System {
 
             // Debug.Log($"SchedulerJob EventType.Trap t:{trapEvent.TargetObjectIndex} s:{trapEvent.SourceObjectIndex}");
 
-            CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.TargetObjectIndex]);
+            CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.TargetObjectIndex]); // TODO do_multi_stuff
             if (trapEvent.SourceObjectIndex != -1)
-              CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.SourceObjectIndex]);
+              CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.SourceObjectIndex]); // trap_activate
           }
 
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);

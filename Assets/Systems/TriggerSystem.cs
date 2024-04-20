@@ -140,7 +140,7 @@ namespace SS.System {
           var instance = instances[i];
           var trigger = triggers[i];
 
-          Processor.Activate(entity, out bool message);
+          Processor.Activate(entity, out bool message); // TODO do_multi_stuff?
 
           CommandBuffer.RemoveComponent<TriggerActivateTag>(unfilteredChunkIndex, entity);
         }

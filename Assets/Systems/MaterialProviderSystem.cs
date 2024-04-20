@@ -49,6 +49,7 @@ namespace SS.System {
     private Material cameraMaterialTemplate;
 
     private CameraBitmapSet[] cameraBitmapSets;
+    public byte[] cameraSourceCount;
     private BitmapDesc defaultBitmapDesc;
 
     protected override void OnCreate() {
@@ -83,14 +84,7 @@ namespace SS.System {
       clutColorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
 
       decalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP Decal"));
-
-      cameraMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/Unlit")); // TODO Create color material with nearest lookup
-      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      cameraMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      cameraMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      cameraMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      cameraMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
+      cameraMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP Camera"));
 
       colorMaterialID = entitiesGraphicsSystem.RegisterMaterial(clutColorMaterialTemplate);
 
@@ -115,6 +109,7 @@ namespace SS.System {
 
       {
         cameraBitmapSets = new CameraBitmapSet[NUM_HACK_CAMERAS];
+        cameraSourceCount = new byte[NUM_HACK_CAMERAS];
 
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
           cameraBitmapSets[i] = new CameraBitmapSet() {
@@ -463,10 +458,10 @@ namespace SS.System {
         if (index >= FIRST_CAMERA_TMAP && index <= (FIRST_CAMERA_TMAP + NUM_HACK_CAMERAS)) {
           var cameraIndex = index - FIRST_CAMERA_TMAP;
 
-          // if (hasCamera(cameraIndex))
-          return GetCameraMaterial(cameraIndex, lightmapped, decal);
-          // else
-          // return noiseMaterialID;
+          if (cameraSourceCount[cameraIndex] > 0)
+            return GetCameraMaterial(cameraIndex, lightmapped, decal);
+          else
+            return decal ? decalNoiseMaterialID : noiseMaterialID;
         } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
           return decal ? decalNoiseMaterialID : noiseMaterialID;
         } else if (index >= FIRST_AUTOMAP_MAGIC_COOKIE && index <= (FIRST_AUTOMAP_MAGIC_COOKIE + NUM_AUTOMAP_MAGIC_COOKIES)) {
