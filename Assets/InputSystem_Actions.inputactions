@@ -1,5 +1,5 @@
 {
-    "name": "ProjectWideInputActions",
+    "name": "InputSystem_Actions",
     "maps": [
         {
             "name": "Player",
@@ -24,10 +24,19 @@
                     "initialStateCheck": true
                 },
                 {
+                    "name": "Lean",
+                    "type": "Value",
+                    "id": "401cef80-472a-4fb6-9908-9ff6c222d72f",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
                     "name": "Attack",
                     "type": "Button",
                     "id": "6c2ab1b8-8984-453a-af3d-a3c78ae1679a",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -36,7 +45,7 @@
                     "name": "Interact",
                     "type": "Button",
                     "id": "852140f2-7766-474d-8707-702459ba45f3",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "Hold",
                     "initialStateCheck": false
@@ -45,7 +54,7 @@
                     "name": "Crouch",
                     "type": "Button",
                     "id": "27c5f898-bc57-4ee1-8800-db469aca5fe3",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -472,6 +481,72 @@
                     "action": "Crouch",
                     "isComposite": false,
                     "isPartOfComposite": false
+                },
+                {
+                    "name": "Keyboard",
+                    "id": "494e42bb-313b-4f3c-bc3a-de3ea09035f9",
+                    "path": "1DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
+                    "id": "05a76c26-9709-46c3-807f-05ea66778acd",
+                    "path": "<Keyboard>/#(Z)",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "7789dcfe-ec9b-4c5f-a726-af172129fadb",
+                    "path": "<Keyboard>/#(X)",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "Gamepad",
+                    "id": "d8ff9314-da75-4755-a194-f391e392b3bc",
+                    "path": "1DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
+                    "id": "be6e3a20-d45b-4a00-b753-49587dca43af",
+                    "path": "<Gamepad>/leftShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "ed2da8af-b364-49ca-97c8-8bdd62280948",
+                    "path": "<Gamepad>/rightShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Lean",
+                    "isComposite": false,
+                    "isPartOfComposite": true
                 }
             ]
         },

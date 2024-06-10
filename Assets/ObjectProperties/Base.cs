@@ -7,6 +7,10 @@ namespace SS.ObjectProperties {
   public struct Base {
     public const int NUM_OBJECT = Weapon.NUM_GUN + Ammunition.NUM_AMMO + Projectile.NUM_PHYSICS + Explosive.NUM_GRENADE + DermalPatch.NUM_DRUG + Hardware.NUM_HARDWARE + Software.NUM_SOFTWARE + Decoration.NUM_BIGSTUFF + Item.NUM_SMALLSTUFF + Fixture.NUM_FIXTURE + DoorAndGrating.NUM_DOOR + Animating.NUM_ANIMATING + Trap.NUM_TRAP + Container.NUM_CONTAINER + Enemy.NUM_CRITTER;
 
+    public const int PHYS_PEP_UNIT = 1;
+    public const int PHYS_HARDNESS_UNIT = 1;
+    public const int PHYS_ROUGHNESS_UNIT = 1;
+    
     public int Mass;
     public short Hitpoints;
     public byte Armour;

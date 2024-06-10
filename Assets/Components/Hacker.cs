@@ -49,6 +49,8 @@ namespace SS.Resources {
     public const int CONTROL_XYROT = 3; // xy rotation
     public const int CONTROL_YZROT = 4; // yz rotation
     public const int CONTROL_XZROT = 5; // xz rotation
+    
+    public const ushort PLAYER_HGT = 0xBD00;
 
     public enum MFDStatus : byte {
       Empty,
