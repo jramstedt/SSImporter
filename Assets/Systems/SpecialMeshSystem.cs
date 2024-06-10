@@ -90,10 +90,11 @@ namespace SS.System {
     // TODO FIXME Almost equals to one in MaterialProviderSystem
     private async void LoadBitmapToMaterial(int materialIndex, Material material) {
       var bitmapSet = await Res.Load<BitmapSet>((ushort)(CustomTextureIdBase + materialIndex));
+      var textureSet = CreateTexture(bitmapSet);
 
-      material.SetTexture(MaterialProviderSystem.shaderTextureName, bitmapSet.Texture);
+      material.SetTexture(MaterialProviderSystem.shaderTextureName, textureSet.Texture);
 
-      if (bitmapSet.Description.Transparent)
+      if (textureSet.Description.Transparent)
         material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
       else
         material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);

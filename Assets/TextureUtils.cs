@@ -1,9 +1,12 @@
+using System;
 using SS.ObjectProperties;
 using SS.Resources;
 using SS.System;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace SS {
@@ -187,6 +190,201 @@ namespace SS {
 
       return BatchMaterialID.Null;
     }
+    
+    public static TextureSet CreateTexture(string name, int width, int height, bool transparent = false) {
+      Texture2D texture;
+      if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
+        texture = new Texture2D(width, height, TextureFormat.R8, false, true);
+      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+        texture = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
+      } else {
+        throw new Exception("No supported TextureFormat found.");
+      }
+      texture.name = name;
+      texture.filterMode = FilterMode.Point;
+      texture.wrapMode = TextureWrapMode.Clamp;
+
+      TextureSet bitmapSet = new() {
+        Texture = texture,
+        Description = new() {
+          Transparent = transparent,
+          Size = new(texture.width, texture.height),
+          AnchorPoint = new(),
+          AnchorRect = new()
+        }
+      };
+
+      return bitmapSet;
+    }
+    
+    public static TextureSet CreateTexture(BitmapSet bitmapSet) {
+      var bitmap = bitmapSet.Bitmap;
+      var pixelData = bitmapSet.Data;
+      
+      Texture2D texture;
+      int lastY = bitmap.Height - 1;
+
+      // TODO Make shader so that we don't have to flip textures
+
+      if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
+        texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.R8, false, true) {
+          filterMode = FilterMode.Point,
+          wrapMode = TextureWrapMode.Repeat
+        };
+
+        NativeArray<byte> textureData = texture.GetRawTextureData<byte>();
+
+        for (int y = 0; y < bitmap.Height; ++y)
+          NativeArray<byte>.Copy(pixelData, (lastY - y) * bitmap.Width, textureData, y * bitmap.Width, bitmap.Width);
+
+        texture.Apply();
+      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
+        texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true) {
+          filterMode = FilterMode.Point,
+          wrapMode = TextureWrapMode.Repeat
+        };
+
+        NativeArray<Color32> textureData = texture.GetRawTextureData<Color32>();
+        
+        int pixelIndex = 0;
+        for (int y = 0; y < bitmap.Height; ++y) {
+          for (int x = 0; x < bitmap.Width; ++x) {
+            byte paletteIndex = pixelData[((lastY - y) * bitmap.Width) + x];
+            textureData[pixelIndex++] = new Color32(paletteIndex, paletteIndex, paletteIndex, (byte)0xFF);
+          }
+        }
+
+        texture.Apply();
+      } else {
+        throw new Exception("No supported TextureFormat found.");
+      }
+
+      PrivatePalette? palette = null;
+      unsafe {
+        if (bitmapSet.Palette.IsCreated) {
+          palette = *(PrivatePalette*)bitmapSet.Palette.GetUnsafePtr();
+        }
+      }
+
+      var anchorPoint = bitmap.AnchorPoint;
+      var anchorRect = bitmap.AnchorArea;
+      
+      return new() {
+        Texture = texture,
+        Description = new() {
+          Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
+          Size = new Vector2Int(texture.width, texture.height),
+          AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),
+          AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
+          Palette = palette
+        }
+      };
+    }
+    
+    public static TextureSet CreateDoubledTexture (BitmapSet bitmapSet) {
+      var blendTables = Services.BlendTables.Result; // TODO FIXME
+
+      var srcBitmap = bitmapSet.Bitmap;
+      var srcPixelData = bitmapSet.Data;
+      
+      var dstPixelData = new NativeArray<byte>((srcBitmap.Width << 1) * (srcBitmap.Height << 1), Allocator.Persistent);
+
+      unsafe {
+        // Horizontal doubling
+        /*
+        { // Double pixels
+          var src = (byte*)srcPixelData.GetUnsafeReadOnlyPtr();
+          var dst = (ushort*)dstPixelData.GetUnsafePtr();
+          var srcRowPadding = srcBitmap.Stride - srcBitmap.Width;
+
+          for (int y = 0; y < srcBitmap.Height; ++y) {
+            for (int x = 0; x < srcBitmap.Width; ++x) {
+              *dst++ = (ushort)((*src << 8) | *src++);
+            }
+
+            src += srcRowPadding;
+            dst += srcBitmap.Width; // Skip one row. Will be filled later.
+          }
+        }
+        */
+        { // Blend pixels
+          var src = (byte*)srcPixelData.GetUnsafeReadOnlyPtr();
+          var dst = (ushort*)dstPixelData.GetUnsafePtr();
+          var srcRowPadding = srcBitmap.Stride - srcBitmap.Width;
+
+          for (int y = 0; y < srcBitmap.Height; ++y) {
+            for (int x = 1; x < srcBitmap.Width; ++x) { // x = 1 because reading short would overflow. Last pixel will be done after loop.
+              var curpix = *(ushort*)src;
+              *dst++ = (ushort)(blendTables[curpix] << 8 | *src++);
+            }
+            
+            *dst++ = (ushort)((*src << 8) | *src++); // Double last pixel
+
+            src += srcRowPadding;
+            dst += srcBitmap.Width; // Skip one row. Will be filled later.
+          }
+        }
+
+        // Vertical doubling
+        /*
+        { // Double pixels
+          var dstBitmapWidth = srcBitmap.Width << 1;
+
+          var src = (byte*)dstPixelData.GetUnsafePtr();
+          var dst = src + dstBitmapWidth;
+
+          for (int y = 0; y < srcBitmap.Height; ++y) {
+            for (int x = 0; x < dstBitmapWidth; ++x) {
+              *dst++ = *src++;
+            }
+
+            src += dstBitmapWidth; // skip line
+            dst += dstBitmapWidth;
+          }
+        }
+        */
+        { // Blend pixels
+          var dstBitmapWidth = srcBitmap.Width << 1;
+          
+          var src = (byte*)dstPixelData.GetUnsafePtr();
+          var dst = src + dstBitmapWidth;
+          
+          for (int y = 1; y < srcBitmap.Height; ++y) { // y = 1 because reading next row after last row would overflow. Last row will be done after loop.
+            for (int x = 0; x < dstBitmapWidth; ++x) {
+              var top = *src;
+              var bottom = *(src++ + (dstBitmapWidth << 1));
+              *dst++ = blendTables[(top << 8) | bottom];
+            }
+            
+            src += dstBitmapWidth; // skip line
+            dst += dstBitmapWidth;
+          }
+          
+          for (int x = 0; x < dstBitmapWidth; ++x)
+            *dst++ = *src++; // Double last row
+        }
+
+      }
+
+      var textureSet = CreateTexture(new BitmapSet {
+        Bitmap = new Bitmap {
+          BitmapType = BitmapType.Flat8,
+          Flags = srcBitmap.Flags,
+          Width = (ushort)(srcBitmap.Width << 1),
+          Height = (ushort)(srcBitmap.Height << 1),
+          Stride = (ushort)(srcBitmap.Width << 1),
+          WidthShift = (byte)(srcBitmap.WidthShift + 1),
+          HeightShift = (byte)(srcBitmap.HeightShift + 1),
+          AnchorArea = srcBitmap.AnchorArea
+        },
+        Data = dstPixelData,
+        Palette = default
+      });
+
+      textureSet.Description.Size /= 2; // Halve the size to keep render size the same.
+
+      return textureSet;
+    }
   }
 
   public enum TextureType {
@@ -194,5 +392,22 @@ namespace SS {
     Custom, // TPOLY_TYPE_CUSTOM_MAT
     Text, // TPOLY_TYPE_TEXT_BITMAP
     ScrollText // TPOLY_TYPE_SCROLL_TEXT
+  }
+  
+  public class TextureSet : IDisposable {
+    public Texture2D Texture;
+    public BitmapDesc Description;
+
+    public void Dispose() {
+      if (Texture != null) UnityEngine.Object.Destroy(Texture);
+    }
+  }
+    
+  public struct BitmapDesc {
+    public bool Transparent;
+    public Vector2Int Size;
+    public Vector2Int AnchorPoint;
+    public RectInt AnchorRect;
+    public PrivatePalette? Palette;
   }
 }

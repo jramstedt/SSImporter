@@ -74,7 +74,7 @@ namespace SS.System {
         var newTextureMapIndex = min(textureMapIndex + newTextureOffset, TextureMap.NUM_LOADED_TEXTURES - 1); // Alpha grove has unused texture with loop at the end of the list. Caused overflow here.
 
         var newMaterialID = materialProviderSystem.GetTextureMaterial(textureMap[newTextureMapIndex]);
-        var newBitmapSetOp = materialProviderSystem.GetBitmapLoader(newMaterialID);
+        var newBitmapSetOp = materialProviderSystem.GetTextureLoader(newMaterialID);
 
         if (!newBitmapSetOp.IsCompleted) continue;
         var newBitmapSet = newBitmapSetOp.Result;

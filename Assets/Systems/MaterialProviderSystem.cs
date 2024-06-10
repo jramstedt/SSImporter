@@ -31,7 +31,7 @@ namespace SS.System {
     private NativeParallelHashMap<(UnityEngine.Hash128 textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> freeTextMaterials;
     private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
-    private readonly Dictionary<BatchMaterialID, IResHandle<BitmapSet>> bitmapSetLoaders = new();
+    private readonly Dictionary<BatchMaterialID, IResHandle<TextureSet>> textureSetLoaders = new();
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
     private NativeArray<Random> randoms;
@@ -48,7 +48,7 @@ namespace SS.System {
     private Material decalMaterialTemplate;
     private Material cameraMaterialTemplate;
 
-    private CameraBitmapSet[] cameraBitmapSets;
+    private CameraTextureSet[] cameraTextureSets;
     public byte[] cameraSourceCount;
     private BitmapDesc defaultBitmapDesc;
 
@@ -96,7 +96,7 @@ namespace SS.System {
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
         noiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
-        bitmapSetLoaders.Add(noiseMaterialID, new CompletedLoader<BitmapSet>(noiseBitmapSet));
+        textureSetLoaders.Add(noiseMaterialID, new CompletedLoader<TextureSet>(noiseBitmapSet));
 
         noiseMaterial = new(clutDecalMaterialTemplate);
         noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
@@ -104,21 +104,21 @@ namespace SS.System {
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
         decalNoiseMaterialID = entitiesGraphicsSystem.RegisterMaterial(noiseMaterial);
-        bitmapSetLoaders.Add(decalNoiseMaterialID, new CompletedLoader<BitmapSet>(noiseBitmapSet));
+        textureSetLoaders.Add(decalNoiseMaterialID, new CompletedLoader<TextureSet>(noiseBitmapSet));
       }
 
       {
-        cameraBitmapSets = new CameraBitmapSet[NUM_HACK_CAMERAS];
+        cameraTextureSets = new CameraTextureSet[NUM_HACK_CAMERAS];
         cameraSourceCount = new byte[NUM_HACK_CAMERAS];
 
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
-          cameraBitmapSets[i] = new CameraBitmapSet() {
+          cameraTextureSets[i] = new () {
             Texture = new RenderTexture(new RenderTextureDescriptor(128, 128, RenderTextureFormat.ARGB32, 16)) {
               name = @"Camera",
               filterMode = FilterMode.Point,
               wrapMode = TextureWrapMode.Repeat
             },
-            Description = new BitmapDesc() {
+            Description = new () {
               Transparent = false,
               Size = new(32, 32),
               AnchorPoint = new(),
@@ -167,7 +167,7 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      if (bitmapSetLoaders.TryGetValue(noiseMaterialID, out var noiseBitmapSetLoader)) {
+      if (textureSetLoaders.TryGetValue(noiseMaterialID, out var noiseBitmapSetLoader)) {
         if (noiseBitmapSetLoader.IsCompleted) {
           var noiseTexture = noiseBitmapSetLoader.Result.Texture;
           var noiseTextureData = noiseTexture.GetRawTextureData<byte>();
@@ -231,7 +231,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (cameraMaterials.TryAdd((cameraIndex, lightmapped, decal), batchMaterialID)) {
-        var cameraTexture = cameraBitmapSets[cameraIndex].Texture;
+        var cameraTexture = cameraTextureSets[cameraIndex].Texture;
         material.SetTexture(shaderTextureName, cameraTexture);
         return batchMaterialID;
       }
@@ -242,7 +242,7 @@ namespace SS.System {
     }
 
     public RenderTexture GetCameraRenderTexture(int cameraIndex) {
-      return cameraBitmapSets[cameraIndex].Texture;
+      return cameraTextureSets[cameraIndex].Texture;
     }
 
     public BatchMaterialID GetWordMaterial(ushort wordIndex, byte color, byte style) {
@@ -332,9 +332,8 @@ namespace SS.System {
 
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
-      if (translucentMaterials.TryAdd(colorIndex, batchMaterialID)) {
+      if (translucentMaterials.TryAdd(colorIndex, batchMaterialID))
         return batchMaterialID;
-      }
 
       Debug.LogWarning($"GetTranslucentMaterial failed for {colorIndex}.");
 
@@ -342,14 +341,13 @@ namespace SS.System {
     }
 
     private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID) {
-      if (!bitmapSetLoaders.TryGetValue(batchMaterialID, out var bitmapSetLoadOp)) {  // Check if BitmapSet already loaded.
-        bitmapSetLoadOp = Res.Load<BitmapSet>(resRef);
-        bitmapSetLoaders.TryAdd(batchMaterialID, bitmapSetLoadOp);
+      if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) { // Check if BitmapSet already loaded.
+        var bitmapSetLoader = Res.Load<BitmapSet>(resRef);
+        textureSetLoadOp = new PickResultLoader<TextureSet, BitmapSet>(bitmapSetLoader, CreateDoubledTexture);
+        textureSetLoaders.TryAdd(batchMaterialID, textureSetLoadOp);
       }
 
-      bitmapSetLoaders.TryAdd(batchMaterialID, bitmapSetLoadOp);
-
-      var bitmapSet = await bitmapSetLoadOp;
+      var bitmapSet = await textureSetLoadOp;
 
       var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
       material.SetTexture(shaderTextureName, bitmapSet.Texture);
@@ -362,9 +360,13 @@ namespace SS.System {
 
     private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, ushort wordIndex, byte color, byte style, bool scroll) {
       var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
-      var bitmapSet = CreateTexture(@"Rendered text", settings.Width, settings.Height, true);
 
-      bitmapSetLoaders.TryAdd(batchMaterialID, new CompletedLoader<BitmapSet>(bitmapSet));
+      if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) {
+        textureSetLoadOp = new CompletedLoader<TextureSet>(CreateTexture(@"Rendered text", settings.Width, settings.Height, true));
+        textureSetLoaders.TryAdd(batchMaterialID, textureSetLoadOp);
+      }
+
+      var bitmapSet = await textureSetLoadOp;
 
       unsafe {
         var rawData = bitmapSet.Texture.GetRawTextureData<byte>();
@@ -376,6 +378,8 @@ namespace SS.System {
 
       var fontSet = await Res.Load<FontSet>(fontRes);
 
+      var textureData = bitmapSet.Texture.GetRawTextureData<byte>();
+      
       if (scroll) {
         byte scrollIndex = 0;
         var textPos = new int2(1, 1);
@@ -385,7 +389,7 @@ namespace SS.System {
 
           var textSize = GraphicUtils.MeasureString(fontSet, fullText);
 
-          GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
+          GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText, textPos, colorIndex);
 
           textPos.y += textSize.y + 1;
           ++scrollIndex;
@@ -396,15 +400,21 @@ namespace SS.System {
         var textSize = GraphicUtils.MeasureString(fontSet, fullText);
         var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
 
-        GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
+        GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText, textPos, colorIndex);
       }
+      
+      bitmapSet.Texture.Apply(false, false);
     }
 
     private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, string fullText, byte color, byte style) {
       var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
-      var bitmapSet = CreateTexture(@"Rendered text", settings.Width, settings.Height, true);
 
-      bitmapSetLoaders.TryAdd(batchMaterialID, new CompletedLoader<BitmapSet>(bitmapSet));
+      if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) {
+        textureSetLoadOp = new CompletedLoader<TextureSet>(CreateTexture(@"Rendered text", settings.Width, settings.Height, true));
+        textureSetLoaders.TryAdd(batchMaterialID, textureSetLoadOp);
+      }
+
+      var bitmapSet = await textureSetLoadOp;
 
       unsafe {
         var rawData = bitmapSet.Texture.GetRawTextureData<byte>();
@@ -419,22 +429,21 @@ namespace SS.System {
       var textSize = GraphicUtils.MeasureString(fontSet, fullText);
       var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
 
-      GraphicUtils.DrawString(bitmapSet.Texture, fontSet, fullText, textPos, colorIndex);
+      var textureData = bitmapSet.Texture.GetRawTextureData<byte>();
+      GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText, textPos, colorIndex);
+      bitmapSet.Texture.Apply(false, false);
     }
 
     public async Awaitable<BitmapDesc> GetBitmapDesc(BatchMaterialID materialID) {
-      if (bitmapSetLoaders.TryGetValue(materialID, out var bitmapSetLoader))
-        return (await bitmapSetLoader).Description;
+      if (textureSetLoaders.TryGetValue(materialID, out var textureSetLoader))
+        return (await textureSetLoader).Description;
 
       var cameraIndex = cameraMaterials.GetValueArray(Allocator.Temp).IndexOf(materialID);
-      if (cameraIndex != -1)
-        return cameraBitmapSets[cameraIndex].Description;
-
-      return defaultBitmapDesc;
+      return cameraIndex != -1 ? cameraTextureSets[cameraIndex].Description : defaultBitmapDesc;
     }
 
-    public IResHandle<BitmapSet> GetBitmapLoader(BatchMaterialID materialID) {
-      return bitmapSetLoaders[materialID];
+    public IResHandle<TextureSet> GetTextureLoader(BatchMaterialID materialID) {
+      return textureSetLoaders[materialID];
     }
 
     public BatchMaterialID ParseTextureData(int textureData, bool lightmapped, bool decal, out TextureType type, out int scale) {
@@ -491,32 +500,7 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    private BitmapSet CreateTexture(string name, int width, int height, bool transparent = false) {
-      Texture2D texture;
-      if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
-        texture = new Texture2D(width, height, TextureFormat.R8, false, true);
-      } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
-        texture = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
-      } else {
-        throw new Exception("No supported TextureFormat found.");
-      }
-      texture.name = name;
-      texture.filterMode = FilterMode.Point;
-      texture.wrapMode = TextureWrapMode.Clamp;
-
-      BitmapSet bitmapSet = new() {
-        Texture = texture,
-        Description = new() {
-          Transparent = transparent,
-          Size = new(texture.width, texture.height),
-          AnchorPoint = new(),
-          AnchorRect = new()
-        }
-      };
-
-      return bitmapSet;
-    }
-
+    /*
     private class MipMapLoader : LoaderBase<BitmapSet> {
       public MipMapLoader(ushort textureIndex) {
         Load(textureIndex);
@@ -559,6 +543,7 @@ namespace SS.System {
         });
       }
     }
+    */
 
     [BurstCompile]
     struct FillNoiseTexture : IJobParallelForBatch {
@@ -586,7 +571,7 @@ namespace SS.System {
       }
     }
 
-    private class CameraBitmapSet : IDisposable {
+    private class CameraTextureSet : IDisposable {
       public RenderTexture Texture;
       public BitmapDesc Description;
 
