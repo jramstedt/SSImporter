@@ -195,7 +195,7 @@ namespace SS.System {
               subMeshVertices.Clear();
               drawState = default;
 
-              IntepreterLoop(ms, msbr, localTransform.ToMatrix());
+              InterpreterLoop(ms, msbr, localTransform.ToMatrix());
             }
 
             var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
@@ -348,7 +348,7 @@ namespace SS.System {
       Dependency = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, Dependency);
     }
 
-    private unsafe void IntepreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
+    private unsafe void InterpreterLoop(MemoryStream ms, BinaryReader msbr, float4x4 objectLocalToWorld, int[] customParams = null) {
       float3 eyePositionLocal = math.transform(math.inverse(objectLocalToWorld), Camera.main.transform.position); // Camera position in object space.
 
       while (ms.Position < ms.Length) {
@@ -442,14 +442,14 @@ namespace SS.System {
 
           if (math.dot(viewVec, normal) < 0f) { // is normal pointin towards camera?
             ms.Position = firstOpcodePosition;
-            IntepreterLoop(ms, msbr, objectLocalToWorld);
+            InterpreterLoop(ms, msbr, objectLocalToWorld);
             ms.Position = secondOpcodePosition;
-            IntepreterLoop(ms, msbr, objectLocalToWorld);
+            InterpreterLoop(ms, msbr, objectLocalToWorld);
           } else {
             ms.Position = secondOpcodePosition;
-            IntepreterLoop(ms, msbr, objectLocalToWorld);
+            InterpreterLoop(ms, msbr, objectLocalToWorld);
             ms.Position = firstOpcodePosition;
-            IntepreterLoop(ms, msbr, objectLocalToWorld);
+            InterpreterLoop(ms, msbr, objectLocalToWorld);
           }
 
           ms.Position = continuePosition;
@@ -523,7 +523,7 @@ namespace SS.System {
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
+          InterpreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.icall_b) {
@@ -535,7 +535,7 @@ namespace SS.System {
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
+          InterpreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.icall_h) {
@@ -547,13 +547,13 @@ namespace SS.System {
 
           var continuePosition = ms.Position;
           ms.Position = nextOpcode;
-          IntepreterLoop(ms, msbr, subobjectLocalToWorld);
+          InterpreterLoop(ms, msbr, subobjectLocalToWorld);
 
           ms.Position = continuePosition;
         } else if (command == OpCode.sfcal) {
           long nextOpcode = dataPos + msbr.ReadUInt16();
           var continuePosition = ms.Position;
-          IntepreterLoop(ms, msbr, objectLocalToWorld);
+          InterpreterLoop(ms, msbr, objectLocalToWorld);
           ms.Position = continuePosition;
         } else if (command == OpCode.defres) {
           ushort vertexIndex = msbr.ReadUInt16();

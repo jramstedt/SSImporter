@@ -43,7 +43,7 @@ namespace SS {
 
         var textureData = colorLookupTable.GetRawTextureData<Color32>();
 
-        for (int i = 0; i < textureData.Length; ++i)
+        for (var i = 0; i < textureData.Length; ++i)
           textureData[i] = palette[shadeTable[i]];
 
         colorLookupTable.Apply(false, false);
@@ -74,7 +74,7 @@ namespace SS {
 
     /*
      * TODO Caching and refcounting Res.Load
-     * 
+     *
     private static Texture2D ColorLookupTable;
     private static Texture2D Lightmap;
 
@@ -84,25 +84,6 @@ namespace SS {
     public static IResHandle<Texture2D> LightmapTexture => CreateLightmap();
     public static IResHandle<TexturePropertiesData> TextureProperties => Res.Open<TexturePropertiesData>(Res.dataPath + @"\TEXTPROP.DAT");
     public static IResHandle<Resources.ObjectProperties> ObjectProperties => Res.OpenObjectProperties(Res.dataPath + @"\OBJPROP.DAT");
-    */
-
-    /*
-    private class CreateInversePaletteLookupTable : AsyncOperationBase<Texture2D> {
-      protected override void Execute() {
-        // TODO SupportsTextureFormat
-
-        Texture2D inverseLookup = new(256, 3, TextureFormat.R8, false, false) {
-          filterMode = FilterMode.Point,
-          wrapMode = TextureWrapMode.Clamp
-        };
-
-        var textureData = inverseLookup.GetRawTextureData<byte>();
-
-        var red = textureData.GetSubArray(0, 256);
-        var green = textureData.GetSubArray(256, 256);
-        var blue = textureData.GetSubArray(512, 256);
-      }
-    }
     */
   }
 }

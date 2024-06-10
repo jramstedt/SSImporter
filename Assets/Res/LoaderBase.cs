@@ -92,7 +92,7 @@ namespace SS.Resources {
           remaining -= bytesRead;
         }
       }
-
+      
     result:
       InvokeCompletionEvent(rawBytes);
     }

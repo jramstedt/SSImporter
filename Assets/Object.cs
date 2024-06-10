@@ -54,11 +54,11 @@ namespace SS {
 
     public readonly bool Equals(Triple other) => Class == other.Class && SubClass == other.SubClass && Type == other.Type;
 
-    public override readonly bool Equals(object obj) => obj is Triple other && Class == other.Class && SubClass == other.SubClass && Type == other.Type;
+    public readonly override bool Equals(object obj) => obj is Triple other && Class == other.Class && SubClass == other.SubClass && Type == other.Type;
 
-    public override readonly int GetHashCode() => HashCode.Combine(Class, SubClass, Type);
+    public readonly override int GetHashCode() => HashCode.Combine(Class, SubClass, Type);
 
-    public override readonly string ToString() => $"{Class}:{SubClass}:{Type}";
+    public readonly override string ToString() => $"{Class}:{SubClass}:{Type}";
 
     public static bool operator ==(Triple left, Triple right) => left.Class == right.Class && left.SubClass == right.SubClass && left.Type == right.Type;
     public static bool operator !=(Triple left, Triple right) => left.Class != right.Class || left.SubClass != right.SubClass || left.Type != right.Type;

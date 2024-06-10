@@ -141,8 +141,8 @@ namespace SS.Resources {
         resLoader = new PickResultLoader<ResourceFile, byte[]>(byteLoader, rawBytes => new ResourceFile(rawBytes));
 
         if (resourceFileHandles.TryAdd(filePath, resLoader)) {
-          resLoader.Completed += resLoader => {
-            var resFile = resLoader.Result;
+          resLoader.Completed += resHandle => {
+            var resFile = resHandle.Result;
 
             foreach (var (resId, resource) in resFile.ResourceEntries) {
               Debug.Log($"{(global::System.IO.Path.GetFileName(filePath))}: Adding {resId:X4} {resource.info.Id:X4} {resource.info.ContentType}");
@@ -217,7 +217,6 @@ namespace SS.Resources {
     T Result { get; }
 
     public Awaiter GetAwaiter() => new(this);
-
 
     public readonly struct Awaiter : ICriticalNotifyCompletion {
       private readonly IResHandle<T> resHandle;
