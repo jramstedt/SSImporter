@@ -1,36 +1,50 @@
 using System;
-using System.IO;
 using System.Runtime.InteropServices;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Entities.Serialization;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
+  [BurstCompile]
+
   public class FontProvider : IResProvider<FontSet> {
+    [BurstCompile]
+
     public class FontLoader : LoaderBase<FontSet> {
       public FontLoader(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
         InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      private FontSet Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-        byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
+      [BurstCompile]
 
-        using MemoryStream ms = new(rawResource);
-        using BinaryReader msbr = new(ms);
+      private unsafe FontSet Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+        var rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
-        BitmapFont font = msbr.Read<BitmapFont>();
+        MemoryBinaryReader mbr;
+        fixed (byte* rawResourcePtr = rawResource) {
+          mbr = new MemoryBinaryReader(rawResourcePtr, rawResource.Length);
+        }
 
-        int charactersCount = font.LastAscii - font.FirstAscii + 1; // inclusive
-        int offsetsCount = charactersCount + 1;
+        var font = mbr.Read<BitmapFont>();
 
-        ms.Position = font.xOffset;
+        var charactersCount = font.LastAscii - font.FirstAscii + 1; // inclusive
+        var offsetsCount = charactersCount + 1;
 
-        ushort[] offsets = new ushort[offsetsCount];
-        for (var i = 0; i < offsets.Length; ++i)
-          offsets[i] = msbr.ReadUInt16();
+        mbr.Position = font.xOffset;
+        
+        var offsets = new NativeArray<ushort>(offsetsCount, Allocator.Persistent);
+        mbr.ReadArray(offsets, offsets.Length);
 
+        var data = new NativeArray<byte>(font.RowBytes * font.Rows, Allocator.Persistent);
+        mbr.ReadBytes(data, data.Length);
+        
+        mbr.Dispose();
+        
         return new FontSet() {
           Font = font,
           Offsets = offsets,
-          Data = msbr.ReadBytes(font.RowBytes * font.Rows)
+          Data = data
         };
       }
     }
@@ -43,10 +57,15 @@ namespace SS.Resources {
     }
   }
 
-  public struct FontSet {
+  public struct FontSet: IDisposable {
     public BitmapFont Font;
-    public ushort[] Offsets;
-    public byte[] Data;
+    public NativeArray<ushort> Offsets;
+    public NativeArray<byte> Data;
+    
+    public void Dispose() {
+      Offsets.Dispose();
+      Data.Dispose();
+    }
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]

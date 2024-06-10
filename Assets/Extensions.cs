@@ -1,8 +1,9 @@
 ﻿using System;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using Unity.Collections;
+using Unity.Entities.Serialization;
+using BinaryReader = System.IO.BinaryReader;
 
 namespace SS {
   public static class Extensions {
@@ -13,6 +14,12 @@ namespace SS {
       gcHandle.Free();
 
       return structure;
+    }
+    
+    public static unsafe T Read<T>(this Unity.Entities.Serialization.BinaryReader binaryReader) where T : unmanaged {
+      T value;
+      binaryReader.ReadBytes(&value, sizeof(T));
+      return value;
     }
 
     public static object Read(this BinaryReader binaryReader, Type type) {

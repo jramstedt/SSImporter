@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using static SS.Resources.ResourceFile;
 
@@ -45,20 +46,15 @@ namespace SS.Resources {
     public const byte PULSE_RED = 0x1c;
     public const byte PULSE_GREEN = 0x0d;
 
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256 * 3)]
-    private readonly byte[] rgb; // RGBRGB...
+    public const int PALETTE_LENGTH = 256 * 3;
+    
+    private unsafe fixed byte rgb[PALETTE_LENGTH]; // RGBRGB...
 
-    public Palette(Palette copy) {
-      rgb = new byte[256 * 3];
-      for (int i = 0; i < rgb.Length; ++i)
-        rgb[i] = copy.rgb[i];
-    }
-
-    public readonly Color32 this[int index] {
+    public unsafe Color32 this[int index] {
       get {
         index *= 3;
 
-        if (index > rgb.Length)
+        if (index > PALETTE_LENGTH)
           throw new IndexOutOfRangeException();
 
         byte r = rgb[index];
@@ -71,7 +67,7 @@ namespace SS.Resources {
       set {
         index *= 3;
 
-        if (index > rgb.Length)
+        if (index > PALETTE_LENGTH)
           throw new IndexOutOfRangeException();
 
         rgb[index] = value.r;
@@ -80,12 +76,12 @@ namespace SS.Resources {
       }
     }
 
-    public readonly Color32 Get(int index, bool opaque) {
+    public readonly unsafe Color32 Get(int index, bool opaque) {
       opaque = opaque || index != 0;
 
       index *= 3;
 
-      if (index > rgb.Length)
+      if (index > PALETTE_LENGTH)
         throw new IndexOutOfRangeException();
 
       byte r = rgb[index];
@@ -95,12 +91,10 @@ namespace SS.Resources {
       return new Color32(r, g, b, opaque ? (byte)0xFF : (byte)0x00);
     }
 
-    public readonly NativeArray<Color32> ToNativeArray() {
-      var palette = new NativeArray<Color32>(256, Allocator.Persistent);
-      for (int i = 0; i < palette.Length; ++i) {
-        var index = i * 3;
-        palette[i] = new Color32(rgb[index], rgb[++index], rgb[++index], 0xFF);
-      }
+    public readonly unsafe NativeArray<Color32> ToNativeArray(Allocator allocator = Allocator.Persistent) {
+      var palette = new NativeArray<Color32>(256, allocator);
+      fixed (byte* p = rgb)
+        UnsafeUtility.MemCpyStride(palette.GetUnsafePtr(), UnsafeUtility.SizeOf<Color32>(), p, 3, 3, 256);
       return palette;
     }
   }

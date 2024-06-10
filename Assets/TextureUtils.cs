@@ -92,7 +92,6 @@ namespace SS {
       return false;
     }
 
-    [BurstCompile]
     public static BatchMaterialID GetResource(
       in Entity entity,
       in ObjectInstance instanceData,

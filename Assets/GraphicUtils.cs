@@ -1,23 +1,22 @@
 using SS.Resources;
 using System;
-using Unity.Burst;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
 namespace SS {
-  [BurstCompile]
   public static class GraphicUtils {
     private const char SOFTCR = (char)1;
     private const char SOFTSP = (char)2;
 
-    [BurstCompile]
-    public static void DrawString(Texture2D canvas, FontSet fontSet, string fullText, int2 origin, byte colorIndex = Palette.RED_8_BASE + 3) {
+    public static void DrawString(ref NativeArray<byte> textureData, TextureFormat format, in int2 size, in FontSet fontSet, string fullText, in int2 origin, byte colorIndex = Palette.RED_8_BASE + 3) {
+      // TODO Almost burst compatible. Need to get rid of string.
+      
       var font = fontSet.Font;
       var offsets = fontSet.Offsets;
       var bits = fontSet.Data;
-
-      var textureData = canvas.GetRawTextureData<byte>();
-      var bytesShift = canvas.format switch { // Log2 of number of bytes per pixel in canvas.
+      
+      var bytesShift = format switch { // Log2 of number of bytes per pixel in canvas.
         TextureFormat.R8 => 0,
         TextureFormat.RGBA32 => 2,
         _ => throw new NotImplementedException()
@@ -36,7 +35,7 @@ namespace SS {
         if (chr > font.LastAscii || chr < font.FirstAscii || chr == SOFTSP)
           continue;
 
-        if ((chrPos.y + font.Rows) < 0 || chrPos.y >= canvas.height) // out of view
+        if ((chrPos.y + font.Rows) < 0 || chrPos.y >= size.y) // out of view
           continue;
 
         int xOffset = offsets[chr - font.FirstAscii];
@@ -45,7 +44,7 @@ namespace SS {
         var yOffset = 0;
         var height = (int)font.Rows;
 
-        if ((chrPos.x + width) < 0 || chrPos.x >= canvas.width) { // out of view
+        if ((chrPos.x + width) < 0 || chrPos.x >= size.x) { // out of view
           chrPos.x += width;
           continue;
         }
@@ -57,8 +56,8 @@ namespace SS {
           chrPos.x = 0;
         }
 
-        if ((chrPos.x + width) > canvas.width) { // clip right
-          width -= chrPos.x + width - canvas.width;
+        if ((chrPos.x + width) > size.x) { // clip right
+          width -= chrPos.x + width - size.x;
         }
 
         if (chrPos.y < 0) { // clip top
@@ -68,13 +67,13 @@ namespace SS {
           chrPos.y = 0;
         }
 
-        if ((chrPos.y + height) > canvas.height) { // clip bottom
-          height -= chrPos.y + height - canvas.height;
+        if ((chrPos.y + height) > size.y) { // clip bottom
+          height -= chrPos.y + height - size.y;
         }
 
-        var lastRow = canvas.height - 1;
+        var lastRow = size.y - 1;
         if (font.DataType == BitmapFont.BitmapDataType.Mono) {
-          var texRow = (lastRow - chrPos.y) * canvas.width + chrPos.x;
+          var texRow = (lastRow - chrPos.y) * size.x + chrPos.x;
           for (int y = 0; y < height; ++y) {
             var bitRow = (y + yOffset) * font.RowBytes + (xOffset >> 3);
             var bit = xOffset & 7;
@@ -85,10 +84,10 @@ namespace SS {
                 textureData[(texRow + x) << bytesShift] = colorIndex;
             }
 
-            texRow -= canvas.width;
+            texRow -= size.x;
           }
         } else {
-          var texRow = (lastRow - chrPos.y) * canvas.width + chrPos.x;
+          var texRow = (lastRow - chrPos.y) * size.x + chrPos.x;
           for (int y = 0; y < height; ++y) {
             var bitRow = (y + yOffset) * font.RowBytes + xOffset;
 
@@ -98,18 +97,17 @@ namespace SS {
                 textureData[(texRow + x) << bytesShift] = color;
             }
 
-            texRow -= canvas.width;
+            texRow -= size.x;
           }
         }
 
         chrPos.x += width;
       }
-
-      canvas.Apply(false, false);
     }
 
-    [BurstCompile]
-    public static int2 MeasureString(FontSet fontSet, string fullText) {
+    public static int2 MeasureString(in FontSet fontSet, string fullText) {
+      // TODO Almost burst compatible. Need to get rid of string.
+      
       var font = fontSet.Font;
       var offsets = fontSet.Offsets;
 
@@ -140,7 +138,6 @@ namespace SS {
       );
     }
 
-    [BurstCompile]
     public static (TextTargetSettings settings, byte color, ushort fontRes) GetTextProperties(TextType type, byte colorIndex, byte style) {
       TextTargetSettings settings = type switch {
         TextType.Word => new() { Width = 128, Height = 32, Transparent = true, ResId = 0x868 /* RES_words */ },
