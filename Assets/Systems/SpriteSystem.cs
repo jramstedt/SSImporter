@@ -177,7 +177,7 @@ namespace SS.System {
         .Run();
       //.ScheduleParallel();
 
-      var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(-Camera.main.transform.forward, Vector3.up);
+      var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(Camera.main.transform.forward, Vector3.up);
 
       Entities
         .WithAll<SpritePart, LocalTransform, Parent>()
@@ -213,8 +213,8 @@ namespace SS.System {
       var height = bitmapDescription.Size.y;
 
       if (pivot.x <= 0 && pivot.y <= 0) {
-        pivot.x = width >> 1;
-        pivot.y = height - 1;
+        pivot.x = (short)(width >> 1);
+        pivot.y = (short)(height - 1);
       }
 
       mesh.SetVertexBufferParams(4,
@@ -227,9 +227,9 @@ namespace SS.System {
 
       mesh.SetVertexBufferData(new[] {
         new Vertex { pos = float3(-pivot.x, pivot.y, 0f),                 uv = half2(half(0f), half(1f)), light = 1f },
-        new Vertex { pos = float3(-pivot.x, -(height-pivot.y), 0f),       uv = half2(half(0f), half(0f)), light = 0f },
-        new Vertex { pos = float3(width-pivot.x, -(height-pivot.y), 0f),  uv = half2(half(1f), half(0f)), light = 0f },
         new Vertex { pos = float3(width-pivot.x, pivot.y, 0f),            uv = half2(half(1f), half(1f)), light = 1f },
+        new Vertex { pos = float3(width-pivot.x, -(height-pivot.y), 0f),  uv = half2(half(1f), half(0f)), light = 0f },
+        new Vertex { pos = float3(-pivot.x, -(height-pivot.y), 0f),       uv = half2(half(0f), half(0f)), light = 0f },
       }, 0, 0, 4);
 
       mesh.subMeshCount = 1;
