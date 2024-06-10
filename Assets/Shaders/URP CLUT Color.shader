@@ -249,7 +249,7 @@ Shader "Universal Render Pipeline/System Shock/CLUT Color"
 
                 InputData inputData;
                 InitializeInputData(input, inputData);
-                SETUP_DEBUG_TEXTURE_DATA(inputData, UNDO_TRANSFORM_TEX(input.uv, _BaseMap));
+                SETUP_DEBUG_TEXTURE_DATA_NO_UV(inputData);
 
             #ifdef _DBUFFER
                 ApplyDecalToBaseColor(input.positionCS, color);
