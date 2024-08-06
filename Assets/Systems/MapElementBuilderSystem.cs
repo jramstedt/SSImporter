@@ -151,7 +151,7 @@ namespace SS.System {
 
       Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
 
-      commandBuffer.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtRecord);
+      commandBuffer.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtPlayback);
       #endregion
 
       #region Update meshes
@@ -204,6 +204,8 @@ namespace SS.System {
 
         var textureIndices = submeshTextureIndex.GetSubArray(entityIndex * 6, 6);
 
+        // TODO Would be nice to be able to use SubMeshIndexInfo32
+        
         for (ushort subMesh = 0; subMesh < mesh.subMeshCount; ++subMesh) {
           if (mesh.GetIndexCount(subMesh) == 0) continue;
 

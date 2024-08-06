@@ -189,7 +189,7 @@ namespace SS.System {
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-          materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, false);
+          materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, false, false);
         }
 
         if (resourceMaterialMeshInfos.TryGetValue((materialID, refWidthOverride), out var materialMeshInfo)) {

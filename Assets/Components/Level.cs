@@ -171,7 +171,6 @@ namespace SS.Resources {
     public byte Templight;
 
     public const int MAX_HEIGHT = 32;
-    public const int PHYSICS_RADIUS_UNIT = 96;
 
     public readonly int FloorHeight => (int)(FloorInfo & InfoMask.Height);
     public readonly Orientation FloorOrientation => (Orientation)(FloorInfo & InfoMask.Orientation);

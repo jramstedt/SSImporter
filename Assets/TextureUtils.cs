@@ -122,7 +122,7 @@ namespace SS {
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;
-            return materialProviderSystem.GetMaterial((ushort)(0x03E8 + level.TextureMap[textureData]), 0, true, decal);
+            return materialProviderSystem.GetMaterial((ushort)(0x03E8 + level.TextureMap[textureData]), 0, true, decal, false);
           } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
             var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
             refWidthOverride = 128; // 1 << 7
@@ -160,15 +160,15 @@ namespace SS {
 
             return materialProviderSystem.GetWordMaterial(wordIndex, colorIndex, style);
           } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
-            return materialProviderSystem.GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
+            return materialProviderSystem.GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
           } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
-            return materialProviderSystem.GetMaterial(GraffitiResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
+            return materialProviderSystem.GetMaterial(GraffitiResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
           } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
-            return materialProviderSystem.GetMaterial(RepulsorResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal);
+            return materialProviderSystem.GetMaterial(RepulsorResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
           }
         } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
           // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
-          return materialProviderSystem.GetMaterial((ushort)(DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal);
+          return materialProviderSystem.GetMaterial((ushort)(DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal, false);
         }
       } else if (baseProperties.DrawType == DrawType.TranslucentPolygon) {
         byte colorIndex = 0;

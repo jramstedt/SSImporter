@@ -8,8 +8,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace SS.System {
-    [UpdateBefore(typeof(CameraSystem))]
-    [UpdateBefore(typeof(CharacterControllerSystem))]
+    [UpdateInGroup(typeof(InitializationSystemGroup))]
     public partial class HackerInputSystem : SystemBase {
         public const sbyte CONTROL_MAX_VAL = 100;
         
@@ -23,6 +22,10 @@ namespace SS.System {
         private InputAction jumpAction;
         private InputAction leanAction;
         
+        private InputAction standAction;
+        private InputAction stoopAction;
+        private InputAction proneAction;
+        
         private float2 lookAccumulator;
 
         protected override void OnCreate() {
@@ -34,6 +37,10 @@ namespace SS.System {
             lookAction = InputSystem.actions.FindAction(@"Look");
             jumpAction = InputSystem.actions.FindAction(@"Jump");
             leanAction = InputSystem.actions.FindAction(@"Lean");
+            
+            standAction = InputSystem.actions.FindAction(@"Stand");
+            stoopAction = InputSystem.actions.FindAction(@"Stoop");
+            proneAction = InputSystem.actions.FindAction(@"Prone");
         }
 
         protected override void OnUpdate() {
@@ -48,6 +55,10 @@ namespace SS.System {
             float2 lookDelta = lookAction.ReadValue<Vector2>();
             float jumping = jumpAction.ReadValue<float>();
             float lean = leanAction.ReadValue<float>();
+
+            float stand = standAction.ReadValue<float>();
+            float stoop = stoopAction.ReadValue<float>();
+            float prone = proneAction.ReadValue<float>();
             
             controllerInternal.ValueRW.InputMoveDelta = new float3(moveDelta, jumping);
             controllerInternal.ValueRW.InputLookDelta = lookDelta;
@@ -65,7 +76,7 @@ namespace SS.System {
 
                 hacker.ValueRW.controls[Hacker.CONTROL_XYROT] = (sbyte)math.clamp(lookDelta.x, -CONTROL_MAX_VAL, CONTROL_MAX_VAL);
                 hacker.ValueRW.controls[Hacker.CONTROL_YZROT] = (sbyte)math.clamp(lookDelta.y, -CONTROL_MAX_VAL, CONTROL_MAX_VAL);
-                hacker.ValueRW.controls[Hacker.CONTROL_XZROT] = (sbyte)math.clamp(lean * CONTROL_MAX_VAL, -CONTROL_MAX_VAL, CONTROL_MAX_VAL);;
+                hacker.ValueRW.controls[Hacker.CONTROL_XZROT] = (sbyte)math.clamp(lean * CONTROL_MAX_VAL, -CONTROL_MAX_VAL, CONTROL_MAX_VAL);
 
                 lookAccumulator -= lookDelta;
 
@@ -85,7 +96,17 @@ namespace SS.System {
             hacker.ValueRW.leanX = (sbyte)math.clamp(hacker.ValueRO.leanX + (int)(lean * SystemAPI.Time.DeltaTime * CONTROL_MAX_VAL), -CONTROL_MAX_VAL, CONTROL_MAX_VAL);
             hacker.ValueRW.eyeAngle = math.clamp(hacker.ValueRW.eyeAngle + (long)(lookDelta.y * SystemAPI.Time.DeltaTime * 65536f / math.PI2), -MAX_EYE_ANGLE, MAX_EYE_ANGLE);
             
+            if (stand > 0f)
+                hacker.ValueRW.posture = Hacker.Posture.Stand;
+            if (stoop > 0f)
+                hacker.ValueRW.posture = Hacker.Posture.Stoop;
+            if (prone > 0f)
+                hacker.ValueRW.posture = Hacker.Posture.Prone;
+            
+            ReadOnlySpan<byte> crouchValue = stackalloc byte[] { 0, 6, 10 };
+            
             controllerInternal.ValueRW.LeanAngle = .04f * (hacker.ValueRO.leanX / 3f);
+            controllerInternal.ValueRW.Crouch = (1f / 1.5f) * .20f * crouchValue[(int)hacker.ValueRO.posture]; // 1/5 because of 1.5 multiplier in original code?
         }
     }
 }

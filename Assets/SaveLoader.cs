@@ -165,7 +165,7 @@ namespace SS.Resources {
 
         #region Physics
         if (baseData.TerrainType != Base.TerrainTypes.Ignore) {
-          var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+          var radius = (float)baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT;
 
           if (baseData.DrawType == DrawType.FlatPolygon ||
               baseData.DrawType == DrawType.AnimatedPolygon ||
@@ -178,7 +178,7 @@ namespace SS.Resources {
             var physicsTranslation = float3.zero;
 
             var r = radius / 2f;
-            var h = baseData.PhysicsZ != 0 ? (float)baseData.PhysicsZ / (float)MapElement.PHYSICS_RADIUS_UNIT : radius;
+            var h = baseData.PhysicsZ != 0 ? (float)baseData.PhysicsZ / (float)Base.PHYSICS_RADIUS_UNIT : radius;
 
             entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
 
@@ -377,7 +377,7 @@ namespace SS.Resources {
               SizeX = ((containerInstanceData.SizeX != 0 ? containerInstanceData.SizeX : instanceDefault.SizeX) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeY = ((containerInstanceData.SizeY != 0 ? containerInstanceData.SizeY : instanceDefault.SizeY) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
               SizeZ = ((containerInstanceData.SizeZ != 0 ? containerInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
-              Offset = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT,
+              Offset = (float)baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT,
               SideTexture = containerInstanceData.SideTexture != 0 ? containerInstanceData.SideTexture : instanceDefault.SideTexture,
               TopBottomTexture = containerInstanceData.TopBottomTexture != 0 ? containerInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture
             });
@@ -468,59 +468,44 @@ namespace SS.Resources {
         const int PHYS_MASS_UNIT = 10;
         const int PHYS_MASS_C_NUM = 80;
         const int PHYS_MASS_C_DEN = 33;
+
+        const float STANDARD_MASS = 1f;
+        const float STANDARD_HARDNESS = 15f;
+        const float STANDARD_ROUGHNESS = 5f;
+        const float STANDARD_PEP = 5f;
+        const float DEFAULT_SIZE = .5f;
+        const float STANDARD_HEIGHT = Hacker.PLAYER_HGT / (float)0xFFFF;
         
         const int HARD_FAC = 6;
 
         var baseData = objectProperties.BasePropertyData(new Triple { Class = ObjectClass.Enemy, SubClass = 0, Type = 6 });
 
-        var radius = (float)baseData.Radius / (float)MapElement.PHYSICS_RADIUS_UNIT;
+        // Standards
+        var mass = STANDARD_MASS;
+        var size = DEFAULT_SIZE;
+        var hardness = STANDARD_HARDNESS;
+        var pep = STANDARD_PEP;
+        var height = STANDARD_HEIGHT;
+        
+        if (baseData.Mass > 0)
+          mass = baseData.Mass / (float)(PHYS_MASS_UNIT * PHYS_MASS_C_NUM / PHYS_MASS_C_DEN);
+        
+        if (baseData.Radius > 0)
+          size = baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT;
+        
+        if (baseData.Hardness > 0)
+          hardness = baseData.Hardness / (float)Base.PHYS_HARDNESS_UNIT;
+        
+        if (baseData.Pep > 0)
+          pep = baseData.Pep / (float)Base.PHYS_PEP_UNIT;
 
-        var floorHeight = tileMap[INITIAL_PLAYER_X, INITIAL_PLAYER_Y].FloorHeight / (float)levelInfo.HeightDivisor;
-
-        var position = new float3(INITIAL_PLAYER_X + .5f, floorHeight + radius + .75f, INITIAL_PLAYER_Y + .5f);
-        var rotationAngle = 192f / 256f * math.PI * 2f;
-        var rotation = quaternion.EulerZXY(0f, rotationAngle, 0f);
-
-        var mass = baseData.Mass / (float)(PHYS_MASS_UNIT * PHYS_MASS_C_NUM / PHYS_MASS_C_DEN);
-        var hardness = baseData.Hardness / (float)Base.PHYS_HARDNESS_UNIT;
-        var pep = baseData.Hardness / (float)Base.PHYS_PEP_UNIT;
+        // TODO cyberspace
         
         // var hardness = hardness * (mass * HARD_FAC / radius);
 
-        var height = (Hacker.PLAYER_HGT / (float)0xFFFF) - radius;
-        if (height > 3 * radius) height = 3 * radius;
+        // Sanity
+        if (height > 3 * size) height = 3 * size;
         
-        entityManager.AddComponentData(hackerEntity, LocalTransform.FromPositionRotation(position, rotation));
-        entityManager.AddComponentData(hackerEntity, new HackerController {
-          Gravity = PhysicsStep.Default.Gravity,
-          MovementSpeed = 1f,
-          MaxMovementSpeed = 4f,
-          RotationSpeed = .1f,
-          JumpUpwardsSpeed = 3f,
-          MaxSlope = math.PIHALF,
-          MaxIterations = 4,
-          CharacterMass = mass,
-          SkinWidth = 0f,
-          ContactTolerance = 1f / 0xFF,
-          AffectsPhysicsBodies = true ? 1 : 0,
-          RaiseCollisionEvents = false ? 1 : 0,
-          RaiseTriggerEvents = false ? 1 : 0
-        });
-        entityManager.AddComponentData(hackerEntity, new HackerControllerInternal {
-          UnsupportedVelocity = float3.zero,
-          CurrentRotationAngle = rotationAngle,
-          CurrentLeanAngle = 0f,
-          Velocity = PhysicsVelocity.Zero,
-          LeanAngle = 0f,
-          
-          Height = height,
-          InputMoveDelta = float3.zero,
-          InputLookDelta = float2.zero,
-          InputLeanDelta = 0f,
-          
-          IsJumping = false,
-          SupportedState = Util.CharacterSupportState.Unsupported
-        });
         /*
         var collider = new PhysicsCollider() {
           Value = Unity.Physics.CapsuleCollider.Create(
@@ -541,10 +526,11 @@ namespace SS.Resources {
             })
         };
         */
+        
         var bodyCollider = new PhysicsCollider {
           Value = Unity.Physics.SphereCollider.Create(
             new SphereGeometry {
-              Radius = radius,
+              Radius = size,
               Center = new float3(0f, 0f, 0f)
             },
             CollisionFilter.Default,
@@ -556,6 +542,65 @@ namespace SS.Resources {
               CollisionResponse = CollisionResponsePolicy.Collide
             })
         };
+        
+        var headCollider = new PhysicsCollider {
+          Value = Unity.Physics.SphereCollider.Create(
+            new SphereGeometry {
+              Radius = size * .75f,
+              Center = new float3(0f, 0f, 0f)
+            },
+            CollisionFilter.Default,
+            new Unity.Physics.Material {
+              FrictionCombinePolicy = CombinePolicy.Minimum,
+              RestitutionCombinePolicy = CombinePolicy.Minimum,
+              Friction = 0f,
+              Restitution = 1f,
+              CollisionResponse = CollisionResponsePolicy.Collide
+            })
+        };
+        
+        var floorHeight = tileMap[INITIAL_PLAYER_X, INITIAL_PLAYER_Y].FloorHeight / (float)levelInfo.HeightDivisor;
+
+        var position = new float3(INITIAL_PLAYER_X + .5f, floorHeight + size + .75f, INITIAL_PLAYER_Y + .5f);
+        var rotationAngle = 192f / 256f * math.PI * 2f;
+        var rotation = quaternion.EulerZXY(0f, rotationAngle, 0f);
+        
+        entityManager.AddComponentData(hackerEntity, LocalTransform.FromPositionRotation(position, rotation));
+        entityManager.AddComponentData(hackerEntity, new HackerController {
+          Gravity = PhysicsStep.Default.Gravity,
+          MovementSpeed = 1f,
+          MaxMovementSpeed = 4f,
+          RotationSpeed = .1f,
+          JumpUpwardsSpeed = 3f,
+          MaxSlope = math.PIHALF,
+          MaxIterations = 4,
+          CharacterMass = mass,
+          CharacterHeight = height - size,
+          CharacterSize = size,
+          SkinWidth = 0f,
+          ContactTolerance = 1f / 0xFF,
+          AffectsPhysicsBodies = true ? 1 : 0,
+          RaiseCollisionEvents = false ? 1 : 0,
+          RaiseTriggerEvents = false ? 1 : 0
+        });
+        entityManager.AddComponentData(hackerEntity, new HackerControllerInternal {
+          UnsupportedVelocity = float3.zero,
+          CurrentRotationAngle = rotationAngle,
+          CurrentLeanAngle = 0f,
+          Velocity = PhysicsVelocity.Zero,
+          LeanAngle = 0f,
+          
+          Height = height - size,
+          InputMoveDelta = float3.zero,
+          InputLookDelta = float2.zero,
+          InputLeanDelta = 0f,
+          
+          IsJumping = false,
+          SupportedState = Util.CharacterSupportState.Unsupported,
+          
+          HeadCollider = headCollider
+        });
+
         
         entityManager.AddSharedComponentManaged(hackerEntity, new PhysicsWorldIndex { Value = 0 });
         entityManager.AddComponentData(hackerEntity, bodyCollider);

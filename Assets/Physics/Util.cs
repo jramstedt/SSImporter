@@ -1,9 +1,12 @@
+using SS.Physics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Physics.Extensions;
 using Unity.Physics.Stateful;
+using Unity.Transforms;
+using UnityEngine;
 using UnityEngine.Assertions;
 
 namespace CharacterController
@@ -322,7 +325,9 @@ namespace CharacterController
         }
 
         public static void CollideAndIntegrate(
-            StepInput stepInput, float characterMass, bool affectBodies, ref PhysicsCollider collider,
+            StepInput stepInput, float characterMass, bool affectBodies,
+            ref PhysicsCollider bodyCollider,
+            ref PhysicsCollider headCollider,
             ref RigidTransform transform, ref float3 linearVelocity, ref NativeStream.Writer deferredImpulseWriter,
             NativeList<StatefulCollisionEvent> collisionEvents = default,
             NativeList<StatefulTriggerEvent> triggerEvents = default)
@@ -359,7 +364,7 @@ namespace CharacterController
                         new NativeList<ColliderCastHit>(k_DefaultQueryHitsCapacity, Allocator.Temp);
                     AllHitsCollector<ColliderCastHit> collector = new AllHitsCollector<ColliderCastHit>(
                         stepInput.RigidBodyIndex, 1.0f, ref castHits, stepInput.PhysicsWorldSingleton, triggerHits);
-                    ColliderCastInput input = new ColliderCastInput(collider.Value, newPosition,
+                    ColliderCastInput input = new ColliderCastInput(bodyCollider.Value, newPosition,
                         newPosition + displacement, orientation);
                     stepInput.PhysicsWorldSingleton.PhysicsWorld.CastCollider(input, ref collector);
 
@@ -391,7 +396,7 @@ namespace CharacterController
                         stepInput.PhysicsWorldSingleton);
                     {
                         ColliderDistanceInput input =
-                            new ColliderDistanceInput(collider.Value, stepInput.ContactTolerance, transform);
+                            new ColliderDistanceInput(bodyCollider.Value, stepInput.ContactTolerance, transform);
                         stepInput.PhysicsWorldSingleton.PhysicsWorld.CalculateDistance(input,
                             ref distanceHitsCollector);
                     }
@@ -475,7 +480,7 @@ namespace CharacterController
                     var newCollector = new ClosestHitCollector<ColliderCastHit>(constraints,
                         stepInput.PhysicsWorldSingleton, stepInput.RigidBodyIndex, 1.0f);
 
-                    ColliderCastInput input = new ColliderCastInput(collider.Value, prevPosition,
+                    ColliderCastInput input = new ColliderCastInput(bodyCollider.Value, prevPosition,
                         prevPosition + newDisplacement, orientation);
 
                     stepInput.PhysicsWorldSingleton.PhysicsWorld.CastCollider(input, ref newCollector);

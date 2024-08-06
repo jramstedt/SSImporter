@@ -89,7 +89,7 @@ namespace SS.Resources {
     public unsafe fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
 
     // Random physics state.
-    public byte posture;                   // current posture (standing/stooped/prone)
+    public Posture posture;                   // current posture (standing/stooped/prone)
     [MarshalAs(UnmanagedType.U1)] public bool footPlanted;              // Player's foot is planted
     public sbyte leanX;                  // leaning, -100-+100
     public sbyte leanY;
@@ -343,6 +343,13 @@ namespace SS.Resources {
 
       public readonly byte Heat => ammo;
       public readonly byte Setting => ammo_type;
+    }
+    
+    public enum Posture : byte {
+      Stand,
+      Stoop,
+      Prone,
+      NumPostures
     }
   }
 

@@ -194,7 +194,7 @@ namespace SS.System {
     public BatchMaterialID ColorMaterialID => colorMaterialID;
     public BatchMaterialID NoiseMaterialID => noiseMaterialID;
 
-    public BatchMaterialID GetMaterial(ushort resId, ushort blockIndex, bool lightmapped, bool decal) {
+    public BatchMaterialID GetMaterial(ushort resId, ushort blockIndex, bool lightmapped, bool decal, bool smoothScale) {
       var resRef = (uint)((resId << 16) | blockIndex);
 
       if (bitmapMaterials.TryGetValue((resRef, lightmapped, decal), out var batchMaterialID))
@@ -207,7 +207,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (bitmapMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
-        LoadBitmapToMaterial(resRef, batchMaterialID);
+        LoadBitmapToMaterial(resRef, batchMaterialID, smoothScale);
         return batchMaterialID;
       }
 
@@ -217,7 +217,7 @@ namespace SS.System {
     }
 
     public BatchMaterialID GetTextureMaterial(ushort textureIndex) {
-      return GetMaterial((ushort)(0x03E8 + textureIndex), 0, true, false); // Uses the 128x128 resource id
+      return GetMaterial((ushort)(0x03E8 + textureIndex), 0, true, false, false); // Uses the 128x128 resource id
     }
 
     public BatchMaterialID GetCameraMaterial(int cameraIndex, bool lightmapped, bool decal) {
@@ -340,10 +340,10 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID) {
+    private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID, bool smoothScale) {
       if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) { // Check if BitmapSet already loaded.
         var bitmapSetLoader = Res.Load<BitmapSet>(resRef);
-        textureSetLoadOp = new PickResultLoader<TextureSet, BitmapSet>(bitmapSetLoader, CreateDoubledTexture);
+        textureSetLoadOp = new PickResultLoader<TextureSet, BitmapSet>(bitmapSetLoader, smoothScale ? CreateDoubledTexture : CreateTexture);
         textureSetLoaders.TryAdd(batchMaterialID, textureSetLoadOp);
       }
 
@@ -462,7 +462,7 @@ namespace SS.System {
       byte style = (textureData & STYLE_MASK) == STYLE_MASK ? (byte)2 : (byte)3;
 
       if (type == TextureType.Alt) {
-        return GetMaterial((ushort)(SmallTextureIdBase + index), 0, lightmapped, decal);
+        return GetMaterial((ushort)(SmallTextureIdBase + index), 0, lightmapped, decal, false);
       } else if (type == TextureType.Custom) {
         if (index >= FIRST_CAMERA_TMAP && index <= (FIRST_CAMERA_TMAP + NUM_HACK_CAMERAS)) {
           var cameraIndex = index - FIRST_CAMERA_TMAP;
@@ -474,11 +474,11 @@ namespace SS.System {
         } else if (index == REGULAR_STATIC_MAGIC_COOKIE || index == SHODAN_STATIC_MAGIC_COOKIE) {
           return decal ? decalNoiseMaterialID : noiseMaterialID;
         } else if (index >= FIRST_AUTOMAP_MAGIC_COOKIE && index <= (FIRST_AUTOMAP_MAGIC_COOKIE + NUM_AUTOMAP_MAGIC_COOKIES)) {
-          return GetMaterial(CustomTextureIdBase, 0, lightmapped, decal); // TODO FIXME PLACEHOLDER
+          return decal ? decalNoiseMaterialID : noiseMaterialID;
           // ret automap bitmap
         }
 
-        var defaultMaterial = GetMaterial((ushort)(CustomTextureIdBase + index), 0, lightmapped, decal);
+        var defaultMaterial = GetMaterial((ushort)(CustomTextureIdBase + index), 0, lightmapped, decal, false);
 
         if (defaultMaterial == BatchMaterialID.Null)
           return decal ? decalNoiseMaterialID : noiseMaterialID;

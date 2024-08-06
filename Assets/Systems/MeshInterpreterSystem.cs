@@ -290,7 +290,7 @@ namespace SS.System {
             };
 
             if (materialID == BatchMaterialID.Null)
-              materialID = materialProviderSystem.GetMaterial((ushort)(ModelTextureIdBase + textureId), 0, true, false);
+              materialID = materialProviderSystem.GetMaterial((ushort)(ModelTextureIdBase + textureId), 0, true, false, false);
 
             if (submeshIndex < childCount) {
               var modelPart = children[submeshIndex].Value;

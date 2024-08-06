@@ -84,7 +84,7 @@ namespace SS.System {
         ++artIndex; // Skip 2D icon
 
         for (var j = 0; j < frameCount; ++j) {
-          var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false);
+          var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false, true);
           var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
 
           var mesh = new Mesh();
@@ -146,7 +146,7 @@ namespace SS.System {
           var baseData = objectProperties.Value.BasePropertyData(instanceData);
 
           var scale = (float)(2048 / 3) / ushort.MaxValue;
-          var radius = (float)baseData.Radius / MapElement.PHYSICS_RADIUS_UNIT;
+          var radius = (float)baseData.Radius / Base.PHYSICS_RADIUS_UNIT;
 
           if (spriteMesh.AnchorPoint.x > 0 || spriteMesh.AnchorPoint.y > 0)
             radius = 0f;

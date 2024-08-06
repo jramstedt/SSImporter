@@ -15,6 +15,8 @@ namespace SS.Physics {
         public float MaxSlope;
         public int MaxIterations;
         public float CharacterMass;
+        public float CharacterHeight;
+        public float CharacterSize;
         public float SkinWidth;
         public float ContactTolerance;
         public byte AffectsPhysicsBodies;
@@ -29,8 +31,11 @@ namespace SS.Physics {
         public float3 UnsupportedVelocity;
         public float CurrentRotationAngle;
         public float CurrentLeanAngle;
+        public float CurrentCrouch;
         public PhysicsVelocity Velocity;
+        
         public float LeanAngle;
+        public float Crouch;
         
         public float Height;
         public float3 InputMoveDelta; // Z = Jump, Climb, Rocket
@@ -39,5 +44,10 @@ namespace SS.Physics {
 
         public bool IsJumping;
         public Util.CharacterSupportState SupportedState;
+
+        public PhysicsCollider HeadCollider;
+        
+        public float3 HeadRotation;
+        public float3 HeadOffset;
     }
 }

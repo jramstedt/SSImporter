@@ -6,9 +6,6 @@ using System.Text;
 
 namespace SS.Resources {
   public class ResourceFile : IDisposable {
-    private const string FILE_HEADER = "LG Res File v2\r\n";
-    private const long DIRECTORY_POINTER_OFFSET = 0x7C;
-
     private readonly MemoryStream fileStream;
     private readonly BinaryReader binaryReader;
 
@@ -20,18 +17,18 @@ namespace SS.Resources {
       fileStream = new MemoryStream(resFileData, false);
       binaryReader = new BinaryReader(fileStream, Encoding.ASCII);
 
-      string header = new(binaryReader.ReadChars(FILE_HEADER.Length));
-
-      if (header != FILE_HEADER)
-        throw new NotSupportedException($"File type is not supported ({header})");
-
-      fileStream.Position = DIRECTORY_POINTER_OFFSET;
-      fileStream.Position = binaryReader.ReadInt32(); // file offset to resource directory
+      var header = binaryReader.Read<FileHeader>();
+      
+      if (header.GetSignature() != FileHeader.FILE_SIGNATURE)
+        throw new NotSupportedException($"File type is not supported ({header.GetSignature()})");
 
       #region Resource directory
-      ushort resourceCount = binaryReader.ReadUInt16(); // number of resources in directory
-      long dataOffset = binaryReader.ReadUInt32(); // file offset to beginning of first resource data
-
+      fileStream.Position = header.DirectoryOffset;
+      var directoryHeader = binaryReader.Read<DirectoryHeader>();
+      
+      ushort resourceCount = directoryHeader.NumberOfEntries;
+      long dataOffset = directoryHeader.DataOffset;
+      
       resourceEntries = new Dictionary<ushort, ResourceInfo>(resourceCount);
 
       while (resourceCount-- > 0) {
@@ -303,7 +300,57 @@ namespace SS.Resources {
     [Flags]
     public enum ResourceFlags : byte {
       LZW = 0x01,
-      Compound = 0x02
+      Compound = 0x02,
+      LoadOnOpen = 0x08
+    }
+    
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct FileHeader {
+      public const string FILE_SIGNATURE = "LG Res File v2\r\n";
+      private const byte CTRL_Z = 26;
+      
+      public unsafe fixed byte Signature[16];
+      public unsafe fixed byte Comment[96];
+      public unsafe fixed byte Reserved[12];
+      public uint DirectoryOffset;
+
+      public unsafe FileHeader(uint directoryOffset) {
+        var signatureString = Encoding.ASCII.GetBytes(FILE_SIGNATURE);
+        fixed (byte* src = &signatureString[0], trg = Signature) {
+          Buffer.MemoryCopy(src, trg, 16, 16);
+        }
+
+        Comment[0] = CTRL_Z;
+        
+        DirectoryOffset = directoryOffset;
+      }
+
+      public unsafe void SetComment(string comment) {
+        var commentBytes = Encoding.ASCII.GetBytes(comment);
+        fixed (byte* src = &commentBytes[0], trg = Comment) {
+          Buffer.MemoryCopy(src, trg, 96 - 1, comment.Length);
+        }
+        
+        Comment[comment.Length + 1] = CTRL_Z;
+      }
+      
+      public unsafe string GetSignature() {
+        fixed (byte* signature = Signature) {
+          return Encoding.ASCII.GetString(signature, 16);
+        }
+      }
+    }
+    
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct DirectoryHeader {
+      /**
+       * Number of resources in directory
+       */
+      public ushort NumberOfEntries;
+      /**
+       * File offset to beginning of first resource data
+       */
+      public uint DataOffset;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -323,7 +370,7 @@ namespace SS.Resources {
       public readonly int LengthUnpacked => lengthUnpacked[0] | lengthUnpacked[1] << 8 | lengthUnpacked[2] << 16;
       public readonly int LengthPacked => lengthPacked[0] | lengthPacked[1] << 8 | lengthPacked[2] << 16;
 
-      public override readonly string ToString() => $"Id = {Id}, LengthUnpacked = {LengthUnpacked}, Flags = {Flags}, LengthPacked = {LengthPacked}, ContentType = {ContentType}";
+      public readonly override string ToString() => $"Id = {Id}, LengthUnpacked = {LengthUnpacked}, Flags = {Flags}, LengthPacked = {LengthPacked}, ContentType = {ContentType}";
     }
 
     public struct ResourceInfo {

@@ -13,6 +13,7 @@ using Unity.Physics.GraphicsIntegration;
 using Unity.Physics.Stateful;
 using Unity.Physics.Systems;
 using Unity.Transforms;
+using UnityEngine;
 using UnityEngine.Assertions;
 
 namespace CharacterController
@@ -146,8 +147,9 @@ namespace CharacterController
                     var entity = entities[i];
                     var ccComponentData = chunkCCData[i];
                     var ccInternalData = chunkCCInternalData[i];
-                    var collider = chunkPhysicsColliderData[i];
+                    var bodyCollider = chunkPhysicsColliderData[i];
                     var localTransform = chunkLocalTransformData[i];
+                    var headCollider = ccInternalData.HeadCollider;
 
                     DynamicBuffer<StatefulCollisionEvent> collisionEventBuffer = default;
                     DynamicBuffer<StatefulTriggerEvent> triggerEventBuffer = default;
@@ -163,7 +165,7 @@ namespace CharacterController
                     }
 
                     // Collision filter must be valid
-                    if (!collider.IsValid || collider.Value.Value.GetCollisionFilter().IsEmpty)
+                    if (!bodyCollider.IsValid || bodyCollider.Value.Value.GetCollisionFilter().IsEmpty)
                         continue;
 
                     var up = math.select(math.up(), -math.normalize(ccComponentData.Gravity),
@@ -208,7 +210,7 @@ namespace CharacterController
                     }
 
                     // Check support
-                    Util.CheckSupport(in PhysicsWorldSingleton, ref collider, stepInput, transform,
+                    Util.CheckSupport(in PhysicsWorldSingleton, ref bodyCollider, stepInput, transform,
                         out ccInternalData.SupportedState, out float3 surfaceNormal, out float3 surfaceVelocity,
                         currentFrameCollisionEvents);
 
@@ -231,7 +233,8 @@ namespace CharacterController
                     // World collision + integrate
                     Util.CollideAndIntegrate(stepInput, ccComponentData.CharacterMass,
                         ccComponentData.AffectsPhysicsBodies != 0,
-                        ref collider, ref transform, ref ccInternalData.Velocity.Linear, ref DeferredImpulseWriter,
+                        ref bodyCollider, ref headCollider,
+                        ref transform, ref ccInternalData.Velocity.Linear, ref DeferredImpulseWriter,
                         currentFrameCollisionEvents, currentFrameTriggerEvents);
 
                     // Update collision event status
@@ -250,6 +253,27 @@ namespace CharacterController
                     localTransform.Position = transform.pos;
                     localTransform.Rotation = quaternion.AxisAngle(up, ccInternalData.CurrentRotationAngle);
 
+                    { // Crouch
+                        if (ccInternalData.Crouch > 0 || ccInternalData.Height < ccComponentData.CharacterHeight)
+                            ccInternalData.Height = ccComponentData.CharacterHeight * (1f - .636f * ccInternalData.CurrentCrouch);
+                        else
+                            ccInternalData.Height = ccComponentData.CharacterHeight;
+                    }
+                    
+                    { // Head
+                        
+                        // Used for motion head angle
+                      //var leapZ = .1f * ccInternalData.Height * math.cos(ccInternalData.HeadRotation.x) * math.cos(ccInternalData.HeadRotation.z);
+                      //Debug.Log($"LeapZ {leapZ}");
+            
+                      ccInternalData.HeadRotation = new float3(ccInternalData.CurrentCrouch, 0f, ccInternalData.CurrentLeanAngle);
+                        
+                      ccInternalData.HeadOffset = new float3(
+                        1.5f * ccInternalData.Height * math.sin(ccInternalData.HeadRotation.z), 
+                        ccInternalData.Height * math.cos(ccInternalData.HeadRotation.x) * math.cos(ccInternalData.HeadRotation.z), 
+                        ccInternalData.Height * math.sin(ccInternalData.HeadRotation.x)
+                        );
+                    }
 
                     // Write back to chunk data
                     {
@@ -320,7 +344,12 @@ namespace CharacterController
                 
                 // Leaning
                 {
-                    controllerInternal.CurrentLeanAngle += (controllerInternal.LeanAngle - controllerInternal.CurrentLeanAngle) * DeltaTime;
+                    controllerInternal.CurrentLeanAngle += (controllerInternal.LeanAngle - controllerInternal.CurrentLeanAngle) * DeltaTime * 1.5f;
+                }
+                
+                // Crouching
+                {
+                    controllerInternal.CurrentCrouch += (controllerInternal.Crouch - controllerInternal.CurrentCrouch) * DeltaTime * 1.5f;
                 }
 
                 // Apply input velocities
