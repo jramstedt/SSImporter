@@ -112,6 +112,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "LeanCenter",
+                    "type": "Button",
+                    "id": "f07c1b7a-33f2-4027-9176-825cd14b75f5",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -492,7 +501,7 @@
                 {
                     "name": "negative",
                     "id": "05a76c26-9709-46c3-807f-05ea66778acd",
-                    "path": "<Keyboard>/#(Z)",
+                    "path": "<Keyboard>/z",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse;Touch",
@@ -503,7 +512,7 @@
                 {
                     "name": "positive",
                     "id": "7789dcfe-ec9b-4c5f-a726-af172129fadb",
-                    "path": "<Keyboard>/#(X)",
+                    "path": "<Keyboard>/c",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse;Touch",
@@ -528,7 +537,7 @@
                     "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": ";Gamepad",
                     "action": "Lean",
                     "isComposite": false,
                     "isPartOfComposite": true
@@ -539,7 +548,7 @@
                     "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": ";Gamepad",
                     "action": "Lean",
                     "isComposite": false,
                     "isPartOfComposite": true
@@ -569,13 +578,57 @@
                 {
                     "name": "",
                     "id": "8fbeeb8c-ee12-4a58-b680-083e8c6b8c9e",
-                    "path": "<Keyboard>/c",
+                    "path": "<Keyboard>/v",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse;Touch",
                     "action": "Prone",
                     "isComposite": false,
                     "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "ec3f7006-a9aa-439d-9b8f-19559423d47c",
+                    "path": "<Keyboard>/x",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse;Touch",
+                    "action": "LeanCenter",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "One Modifier",
+                    "id": "6c1dbc5c-e0c1-4442-ab31-0b1d879feb5e",
+                    "path": "OneModifier",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "LeanCenter",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "modifier",
+                    "id": "07abb00d-553c-4baf-a04e-a509e556a4cb",
+                    "path": "<Gamepad>/leftShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "LeanCenter",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "binding",
+                    "id": "935473db-1522-4c8f-a9ff-4e1cd785e66a",
+                    "path": "<Gamepad>/rightShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "LeanCenter",
+                    "isComposite": false,
+                    "isPartOfComposite": true
                 }
             ]
         },

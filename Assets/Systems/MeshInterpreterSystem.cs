@@ -7,7 +7,6 @@ using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -159,6 +158,8 @@ namespace SS.System {
       if (entityCount > 0) {
         instanceLookup.Update(this);
         decorationLookup.Update(this);
+        
+        var level = SystemAPI.GetSingleton<Level>();
 
         // TODO Jobify
 
@@ -167,7 +168,7 @@ namespace SS.System {
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
         var meshes = new Mesh[entityCount];
 
-        var textureIds = new NativeArray<ushort>(entityCount * 4, Allocator.Temp);
+        var textureIds = new NativeArray<ushort>(entityCount * 8, Allocator.Temp);
         var textureDatas = new NativeArray<int>(entityCount, Allocator.Temp);
 
         subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp);
@@ -175,7 +176,6 @@ namespace SS.System {
 
         using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
 
-        var textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
 
@@ -225,7 +225,7 @@ namespace SS.System {
               }
 
               meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
-              textureIds[textureIdAccumulator++] = submeshKeys[submeshIndex];
+              textureIds[entityIndex * 8 + submeshIndex] = submeshKeys[submeshIndex];
               submeshIndexStart = indexCount;
             }
 
@@ -235,7 +235,6 @@ namespace SS.System {
           }
           #endregion
 
-          var level = SystemAPI.GetSingleton<Level>();
           var baseProperties = objectProperties.BasePropertyData(instanceData);
 
           // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
@@ -259,7 +258,6 @@ namespace SS.System {
           mesh.UploadMeshData(false);
         }
 
-        textureIdAccumulator = 0;
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
 
@@ -281,7 +279,7 @@ namespace SS.System {
 
           var submeshCount = mesh.subMeshCount;
           for (ushort submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
-            var textureId = textureIds[textureIdAccumulator++];
+            var textureId = textureIds[entityIndex * 8 + submeshIndex];
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
@@ -309,6 +307,8 @@ namespace SS.System {
               });
             } else {
               var modelPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+              SystemAPI.SetComponent(modelPart, new Parent { Value = entity });
+              SystemAPI.SetComponent(modelPart, LocalTransform.Identity);
               RenderMeshUtility.AddComponents( // TODO should this be after if (see commented out section)
                 modelPart,
                 EntityManager,
@@ -319,9 +319,6 @@ namespace SS.System {
                   SubMesh = submeshIndex
                 }
               );
-
-              commandBuffer.SetComponent(modelPart, new Parent { Value = entity });
-              commandBuffer.SetComponent(modelPart, LocalTransform.Identity);
             }
 
             // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);

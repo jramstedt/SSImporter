@@ -80,7 +80,7 @@ namespace SS.Resources {
 
       #region Load archive.dat
       Debug.Log(@"Load archive.dat");
-      await SaveLoader.LoadMap(2, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
+      await SaveLoader.LoadMap(1, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
       #endregion
     }
 

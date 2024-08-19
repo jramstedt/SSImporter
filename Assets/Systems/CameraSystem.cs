@@ -1,4 +1,3 @@
-using CharacterController;
 using SS.Resources;
 using SS.Physics;
 using Unity.Entities;
@@ -20,8 +19,8 @@ namespace SS.System {
     protected override void OnUpdate() {
       var player = SystemAPI.GetSingletonEntity<Hacker>();
       var hacker = SystemAPI.GetComponentRO<Hacker>(player);
+      var controller = SystemAPI.GetComponentRO<HackerControllerInternalData>(player);
       var localTransform = SystemAPI.GetComponentRO<LocalTransform>(player);
-      var controller = SystemAPI.GetComponentRO<HackerControllerInternal>(player);
 
       var rotation = controller.ValueRO.HeadRotation;
       var offset = controller.ValueRO.HeadOffset;

@@ -1,7 +1,6 @@
 ﻿using SS.ObjectProperties;
 using SS.System;
 using System.IO;
-using CharacterController;
 using SS.Physics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -450,7 +449,7 @@ namespace SS.Resources {
 
       entityManager.SetComponentData(levelInfoEntity, level);
 
-      var hackerArchetype = entityManager.CreateArchetype(typeof(Hacker));
+      var hackerArchetype = entityManager.CreateArchetype(typeof(LocalTransform), typeof(Hacker), typeof(HackerControllerComponentData), typeof(HackerControllerInternalData));
       var hackerEntity = entityManager.CreateEntity(hackerArchetype);
       hackerState.Initialize(); // TODO FIXME only on new game
       hackerState.currentLevel = mapId;
@@ -458,6 +457,7 @@ namespace SS.Resources {
         if (hackerState.initialShodanSecurityLevels[hackerState.currentLevel] == -1)
           hackerState.initialShodanSecurityLevels[hackerState.currentLevel] = hackerState.GetQuestVar(Shodan.GetShodanQuestVar(hackerState.currentLevel));
       }
+      entityManager.SetComponentData(hackerEntity, hackerState);
 
       {
         // TODO FIXME New game only
@@ -481,52 +481,19 @@ namespace SS.Resources {
         var baseData = objectProperties.BasePropertyData(new Triple { Class = ObjectClass.Enemy, SubClass = 0, Type = 6 });
 
         // Standards
-        var mass = STANDARD_MASS;
-        var size = DEFAULT_SIZE;
-        var hardness = STANDARD_HARDNESS;
-        var pep = STANDARD_PEP;
+        var mass = baseData.Mass > 0 ? baseData.Mass / (float)(PHYS_MASS_UNIT * PHYS_MASS_C_NUM / PHYS_MASS_C_DEN) : STANDARD_MASS;
+        var size = baseData.Radius > 0 ? baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT : DEFAULT_SIZE;
+        var hardness = baseData.Hardness > 0 ? baseData.Hardness / (float)Base.PHYS_HARDNESS_UNIT : STANDARD_HARDNESS;
+        var pep = baseData.Pep > 0 ? baseData.Pep / (float)Base.PHYS_PEP_UNIT : STANDARD_PEP;
         var height = STANDARD_HEIGHT;
         
-        if (baseData.Mass > 0)
-          mass = baseData.Mass / (float)(PHYS_MASS_UNIT * PHYS_MASS_C_NUM / PHYS_MASS_C_DEN);
-        
-        if (baseData.Radius > 0)
-          size = baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT;
-        
-        if (baseData.Hardness > 0)
-          hardness = baseData.Hardness / (float)Base.PHYS_HARDNESS_UNIT;
-        
-        if (baseData.Pep > 0)
-          pep = baseData.Pep / (float)Base.PHYS_PEP_UNIT;
-
         // TODO cyberspace
         
         // var hardness = hardness * (mass * HARD_FAC / radius);
 
         // Sanity
         if (height > 3 * size) height = 3 * size;
-        
-        /*
-        var collider = new PhysicsCollider() {
-          Value = Unity.Physics.CapsuleCollider.Create(
-            new CapsuleGeometry
-            {
-              Radius = radius,
-              Vertex0 = new(0f, radius, 0f),
-              Vertex1 = new(0f, (HackerControllerSystem.PLAYER_HGT / (float)0xFFFF) - radius, 0f)
-            },
-            CollisionFilter.Default,
-            new Unity.Physics.Material
-            {
-              FrictionCombinePolicy = CombinePolicy.Minimum,
-              RestitutionCombinePolicy = CombinePolicy.Minimum,
-              Friction = 0f,
-              Restitution = 0f,
-              CollisionResponse = CollisionResponsePolicy.Collide
-            })
-        };
-        */
-        
+
         var bodyCollider = new PhysicsCollider {
           Value = Unity.Physics.SphereCollider.Create(
             new SphereGeometry {
@@ -542,7 +509,7 @@ namespace SS.Resources {
               CollisionResponse = CollisionResponsePolicy.Collide
             })
         };
-        
+
         var headCollider = new PhysicsCollider {
           Value = Unity.Physics.SphereCollider.Create(
             new SphereGeometry {
@@ -561,53 +528,67 @@ namespace SS.Resources {
         
         var floorHeight = tileMap[INITIAL_PLAYER_X, INITIAL_PLAYER_Y].FloorHeight / (float)levelInfo.HeightDivisor;
 
-        var position = new float3(INITIAL_PLAYER_X + .5f, floorHeight + size + .75f, INITIAL_PLAYER_Y + .5f);
+        var position = new float3(INITIAL_PLAYER_X + .5f, floorHeight + size + .75f, INITIAL_PLAYER_Y + .5f); // TODO FIXME remove .75f and make sure physics are not run before level is built.
         var rotationAngle = 192f / 256f * math.PI * 2f;
         var rotation = quaternion.EulerZXY(0f, rotationAngle, 0f);
         
-        entityManager.AddComponentData(hackerEntity, LocalTransform.FromPositionRotation(position, rotation));
-        entityManager.AddComponentData(hackerEntity, new HackerController {
+        /*
+        var headArchetype = entityManager.CreateArchetype(typeof(LocalTransform), typeof(PhysicsCollider), typeof(HackerHead));
+        var headEntity = entityManager.CreateEntity(headArchetype);
+        entityManager.SetComponentData(headEntity, LocalTransform.FromPositionRotation(position + new float3(0f, height - size, 0f), rotation));
+        entityManager.AddSharedComponentManaged(headEntity, new PhysicsWorldIndex { Value = 0 });
+        entityManager.SetComponentData(headEntity, headCollider);
+        entityManager.SetComponentData(headEntity, new HackerHead { Body = hackerEntity});
+        */
+        
+        entityManager.SetComponentData(hackerEntity, LocalTransform.FromPositionRotation(position, rotation));
+        entityManager.SetComponentData(hackerEntity, new HackerControllerComponentData() {
           Gravity = PhysicsStep.Default.Gravity,
-          MovementSpeed = 1f,
-          MaxMovementSpeed = 4f,
+          MovementSpeed = 2f,
+          MaxMovementSpeed = 5f,
           RotationSpeed = .1f,
-          JumpUpwardsSpeed = 3f,
+          JumpUpwardsSpeed = 2.5f,
           MaxSlope = math.PIHALF,
-          MaxIterations = 4,
+          MaxIterations = 10,
           CharacterMass = mass,
           CharacterHeight = height - size,
-          CharacterSize = size,
-          SkinWidth = 0f,
-          ContactTolerance = 1f / 0xFF,
+          SkinWidth = 1f / 0xFF,
+          ContactTolerance = 2f / 0xFF,
           AffectsPhysicsBodies = true ? 1 : 0,
           RaiseCollisionEvents = false ? 1 : 0,
-          RaiseTriggerEvents = false ? 1 : 0
-        });
-        entityManager.AddComponentData(hackerEntity, new HackerControllerInternal {
-          UnsupportedVelocity = float3.zero,
-          CurrentRotationAngle = rotationAngle,
-          CurrentLeanAngle = 0f,
-          Velocity = PhysicsVelocity.Zero,
-          LeanAngle = 0f,
+          RaiseTriggerEvents = false ? 1 : 0,
           
-          Height = height - size,
-          InputMoveDelta = float3.zero,
-          InputLookDelta = float2.zero,
-          InputLeanDelta = 0f,
-          
-          IsJumping = false,
-          SupportedState = Util.CharacterSupportState.Unsupported,
-          
+          // Head = headEntity,
+          BodyCollider = bodyCollider,
           HeadCollider = headCollider
         });
+        entityManager.SetComponentData(hackerEntity, new HackerControllerInternalData() {
+          UnsupportedVelocity = float3.zero,
+          Velocity = PhysicsVelocity.Zero,
 
+          CurrentRotationAngle = rotationAngle,
+          CurrentLeanAngle = 0f,
+          CurrentCrouch = 0f,
+          
+          Entity = hackerEntity,
+          
+          IsJumping = false,
+          Input = new HackerControllerInput {
+            Movement = float3.zero,
+            Looking = float2.zero,
+            LeanAngle = 0f,
+            Crouch = 0f,
+          },
+          
+          Height = height - size,
+          
+          SupportedState = CharacterControllerUtilities.CharacterSupportState.Unsupported,
+        });
         
         entityManager.AddSharedComponentManaged(hackerEntity, new PhysicsWorldIndex { Value = 0 });
         entityManager.AddComponentData(hackerEntity, bodyCollider);
       }
-
-      entityManager.SetComponentData(hackerEntity, hackerState);
-
+      
       var physicsConfigEntity = entityManager.CreateEntity();
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,

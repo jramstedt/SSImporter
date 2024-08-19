@@ -1,5 +1,4 @@
 using System;
-using CharacterController;
 using SS.Physics;
 using SS.Resources;
 using Unity.Entities;
@@ -21,6 +20,7 @@ namespace SS.System {
         private InputAction lookAction;
         private InputAction jumpAction;
         private InputAction leanAction;
+        private InputAction leanCenterAction;
         
         private InputAction standAction;
         private InputAction stoopAction;
@@ -37,6 +37,7 @@ namespace SS.System {
             lookAction = InputSystem.actions.FindAction(@"Look");
             jumpAction = InputSystem.actions.FindAction(@"Jump");
             leanAction = InputSystem.actions.FindAction(@"Lean");
+            leanCenterAction = InputSystem.actions.FindAction(@"LeanCenter");
             
             standAction = InputSystem.actions.FindAction(@"Stand");
             stoopAction = InputSystem.actions.FindAction(@"Stoop");
@@ -46,8 +47,8 @@ namespace SS.System {
         protected override void OnUpdate() {
             var player = SystemAPI.GetSingletonEntity<Hacker>();
             var hacker = SystemAPI.GetComponentRW<Hacker>(player);
-            var controller = SystemAPI.GetComponentRO<HackerController>(player);
-            var controllerInternal = SystemAPI.GetComponentRW<HackerControllerInternal>(player);
+            var controller = SystemAPI.GetComponentRO<HackerControllerComponentData>(player);
+            var controllerInternal = SystemAPI.GetComponentRW<HackerControllerInternalData>(player);
             
             float sensitivity = 1f;
             
@@ -55,14 +56,9 @@ namespace SS.System {
             float2 lookDelta = lookAction.ReadValue<Vector2>();
             float jumping = jumpAction.ReadValue<float>();
             float lean = leanAction.ReadValue<float>();
-
-            float stand = standAction.ReadValue<float>();
-            float stoop = stoopAction.ReadValue<float>();
-            float prone = proneAction.ReadValue<float>();
             
-            controllerInternal.ValueRW.InputMoveDelta = new float3(moveDelta, jumping);
-            controllerInternal.ValueRW.InputLookDelta = lookDelta;
-            controllerInternal.ValueRW.InputLeanDelta = lean;
+            controllerInternal.ValueRW.Input.Movement = new float3(moveDelta, jumping);
+            controllerInternal.ValueRW.Input.Looking = lookDelta;
             
             lookAccumulator += lookDelta * sensitivity;
             lookDelta = math.trunc(lookAccumulator);
@@ -96,17 +92,19 @@ namespace SS.System {
             hacker.ValueRW.leanX = (sbyte)math.clamp(hacker.ValueRO.leanX + (int)(lean * SystemAPI.Time.DeltaTime * CONTROL_MAX_VAL), -CONTROL_MAX_VAL, CONTROL_MAX_VAL);
             hacker.ValueRW.eyeAngle = math.clamp(hacker.ValueRW.eyeAngle + (long)(lookDelta.y * SystemAPI.Time.DeltaTime * 65536f / math.PI2), -MAX_EYE_ANGLE, MAX_EYE_ANGLE);
             
-            if (stand > 0f)
+            if (standAction.WasPerformedThisFrame())
                 hacker.ValueRW.posture = Hacker.Posture.Stand;
-            if (stoop > 0f)
+            if (stoopAction.WasPerformedThisFrame())
                 hacker.ValueRW.posture = Hacker.Posture.Stoop;
-            if (prone > 0f)
+            if (proneAction.WasPerformedThisFrame())
                 hacker.ValueRW.posture = Hacker.Posture.Prone;
+            if (leanCenterAction.WasPerformedThisFrame())
+                hacker.ValueRW.leanX = 0; // Center lean
             
             ReadOnlySpan<byte> crouchValue = stackalloc byte[] { 0, 6, 10 };
             
-            controllerInternal.ValueRW.LeanAngle = .04f * (hacker.ValueRO.leanX / 3f);
-            controllerInternal.ValueRW.Crouch = (1f / 1.5f) * .20f * crouchValue[(int)hacker.ValueRO.posture]; // 1/5 because of 1.5 multiplier in original code?
+            controllerInternal.ValueRW.Input.LeanAngle = .04f * (hacker.ValueRO.leanX / 3f);
+            controllerInternal.ValueRW.Input.Crouch = (1f / 1.5f) * .20f * crouchValue[(int)hacker.ValueRO.posture]; // 1/5 because of 1.5 multiplier in original code?
         }
     }
 }
