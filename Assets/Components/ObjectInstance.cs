@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using SS.System;
 using Unity.Entities;
 
 namespace SS.Resources {
@@ -165,11 +166,22 @@ namespace SS.Resources {
       public byte LockMessage;
       public byte Color;
       public byte AccessLevel;
-      /// <summary>0xFF never close</summary>
+      /// <summary>If NEVER_AUTOCLOSE_COOKIE never closes</summary>
       public byte AutocloseTime;
       public ushort OtherHalf;
 
       public const int DOOR_OPEN_FRAME = 3;
+      public const int NEVER_AUTOCLOSE_COOKIE = 0xFF;
+      /// <summary>See InstanceFlags.AutoClose</summary>
+      public const int AUTOCLOSE_SHIFT = 6;
+
+      public readonly bool NeverAutoClose => AutocloseTime == NEVER_AUTOCLOSE_COOKIE;
+
+      public readonly bool IsMoving(AnimationData animationData, bool doorClosing) => animationData.ObjectIndex == Link.ObjectIndex && animationData.IsReversing == doorClosing;
+      
+      public static bool IsReallyClosed(ObjectInstance door) => door.Info.CurrentFrame == 0;
+      public static byte GetAutoCloseCode(ObjectInstance door) => (byte)((int)door.Info.Flags >> AUTOCLOSE_SHIFT);
+      public static bool AutoClose(ObjectInstance door, byte autoCloseCode) => ((byte)door.Info.Flags >> AUTOCLOSE_SHIFT) == autoCloseCode;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -292,8 +304,7 @@ namespace SS.Resources {
     NoDoor = BlockRendering,
 
     // Doors
-    AutoClose = ClassSpecific,
-    AutoClose2 = ClassSpecific2,
+    AutoClose = ClassSpecific & ClassSpecific2,
 
     // Decoration & Items
     DataIsObjIdsToUse = Hud

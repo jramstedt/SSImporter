@@ -33,8 +33,7 @@ namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]
   public struct DoorScheduleEvent {
     public short ObjectIndex;
-    public byte UniqueId; // Matches ObjectInstance.Explosive.UniqueId
-    private byte Dummy;
+    public ushort AutoClose;
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]

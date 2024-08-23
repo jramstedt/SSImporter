@@ -166,20 +166,13 @@ namespace SS.Resources {
         if (baseData.TerrainType != Base.TerrainTypes.Ignore) {
           var radius = (float)baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT;
 
-          if (baseData.DrawType == DrawType.FlatPolygon ||
-              baseData.DrawType == DrawType.AnimatedPolygon ||
-              baseData.DrawType == DrawType.TexturedPolygon ||
-              baseData.DrawType == DrawType.Bitmap ||
-              baseData.DrawType == DrawType.NoObj) {
-
+          if (baseData.DrawType is DrawType.FlatPolygon or DrawType.AnimatedPolygon or DrawType.TexturedPolygon or DrawType.Bitmap or DrawType.NoObj) {
             BlobAssetReference<Unity.Physics.Collider> collider;
 
             var physicsTranslation = float3.zero;
 
             var r = radius / 2f;
             var h = baseData.PhysicsZ != 0 ? (float)baseData.PhysicsZ / (float)Base.PHYSICS_RADIUS_UNIT : radius;
-
-            entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
 
             if (instanceData.Triple == 0xc000a /* REPULSOR_TRIPLE */) {
               // TODO Update BoxGeometry if triggerInstance changes
@@ -255,16 +248,21 @@ namespace SS.Resources {
               );
             }
 
+            entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
             entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
           } else if (baseData.DrawType == DrawType.Special) {
             // TODO add cube collider for special types
-          } else if (baseData.DrawType == DrawType.TranslucentPolygon ||
-                     baseData.DrawType == DrawType.FlatTexture ||
-                     baseData.DrawType == DrawType.TerrainPolygon) {
-
-            // TODO add cube collider
+          } else if (baseData.DrawType is DrawType.TerrainPolygon or DrawType.FlatTexture or DrawType.TranslucentPolygon) {
+            var collider = PolygonCollider.CreateQuad(
+              new float3(-.5f, -.5f, 0f),
+              new float3(.5f, -.5f, 0f),
+              new float3(.5f, .5f, 0f),
+              new float3(-.5f, .5f, 0f)
+            );
+            
+            entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
+            entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
           }
-
         }
         #endregion
 

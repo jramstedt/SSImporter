@@ -9,6 +9,7 @@ using Unity.Core;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
+using Unity.Physics;
 using UnityEngine;
 using static SS.TextureUtils;
 using Random = Unity.Mathematics.Random;
@@ -31,6 +32,7 @@ namespace SS.System {
     private ComponentLookup<ObjectInstance.Interface> interfaceLookupRW;
     private ComponentLookup<ObjectInstance.Decoration> decorationLookupRW;
     private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookupRW;
+    private ComponentLookup<PhysicsCollider> physicsColliderRW;
     private NativeArray<Random> randoms;
     private EntityQuery animationQuery;
 
@@ -56,6 +58,7 @@ namespace SS.System {
       interfaceLookupRW = GetComponentLookup<ObjectInstance.Interface>();
       decorationLookupRW = GetComponentLookup<ObjectInstance.Decoration>();
       doorLookupRW = GetComponentLookup<ObjectInstance.DoorAndGrating>();
+      physicsColliderRW = GetComponentLookup<PhysicsCollider>();
 
       randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
@@ -105,6 +108,7 @@ namespace SS.System {
       interfaceLookupRW.Update(this);
       decorationLookupRW.Update(this);
       doorLookupRW.Update(this);
+      physicsColliderRW.Update(this);
 
       var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
@@ -112,6 +116,8 @@ namespace SS.System {
       var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
       var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
+      // TODO Animating class
+      
       var animateJob = new AnimateAnimationJob {
         entityTypeHandle = entityTypeHandle,
 
@@ -125,6 +131,7 @@ namespace SS.System {
         DecorationLookupRW = decorationLookupRW,
         ItemLookupRO = itemLookupRO,
         EnemyLookupRO = enemyLookupRO,
+        PhysicsColliderRW = physicsColliderRW,
 
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
@@ -174,6 +181,7 @@ namespace SS.System {
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookupRO;
       [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookupRO;
+      [NativeDisableContainerSafetyRestriction] public ComponentLookup<PhysicsCollider> PhysicsColliderRW;
 
       public TriggerProcessor Processor;
 
@@ -224,8 +232,6 @@ namespace SS.System {
           var framesAnimated = frameDeltaTime / animation.FrameTime;
           instanceData.Info.TimeRemaining = (byte)(frameDeltaTime % animation.FrameTime);
           while (framesAnimated-- > 0) {
-            // TODO FIXME door physics?
-
             if (animation.IsReversing) {
               --instanceData.Info.CurrentFrame;
 
@@ -275,6 +281,11 @@ namespace SS.System {
                 }
               }
             }
+          }
+          
+          if (instanceData.Class == ObjectClass.DoorAndGrating) {
+            var collisionResponsePolicy = instanceData.Info.CurrentFrame >= ObjectInstance.DoorAndGrating.DOOR_OPEN_FRAME ? CollisionResponsePolicy.None : CollisionResponsePolicy.Collide;
+            PhysicsColliderRW.GetRefRW(entity).ValueRW.Value.Value.SetCollisionResponse(collisionResponsePolicy);
           }
 
           InstanceLookupRW[entity] = instanceData;
