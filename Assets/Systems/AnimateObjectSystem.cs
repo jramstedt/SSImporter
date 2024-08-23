@@ -154,7 +154,7 @@ namespace SS.System {
           RandomsRW = randoms,
 
           animationList = new AnimateObjectSystemData.Writer {
-            commands = animationCommandListSystemData.commands.AsWriter()
+            Commands = animationCommandListSystemData.Commands.AsWriter()
           }
         },
 
@@ -192,7 +192,7 @@ namespace SS.System {
         var animationDatas = chunk.GetNativeArray(ref animationTypeHandleRW);
 
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
-        Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+        Processor.animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
 
@@ -221,7 +221,7 @@ namespace SS.System {
 
             var enemy = EnemyLookupRO[entity];
 
-            if (instanceData.Triple == 0xe0401 && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && Level != DIEGO_DEATH_BATTLE_LEVEL) // DIEGO_TRIPLE
+            if (instanceData.Triple == 0xe0401 /* DIEGO_TRIPLE */ && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && Level != DIEGO_DEATH_BATTLE_LEVEL)
               frameCount = MAX_TELEPORT_FRAME;
           } else {
             var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
@@ -294,7 +294,7 @@ namespace SS.System {
           CommandBuffer.AddComponent<AnimatedTag>(unfilteredChunkIndex, entity);
         }
 
-        Processor.animationList.commands.EndForEachIndex();
+        Processor.animationList.Commands.EndForEachIndex();
       }
 
       private void ProcessCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {

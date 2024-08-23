@@ -46,7 +46,7 @@ namespace SS.System {
         DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(),
 
         animationList = new AnimateObjectSystemData.Writer {
-          commands = AnimationCommandListSystemData.commands.AsWriter()
+          Commands = AnimationCommandListSystemData.Commands.AsWriter()
         }
       };
 
@@ -76,7 +76,7 @@ namespace SS.System {
       var playerIndex = Player.playerObjectIndex;
       var playerEntity = Level.ObjectInstances.Value[playerIndex];
 
-      animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+      animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var objectEntity = objectEntities[i];
@@ -116,7 +116,7 @@ namespace SS.System {
         }
       }
 
-      animationList.commands.EndForEachIndex();
+      animationList.Commands.EndForEachIndex();
     }
   }
 }

@@ -7,7 +7,7 @@ using Unity.Jobs.LowLevel.Unsafe;
 using Random = Unity.Mathematics.Random;
 
 namespace SS.System {
-  [BurstCompile]
+  [UpdateBefore(typeof(ObjectUseSystem))]
   [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
   public partial struct TriggerSystem : ISystem {
     private const double NextContinuousSeconds = 5.0;
@@ -28,8 +28,12 @@ namespace SS.System {
     private EntityQuery triggerQuery;
     private EntityArchetype triggerEventArchetype;
 
+    [BurstCompile]
     public void OnCreate(ref SystemState state) {
+      state.RequireForUpdate<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
       state.RequireForUpdate<Level>();
+      state.RequireForUpdate<Hacker>();
+      state.RequireForUpdate<LevelInfo>();
 
       entityTypeHandle = state.GetEntityTypeHandle();
       instanceTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance>(true);
@@ -50,14 +54,18 @@ namespace SS.System {
         .Build(ref state);
 
       triggerEventArchetype = state.EntityManager.CreateArchetype(
-        typeof(ScheduleEvent)
+        new NativeArray<ComponentType>(1, Allocator.Temp) {
+          [0] = ComponentType.ReadWrite<ScheduleEvent>()
+        }
       );
     }
 
+    [BurstCompile]
     public void OnDestroy(ref SystemState state) {
       randoms.Dispose();
     }
 
+    [BurstCompile]
     public void OnUpdate(ref SystemState state) {
       var ecbSingleton = SystemAPI.GetSingleton<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
 
@@ -78,7 +86,7 @@ namespace SS.System {
       var triggerJobCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-      var animationCommandListSystem = state.World.GetExistingSystem<AnimationCommandListSystem>();
+      var animationCommandListSystem = state.WorldUnmanaged.GetExistingUnmanagedSystem<AnimationCommandListSystem>();
       var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
       var triggerJob = new TriggerJob {
@@ -107,7 +115,7 @@ namespace SS.System {
           RandomsRW = randoms,
 
           animationList = new AnimateObjectSystemData.Writer {
-            commands = animationCommandListSystemData.commands.AsWriter()
+            Commands = animationCommandListSystemData.Commands.AsWriter()
           }
         },
 
@@ -133,7 +141,7 @@ namespace SS.System {
         var triggers = chunk.GetNativeArray(ref triggerTypeHandleRO);
 
         Processor.unfilteredChunkIndex = unfilteredChunkIndex;
-        Processor.animationList.commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+        Processor.animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
@@ -145,7 +153,7 @@ namespace SS.System {
           CommandBuffer.RemoveComponent<TriggerActivateTag>(unfilteredChunkIndex, entity);
         }
 
-        Processor.animationList.commands.EndForEachIndex();
+        Processor.animationList.Commands.EndForEachIndex();
       }
     }
   }
