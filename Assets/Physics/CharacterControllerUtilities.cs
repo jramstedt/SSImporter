@@ -91,9 +91,7 @@ public static class CharacterControllerUtilities
             Assert.IsTrue(hit.Fraction <= MaxFraction);
 
             if (hit.RigidBodyIndex == m_selfRBIndex)
-            {
                 return false;
-            }
 
             if (hit.Material.CollisionResponse == CollisionResponsePolicy.RaiseTriggerEvents)
             {
@@ -103,6 +101,9 @@ public static class CharacterControllerUtilities
                 }
                 return false;
             }
+            
+            if (hit.Material.CollisionResponse == CollisionResponsePolicy.None)
+                return false;
 
             MinHitFraction = math.min(MinHitFraction, hit.Fraction);
             AllHits.Add(hit);
@@ -154,7 +155,7 @@ public static class CharacterControllerUtilities
             Assert.IsTrue(hit.Fraction <= MaxFraction);
 
             // Check self hits and trigger hits
-            if ((hit.RigidBodyIndex == m_selfRBIndex) || (hit.Material.CollisionResponse == CollisionResponsePolicy.RaiseTriggerEvents))
+            if (hit.RigidBodyIndex == m_selfRBIndex || hit.Material.CollisionResponse == CollisionResponsePolicy.RaiseTriggerEvents || hit.Material.CollisionResponse == CollisionResponsePolicy.None)
             {
                 return false;
             }
@@ -327,6 +328,7 @@ public static class CharacterControllerUtilities
         for (int hitIndex = 0; hitIndex < collector.NumHits; ++hitIndex)
         {
             ColliderCastHit hit = collector.AllHits[hitIndex];
+            
             CreateConstraint(world, remainingTime, stepInput.Up,
                 hit.RigidBodyIndex, hit.ColliderKey, hit.Position, hit.SurfaceNormal, math.dot(-hit.SurfaceNormal, hit.Fraction * displacement),
                 stepInput.SkinWidth, maxSlopeCos, ref constraints);
@@ -350,6 +352,7 @@ public static class CharacterControllerUtilities
         for (int hitIndex = 0; hitIndex < distanceHitsCollector.NumHits; ++hitIndex)
         {
             DistanceHit hit = distanceHitsCollector.AllHits[hitIndex];
+            
             if (hit.Distance < stepInput.SkinWidth)
             {
                 bool found = false;
