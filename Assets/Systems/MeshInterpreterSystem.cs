@@ -13,6 +13,7 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.TextureUtils;
+using Object = UnityEngine.Object;
 
 namespace SS.System {
   [CreateAfter(typeof(MaterialProviderSystem))]
@@ -22,7 +23,6 @@ namespace SS.System {
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;
     private EntityQuery removedMeshQuery;
-    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -70,10 +70,6 @@ namespace SS.System {
       removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<MeshCachedTag>()
         .WithNone<MeshInfo>()
-        .Build(this);
-
-      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<AnimationData>()
         .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -134,26 +130,20 @@ namespace SS.System {
       Dependency = addMeshToCacheJob.ScheduleParallel(newMeshQuery, dependsOn: Dependency);
       */
 
-      Entities
-        .WithAll<MeshInfo>()
-        .WithNone<MeshCachedTag>()
-        .ForEach((Entity entity) => {
-          var mesh = new Mesh();
-          mesh.MarkDynamic();
-          if (entityMeshes.TryAdd(entity, mesh) && entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh))) {
-            commandBuffer.AddComponent<MeshCachedTag>(entity);
-            commandBuffer.AddComponent<ModelPartRebuildTag>(entity);
-          } else {
-            entityMeshes.Remove(entity, out Mesh tmp);
-            entityMeshIDs.Remove(entity);
-            UnityEngine.Object.Destroy(mesh);
-          }
-        })
-        .WithoutBurst()
-        .Run();
+      foreach (var entity in newMeshQuery.ToEntityArray(Allocator.Temp)) {
+        var mesh = new Mesh();
+        mesh.MarkDynamic();
+        if (entityMeshes.TryAdd(entity, mesh) && entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh))) {
+          commandBuffer.AddComponent<MeshCachedTag>(entity);
+          // commandBuffer.AddComponent<ModelPartRebuildTag>(entity);
+        } else {
+          entityMeshes.Remove(entity, out Mesh tmp);
+          entityMeshIDs.Remove(entity);
+          Object.Destroy(mesh);
+        }
+      }
       #endregion
-
-
+      
       var entityCount = activeMeshQuery.CalculateEntityCount();
       if (entityCount > 0) {
         instanceLookup.Update(this);
@@ -173,8 +163,6 @@ namespace SS.System {
 
         subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp);
         subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp);
-
-        using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
 
         for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
@@ -241,7 +229,7 @@ namespace SS.System {
 
           // TODO could more of this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
           var objectIndex = level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
-          var isAnimating = IsAnimated(objectIndex, animationData.AsReadOnly());
+          var isAnimating = IsAnimated(objectIndex, level.Animations.AsReadOnly());
 
           textureDatas[entityIndex] = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
         }

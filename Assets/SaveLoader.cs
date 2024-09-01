@@ -2,12 +2,14 @@
 using SS.System;
 using System.IO;
 using SS.Physics;
+using Unity.Assertions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Physics.Authoring;
+using Unity.Physics.GraphicsIntegration;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
@@ -109,12 +111,6 @@ namespace SS.Resources {
 
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
-
-      var animationArchetype = entityManager.CreateArchetype(typeof(AnimationData));
-      using var animationEntities = entityManager.CreateEntity(animationArchetype, animationCounter, Allocator.Temp);
-
-      for (int i = 0; i < animationCounter; ++i)
-        entityManager.SetComponentData(animationEntities[i], animationData[i]);
 
       // Create Entities
       var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalTransform), typeof(LocalToWorld));
@@ -416,14 +412,23 @@ namespace SS.Resources {
       var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
       var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
       entityManager.SetComponentData(levelInfoEntity, levelInfo);
-
+      
+      var animList = new NativeList<AnimationData>(AnimateObjectSystem.MAX_ANIMLIST_SIZE, Allocator.Persistent);
+      foreach (var data in animationData)
+        animList.AddNoResize(data);
+      
+      animList.Length = animationCounter;
+      
+      // Assert.AreEqual(animationCounter, animList.Length);
+      
       var level = new Level {
         Id = mapId,
         TextureMap = textureMap,
         TextureAnimations = BuildBlob(textureAnimationEntities),
         ObjectInstances = BuildBlob(objectInstanceEntities),
         SurveillanceCameras = BuildBlob(surveillanceSourceEntities),
-        ObjectReferences = BuildBlob(crossReferenceTable)
+        ObjectReferences = BuildBlob(crossReferenceTable),
+        Animations = animList
       };
 
       var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
@@ -582,6 +587,7 @@ namespace SS.Resources {
           
           SupportedState = CharacterControllerUtilities.CharacterSupportState.Unsupported,
         });
+        entityManager.AddComponent<PhysicsGraphicalSmoothing>(hackerEntity);
         
         entityManager.AddSharedComponentManaged(hackerEntity, new PhysicsWorldIndex { Value = 0 });
         entityManager.AddComponentData(hackerEntity, bodyCollider);

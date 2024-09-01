@@ -19,7 +19,6 @@ namespace SS.System {
     private EntityQuery newFlatTextureQuery;
     private EntityQuery activeDecalProjectorQuery;
     private EntityQuery removedDecalProjectoreQuery;
-    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -51,10 +50,6 @@ namespace SS.System {
       removedDecalProjectoreQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<DecalProjectorAddedTag>()
         .WithNone<FlatTextureInfo>()
-        .Build(this);
-
-      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<AnimationData>()
         .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -89,52 +84,52 @@ namespace SS.System {
 
       var level = SystemAPI.GetSingleton<Level>();
 
-      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
+      // Update if animated
+      foreach (var (instanceDataRef, entity) in
+        SystemAPI.Query<RefRO<ObjectInstance>>()
+        .WithAll<FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>()
+        .WithEntityAccess()) {
 
-      {
-        foreach (var (instanceData, entity) in
-          SystemAPI.Query<ObjectInstance>()
-          .WithAll<FlatTextureInfo, DecalProjectorAddedTag, AnimatedTag>()
-          .WithEntityAccess()) {
+        var instanceData = instanceDataRef.ValueRO;
+        
+        if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
-          if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
+        var materialID = GetResource(
+         entity,
+         instanceData,
+         level,
+         objectProperties.ObjectDatasBlobAsset,
+         materialProviderSystem,
+         instanceLookup,
+         decorationLookup,
+         doorLookup,
+         true,
+         out ushort refWidthOverride);
 
-          var materialID = GetResource(
-           entity,
-           instanceData,
-           level,
-           objectProperties.ObjectDatasBlobAsset,
-           materialProviderSystem,
-           instanceLookup,
-           decorationLookup,
-           doorLookup,
-           animationData.AsReadOnly(),
-           true,
-           out ushort refWidthOverride);
+        if (materialID == BatchMaterialID.Null) {
+          var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
+          var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
+          materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true, false);
+        }
 
-          if (materialID == BatchMaterialID.Null) {
-            var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
-            var spriteIndex = spriteSystem.GetSpriteIndex(instanceData, currentFrame);
-            materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, spriteIndex, true, true, false);
-          }
+        if (entityDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
+          UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
 
-          if (entityDecalProjectors.TryGetValue(entity, out DecalProjector decalProjector)) {
-            UpdateProjectorAsync(decalProjector, materialID, refWidthOverride);
-
-            commandBuffer.RemoveComponent<AnimatedTag>(entity);
-          }
+          commandBuffer.SetComponentEnabled<AnimatedTag>(entity, false);
         }
       }
 
-      {
+      { // New
         var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
 
-        foreach (var (instanceData, entity) in
-          SystemAPI.Query<ObjectInstance>()
+        foreach (var (instanceDataRef, entity) in
+          SystemAPI.Query<RefRO<ObjectInstance>>()
           .WithAll<FlatTextureInfo>()
           .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
           .WithEntityAccess()) {
 
+          var instanceData = instanceDataRef.ValueRO;
+          
           if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
           var materialID = GetResource(
@@ -146,7 +141,6 @@ namespace SS.System {
             instanceLookup,
             decorationLookup,
             doorLookup,
-            animationData.AsReadOnly(),
             true,
             out ushort refWidthOverride);
 
@@ -171,6 +165,7 @@ namespace SS.System {
             commandBuffer.AddComponent(viewPart, decalProjector);
 
             commandBuffer.AddComponent<DecalProjectorAddedTag>(entity);
+            commandBuffer.AddComponent<AnimatedTag>(entity);
 
             entityDecalProjectors.Add(entity, decalProjector);
           }
@@ -182,16 +177,18 @@ namespace SS.System {
         finalizeCommandBuffer.DestroyEntity(prototype);
       }
 
-      Entities
-        .WithAll<FlatTexturePart>()
-        .ForEach((DecalProjector projector, in LocalToWorld transform) => {
-          projector.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
-        })
-        .WithoutBurst()
-        .Run();
+      // Update transform
+      foreach (var (decalProjectorRef, transformRef) in 
+               // ReSharper disable once Unity.Entities.MustBeSurroundedWithRefRwRo
+               SystemAPI.Query<SystemAPI.ManagedAPI.UnityEngineComponent<DecalProjector>, RefRO<LocalToWorld>>()
+                 .WithChangeFilter<LocalToWorld>())
+      {
+        var transform = transformRef.ValueRO;
+        decalProjectorRef.Value.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
+      }
     }
 
-    async void UpdateProjectorAsync(DecalProjector decalProjector, BatchMaterialID materialID, ushort refWidthOverride) {
+    private async void UpdateProjectorAsync(DecalProjector decalProjector, BatchMaterialID materialID, ushort refWidthOverride) {
       decalProjector.material = entitiesGraphicsSystem.GetMaterial(materialID);
 
       var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);

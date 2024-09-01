@@ -10,48 +10,70 @@ using static SS.TextureUtils;
 
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
-  public partial class NearbySystem : SystemBase {
+  public partial struct NearbySystem : ISystem {
     private EntityQuery objectQuery;
 
-    private bool once = false;
+    private EntityTypeHandle entityTypeHandle;
+    private ComponentTypeHandle<ObjectInstance> objectInstanceTypeHandleRO;
+    private ComponentTypeHandle<ObjectInstance.Decoration> decorationTypeHandleRO;
+    
+    private bool once;
 
-    protected override void OnCreate() {
-      base.OnCreate();
+    [BurstCompile]
+    public void OnCreate(ref SystemState state) {
+      state.RequireForUpdate<EndVariableRateSimulationEntityCommandBufferSystem.Singleton>();
+      state.RequireForUpdate<Level>();
+      state.RequireForUpdate<Hacker>();
+      
+      once = false;
 
-      RequireForUpdate<Level>();
-
+      entityTypeHandle = state.GetEntityTypeHandle();
+      objectInstanceTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance>(true);
+      decorationTypeHandleRO = state.GetComponentTypeHandle<ObjectInstance.Decoration>(true);
+      
       objectQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<ObjectInstance>()
-        .Build(this);
+        .WithAll<ObjectInstance, ObjectInstance.Decoration>() // TODO Currently only checks decorators. Are others needed?
+        .Build(ref state);
     }
 
-    protected override void OnUpdate() {
+    [BurstCompile]
+    public void OnUpdate(ref SystemState state) {
       if (once) return;
       once = true;
-
-      var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
-      var AnimationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
-
+      
+      var ecbSingleton = SystemAPI.GetSingleton<EndVariableRateSimulationEntityCommandBufferSystem.Singleton>();
       var level = SystemAPI.GetSingleton<Level>();
       var player = SystemAPI.GetSingleton<Hacker>();
+      
+      entityTypeHandle.Update(ref state);
+      objectInstanceTypeHandleRO.Update(ref state);
+      decorationTypeHandleRO.Update(ref state);
+      
+      var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+      
+      var animationCommandListSystem = state.WorldUnmanaged.GetExistingUnmanagedSystem<AnimationCommandListSystem>();
+      var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem); // TODO GetSingleton?
 
       var checkNearbyJob = new CheckNearbyJob {
         Player = player,
         Level = level,
 
-        EntityTypeHandle = GetEntityTypeHandle(),
-        ObjectInstanceTypeHandleRW = GetComponentTypeHandle<ObjectInstance>(),
+        EntityTypeHandle = entityTypeHandle,
+        ObjectInstanceTypeHandleRO = objectInstanceTypeHandleRO,
+        DecorationTypeHandleRO = decorationTypeHandleRO,
 
-        InstanceLookup = GetComponentLookup<ObjectInstance>(),
-        DecorationLookup = GetComponentLookup<ObjectInstance.Decoration>(),
-
-        animationList = new AnimateObjectSystemData.Writer {
-          Commands = AnimationCommandListSystemData.Commands.AsWriter()
-        }
+        AnimationList = new AnimateObjectSystemData.Writer {
+          Commands = animationCommandListSystemData.Commands.AsWriter()
+        },
+        
+        CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      Dependency = checkNearbyJob.ScheduleParallel(objectQuery, Dependency);
+      state.Dependency = checkNearbyJob.ScheduleParallel(objectQuery, state.Dependency);
     }
+    
+    [BurstCompile]
+    public void OnDestroy(ref SystemState state) { }
   }
 
   [BurstCompile]
@@ -62,25 +84,27 @@ namespace SS.System {
     [ReadOnly] public Level Level;
 
     [ReadOnly] public EntityTypeHandle EntityTypeHandle;
-    public ComponentTypeHandle<ObjectInstance> ObjectInstanceTypeHandleRW;
+    [ReadOnly] public ComponentTypeHandle<ObjectInstance> ObjectInstanceTypeHandleRO;
+    [ReadOnly] public ComponentTypeHandle<ObjectInstance.Decoration> DecorationTypeHandleRO;
 
-    [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance> InstanceLookup;
-    [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookup;
-
-    public AnimateObjectSystemData.Writer animationList;
+    public AnimateObjectSystemData.Writer AnimationList;
+    
+    [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
 
     public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
       var objectEntities = chunk.GetNativeArray(EntityTypeHandle);
-      var objectInstances = chunk.GetNativeArray(ref ObjectInstanceTypeHandleRW);
+      var objectInstances = chunk.GetNativeArray(ref ObjectInstanceTypeHandleRO);
+      var decorationDatas = chunk.GetNativeArray(ref DecorationTypeHandleRO);
 
       var playerIndex = Player.playerObjectIndex;
       var playerEntity = Level.ObjectInstances.Value[playerIndex];
 
-      animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+      AnimationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
       for (int i = 0; i < chunk.Count; ++i) {
         var objectEntity = objectEntities[i];
         var objectInstance = objectInstances[i];
+        var decorationData = decorationDatas[i];
 
         if (!objectInstance.Active) continue;
         if (objectEntity == playerEntity) continue;
@@ -90,8 +114,6 @@ namespace SS.System {
             objectInstance.Triple == 0x70206 /* SCREEN_TRIPLE */ ||
             objectInstance.Triple == 0x70209 /* BIGSCREEN_TRIPLE */ ||
             objectInstance.Triple == 0x70208 /* SUPERSCREEN_TRIPLE */) {
-
-          var decorationData = DecorationLookup[objectEntity];
 
           // var textureData = CalculateTextureData(objectInstance, decorationData, Level, InstanceLookup, DecorationLookup);
           var textureData = decorationData.Data2;
@@ -107,16 +129,16 @@ namespace SS.System {
             decorationData.Cosmetic = Shodan.NUM_SHODAN_FRAMES;
             objectInstance.Info.CurrentFrame = 0;
 
-            DecorationLookup[objectEntity] = decorationData;
-            objectInstances[i] = objectInstance;
+            CommandBuffer.SetComponent(unfilteredChunkIndex, objectEntity, decorationData);
+            CommandBuffer.SetComponent(unfilteredChunkIndex, objectEntity, objectInstance);
 
-            animationList.AddAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
+            AnimationList.AddAnimation(decorationData.Link.ObjectIndex, false, false, false, 0, AnimationData.Callback.UnShodanize, 0, AnimationData.AnimationCallbackType.Remove);
             // }
           }
         }
       }
 
-      animationList.Commands.EndForEachIndex();
+      AnimationList.Commands.EndForEachIndex();
     }
   }
 }

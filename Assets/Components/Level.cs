@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
+using SS.System;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
@@ -13,6 +15,7 @@ namespace SS.Resources {
     public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
     public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras; // TODO needs to be mutable
     public BlobAssetReference<BlobArray<ObjectReference>> ObjectReferences; // TODO needs to be mutable
+    public NativeList<AnimationData> Animations;
   }
 
   public struct TileLocation : IComponentData {

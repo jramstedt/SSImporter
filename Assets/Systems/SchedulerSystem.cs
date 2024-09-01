@@ -19,7 +19,6 @@ namespace SS.System {
     private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookupRW;
 
     private EntityQuery eventQuery;
-    private EntityQuery animationQuery;
 
     public void OnCreate(ref SystemState state) {
       state.RequireForUpdate<EndFixedStepSimulationEntityCommandBufferSystem.Singleton>();
@@ -32,10 +31,6 @@ namespace SS.System {
 
       eventQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<ScheduleEvent>()
-        .Build(ref state);
-      
-      animationQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAllRW<AnimationData>()
         .Build(ref state);
     }
 
@@ -50,8 +45,6 @@ namespace SS.System {
       objectInstanceLookupRO.Update(ref state);
       doorLookupRW.Update(ref state);
       
-      var animationData = animationQuery.ToComponentDataListAsync<AnimationData>(Allocator.TempJob, state.Dependency, out var animationDataJobHandle);
-
       var schedulerJob = new SchedulerJob {
         EntityTypeHandle = entityTypeHandle,
         ScheduleEventTypeHandleRO = scheduleEventTypeHandleRO,
@@ -61,12 +54,12 @@ namespace SS.System {
         ObjectInstanceLookupRO = objectInstanceLookupRO,
         DoorLookupRW = doorLookupRW,
         
-        AnimationData = animationData.AsParallelReader(),
+        AnimationData = level.Animations.AsParallelReader(),
 
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      state.Dependency = schedulerJob.ScheduleParallel(eventQuery, animationDataJobHandle);
+      state.Dependency = schedulerJob.ScheduleParallel(eventQuery, state.Dependency);
     }
 
     [BurstCompile]

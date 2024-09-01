@@ -13,7 +13,7 @@ namespace SS.System {
     protected override void OnCreate() {
       base.OnCreate();
 
-      RequireForUpdate<Level>();
+      RequireForUpdate<Hacker>();
     }
 
     protected override void OnUpdate() {

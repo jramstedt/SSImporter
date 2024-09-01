@@ -1,4 +1,5 @@
 using SS.Resources;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
@@ -9,79 +10,92 @@ using UnityEngine.Rendering.Universal;
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
-  public partial class SurveillanceSystem : SystemBase {
+  public partial struct SurveillanceSystem : ISystem {
+    /*
     private EntityQuery newSurveillanceSourceQuery;
     private EntityQuery activeSurveillanceSourceQuery;
     private EntityQuery removedSurveillanceSourceQuery;
+    */
 
-    private MaterialProviderSystem materialProviderSystem;
+    [BurstCompile]
+    public void OnCreate(ref SystemState state) {
+      state.RequireForUpdate<EndInitializationEntityCommandBufferSystem.Singleton>();
+      state.RequireForUpdate<MaterialProviderSystem.MaterialProviderSystemData>();
+      state.RequireForUpdate<Level>();
 
-    protected override void OnCreate() {
-      base.OnCreate();
-
-      RequireForUpdate<Level>();
-
+      /*
       newSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<SurveillanceSource>()
         .WithNone<CameraAdded>()
-        .Build(this);
+        .Build(ref state);
 
       activeSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<ObjectInstance, Camera, CameraAdded>()
-        .Build(this);
+        .Build(ref state);
 
       removedSurveillanceSourceQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<CameraAdded>()
         .WithNone<SurveillanceSource>()
-        .Build(this);
-
-      materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
+        .Build(ref state);
+      */
     }
+    
+    [BurstCompile]
+    public void OnDestroy(ref SystemState state) { }
 
-    protected override void OnUpdate() {
-      Entities
-        .WithAll<SurveillanceSource>()
-        .WithNone<CameraAdded>()
-        .ForEach((Entity entity, in SurveillanceSource surveillanceSource) => {
-          var gameObject = new GameObject {
-            name = $"Surveillance Camera {surveillanceSource.CameraIndex}"
-          };
+    // [BurstCompile]
+    public void OnUpdate(ref SystemState state) {
+      var ecbSingleton = SystemAPI.GetSingleton<EndInitializationEntityCommandBufferSystem.Singleton>();
+      var commandBuffer = ecbSingleton.CreateCommandBuffer(state.World.Unmanaged);
+      
+      var materialSystemData = SystemAPI.GetSingleton<MaterialProviderSystem.MaterialProviderSystemData>();
+      var cameraTextureSets = materialSystemData.CameraTextureSets;
+      var cameraSourceCount = materialSystemData.CameraSourceCount;
 
-          var camera = gameObject.AddComponent<Camera>();
-          var urpCameraData = gameObject.AddComponent<UniversalAdditionalCameraData>();
+      foreach (var (surveillanceSourceRef, localToWorldRef, entity) in SystemAPI.Query<RefRO<SurveillanceSource>, RefRO<LocalToWorld>>().WithNone<CameraAdded>().WithEntityAccess()) {
+        var surveillanceSource = surveillanceSourceRef.ValueRO;
+        
+        var gameObject = new GameObject {
+          name = $"Surveillance Camera {surveillanceSource.CameraIndex}"
+        };
 
-          EntityManager.AddComponentObject(entity, camera);
-          EntityManager.AddComponentObject(entity, urpCameraData);
-          EntityManager.AddComponentData(entity, new CameraAdded() {
-            go = gameObject,
-            CameraIndex = surveillanceSource.CameraIndex
-          });
+        var camera = gameObject.AddComponent<Camera>();
+        var urpCameraData = gameObject.AddComponent<UniversalAdditionalCameraData>();
+        
+        var localToWorld = localToWorldRef.ValueRO;
+        camera.transform.SetPositionAndRotation(localToWorld.Position, localToWorld.Rotation);
+        
+        commandBuffer.AddComponent(entity, camera);
+        commandBuffer.AddComponent(entity, urpCameraData);
+        commandBuffer.AddComponent(entity, new CameraAdded() {
+          GameObject = gameObject,
+          CameraIndex = surveillanceSource.CameraIndex
+        });
 
-          ++materialProviderSystem.cameraSourceCount[surveillanceSource.CameraIndex];
-          camera.targetTexture = materialProviderSystem.GetCameraRenderTexture(surveillanceSource.CameraIndex);
-        })
-        .WithoutBurst()
-        .WithStructuralChanges()
-        .Run();
+        ++cameraSourceCount[surveillanceSource.CameraIndex];
+        camera.targetTexture = cameraTextureSets[surveillanceSource.CameraIndex].Texture;
+      }
 
-      Entities
-        .ForEach((Camera camera, in LocalToWorld transform) => {
-          camera.transform.SetPositionAndRotation(transform.Position, transform.Rotation);
-        })
-        .WithoutBurst()
-        .Run();
+      foreach (var (cameraRef, localToWorldRef) in
+               // ReSharper disable once Unity.Entities.MustBeSurroundedWithRefRwRo
+               SystemAPI.Query<SystemAPI.ManagedAPI.UnityEngineComponent<Camera>, RefRO<LocalToWorld>>()
+                 .WithChangeFilter<LocalToWorld>())
+      {
+        var localToWorld = localToWorldRef.ValueRO;
+        cameraRef.Value.transform.SetPositionAndRotation(localToWorld.Position, localToWorld.Rotation);
+      }
 
-      Entities
-        .WithAll<CameraAdded>()
-        .WithNone<SurveillanceSource>()
-        .ForEach((Entity entity, CameraAdded cameraData) => {
-          --materialProviderSystem.cameraSourceCount[cameraData.CameraIndex];
-          GameObject.Destroy(cameraData.go);
-          EntityManager.RemoveComponent<CameraAdded>(entity);
-        })
-        .WithoutBurst()
-        .WithStructuralChanges()
-        .Run();
+      foreach (var (cameraDataRef, entity) in
+               SystemAPI.Query<RefRO<CameraAdded>>()
+                 .WithNone<SurveillanceSource>()
+                 .WithEntityAccess())
+      {
+        var cameraData = cameraDataRef.ValueRO;
+        
+        --cameraSourceCount[cameraData.CameraIndex];
+        Object.Destroy(cameraData.GameObject);
+        commandBuffer.RemoveComponent<CameraAdded>(entity);
+      }
     }
   }
 
@@ -89,8 +103,8 @@ namespace SS.System {
     public byte CameraIndex;
   }
 
-  internal class CameraAdded : ICleanupComponentData {
-    public GameObject go;
+  internal struct CameraAdded : ICleanupComponentData {
+    public UnityObjectRef<GameObject> GameObject;
     public byte CameraIndex;
   }
 }

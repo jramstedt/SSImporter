@@ -191,7 +191,7 @@ namespace SS.System {
         ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4 != 0);
         ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4 != 0);
       } else {
-        Debug.LogWarning($"Not supported e:{entity.Index} o:{trigger.Link.ObjectIndex} at:{trigger.ActionType}");
+        Debug.LogWarning($"Not supported e:{entity.Index} o:{trigger.Link.ObjectIndex} at:{(int)trigger.ActionType}");
       }
 
       if (trigger.DestroyCount > 0) {

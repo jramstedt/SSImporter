@@ -14,6 +14,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
+using Object = UnityEngine.Object;
 using Random = Unity.Mathematics.Random;
 
 namespace SS.System {
@@ -48,12 +49,16 @@ namespace SS.System {
     private Material decalMaterialTemplate;
     private Material cameraMaterialTemplate;
 
-    private CameraTextureSet[] cameraTextureSets;
-    public byte[] cameraSourceCount;
-    private BitmapDesc defaultBitmapDesc;
+    private NativeArray<CameraTextureSet> cameraTextureSets;
+    private NativeArray<byte> cameraSourceCount;
+    private Bitmap defaultBitmapDesc;
 
     protected override void OnCreate() {
       base.OnCreate();
+
+      cameraTextureSets = new NativeArray<CameraTextureSet>(NUM_HACK_CAMERAS, Allocator.Persistent);
+      cameraSourceCount = new NativeArray<byte>(NUM_HACK_CAMERAS, Allocator.Persistent);
+      EntityManager.AddComponentData(SystemHandle, new MaterialProviderSystemData { CameraTextureSets = cameraTextureSets, CameraSourceCount = cameraSourceCount });
 
       bitmapMaterials = new(1024, Allocator.Persistent);
       cameraMaterials = new(128, Allocator.Persistent);
@@ -108,8 +113,7 @@ namespace SS.System {
       }
 
       {
-        cameraTextureSets = new CameraTextureSet[NUM_HACK_CAMERAS];
-        cameraSourceCount = new byte[NUM_HACK_CAMERAS];
+        
 
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
           cameraTextureSets[i] = new () {
@@ -121,8 +125,7 @@ namespace SS.System {
             Description = new () {
               Transparent = false,
               Size = new(32, 32),
-              AnchorPoint = new(),
-              AnchorRect = new()
+              AnchorPoint = new(16, 16),
             }
           };
         }
@@ -150,7 +153,6 @@ namespace SS.System {
         Transparent = false,
         Size = new(64, 64),
         AnchorPoint = new(),
-        AnchorRect = new()
       };
     }
 
@@ -164,6 +166,14 @@ namespace SS.System {
       freeTextMaterials.Dispose();
 
       randoms.Dispose();
+
+      foreach (var cameraTextureSet in cameraTextureSets) {
+        if (cameraTextureSet.Texture.IsValid())
+          Object.Destroy(cameraTextureSet.Texture);
+      }
+
+      cameraTextureSets.Dispose();
+      cameraSourceCount.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -434,7 +444,7 @@ namespace SS.System {
       bitmapSet.Texture.Apply(false, false);
     }
 
-    public async Awaitable<BitmapDesc> GetBitmapDesc(BatchMaterialID materialID) {
+    public async Awaitable<Bitmap> GetBitmapDesc(BatchMaterialID materialID) {
       if (textureSetLoaders.TryGetValue(materialID, out var textureSetLoader))
         return (await textureSetLoader).Description;
 
@@ -571,13 +581,14 @@ namespace SS.System {
       }
     }
 
-    private class CameraTextureSet : IDisposable {
-      public RenderTexture Texture;
-      public BitmapDesc Description;
-
-      public void Dispose() {
-        if (Texture != null) UnityEngine.Object.Destroy(Texture);
-      }
+    public struct CameraTextureSet {
+      public UnityObjectRef<RenderTexture> Texture;
+      public Bitmap Description;
+    }
+    
+    public struct MaterialProviderSystemData : IComponentData {
+      public NativeArray<CameraTextureSet> CameraTextureSets;
+      public NativeArray<byte> CameraSourceCount;
     }
   }
 }

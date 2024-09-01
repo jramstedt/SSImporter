@@ -4,6 +4,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities.Serialization;
+using Unity.Mathematics;
 using UnityEngine;
 using static SS.Resources.ResourceFile;
 
@@ -72,7 +73,7 @@ namespace SS.Resources {
             
             bbw.WriteBytes(data, amount);
           } else if (cmd < 0x80) { // 0<nn<0x80	copy nn bytes direct
-            bbw.CopyBytes(bbr, cmd);
+            bbw.CopyBytes(ref bbr, cmd);
           } else if (cmd == 0x80) {
             byte param1 = bbr.ReadByte();
             byte param2 = bbr.ReadByte();
@@ -83,7 +84,7 @@ namespace SS.Resources {
               // TODO if video frame, copy from previous frame
               bbw.WriteBytes(0x00, param2 * 256 + param1);
             } else if (param2 < 0xC0) { // copy ((nn&0x3f)*256+mm) bytes
-              bbw.CopyBytes(bbr, (param2 & 0x3F) * 256 + param1);
+              bbw.CopyBytes(ref bbr, (param2 & 0x3F) * 256 + param1);
             } else if (param2 > 0xC0) { // 0xC0<nn	write ((nn&0x3f)*256+mm) bytes of colour xx
               byte color = bbr.ReadByte();
 
@@ -132,12 +133,22 @@ namespace SS.Resources {
   public struct LGPoint {
     public short x;
     public short y;
+
+    public LGPoint(short x, short y) {
+      this.x = x;
+      this.y = y;
+    }
+    
+    public static implicit operator int2(LGPoint p) => new (p.x, p.y);
+    public static implicit operator Vector2Int(LGPoint p) => new (p.x, p.y);
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct LGRect {
     public LGPoint ul;
     public LGPoint lr;
+    
+    public static implicit operator RectInt(LGRect p) => new (p.ul.x, p.ul.y, p.lr.x - p.ul.x, p.lr.y - p.ul.y);
   }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -156,7 +167,27 @@ namespace SS.Resources {
 
     public uint PaletteOffset;
 
-    public readonly bool Transparent => Flags.HasFlag(BitmapFlags.Transparent);
+    public bool Transparent {
+      readonly get => Flags.HasFlag(BitmapFlags.Transparent);
+      set {
+        if (value)
+          Flags |= BitmapFlags.Transparent;
+        else
+          Flags &= ~BitmapFlags.Transparent;
+      }
+    }
+
+    public int2 Size {
+      readonly get => new int2(Width, Height);
+      set {
+        var bytesPerPixel = Width > 0 ? Stride / Width : 1;
+        Width = (ushort)value.x;
+        WidthShift = (byte)math.floorlog2(value.x);
+        Stride = (ushort)(Width * bytesPerPixel);
+        Height = (ushort)value.y;
+        HeightShift = (byte)math.floorlog2(value.y);
+      }
+    }
     
     public readonly unsafe LGRect AnchorArea {
       get {

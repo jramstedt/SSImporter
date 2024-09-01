@@ -1,15 +1,13 @@
 using SS.Resources;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
-using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.System.ProjectedTextureSystem;
 using static SS.TextureUtils;
+using static SS.MeshUtils;
 using static Unity.Mathematics.math;
 using Vertex = SS.Data.Vertex;
 
@@ -22,7 +20,6 @@ namespace SS.System {
     private EntityQuery newFlatTextureQuery;
     private EntityQuery animatedFlatTextureQuery;
     private EntityQuery removedFlatTextureQuery;
-    private EntityQuery animatedQuery;
 
     private EntityArchetype viewPartArchetype;
 
@@ -59,10 +56,6 @@ namespace SS.System {
       removedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<FlatTextureMeshAddedTag>()
         .WithNone<FlatTextureInfo>()
-        .Build(this);
-
-      animatedQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<AnimationData>()
         .Build(this);
 
       viewPartArchetype = World.EntityManager.CreateArchetype(
@@ -112,13 +105,11 @@ namespace SS.System {
 
       var level = SystemAPI.GetSingleton<Level>();
 
-      using var animationData = animatedQuery.ToComponentDataArray<AnimationData>(Allocator.Temp);
-
       { // Update animated mesh
         var animatedEntities = animatedFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
 
-        ProcessEntities(level, animatedEntities, entityMeshInfo, animationData);
+        ProcessEntities(level, animatedEntities, entityMeshInfo);
 
         for (var index = 0; index < animatedEntities.Length; ++index) {
           var entity = animatedEntities[index];
@@ -131,7 +122,7 @@ namespace SS.System {
 
             var viewPart = children[0].Value;
             commandBuffer.SetComponent(viewPart, entityMeshInfo[index]);
-            commandBuffer.RemoveComponent<AnimatedTag>(entity);
+            commandBuffer.SetComponentEnabled<AnimatedTag>(entity, false);
           }
         }
       }
@@ -139,8 +130,9 @@ namespace SS.System {
       {
         var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.TempJob);
         var entityMeshInfos = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.TempJob);
+        var viewPartCreated = new ComponentTypeSet(ComponentType.ReadOnly<FlatTextureMeshAddedTag>(), ComponentType.ReadOnly<AnimatedTag>());
 
-        ProcessEntities(level, newEntities, entityMeshInfos, animationData);
+        ProcessEntities(level, newEntities, entityMeshInfos);
 
         for (var index = 0; index < newEntities.Length; ++index) {
           var entity = newEntities[index];
@@ -161,19 +153,22 @@ namespace SS.System {
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
           commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
 
-          commandBuffer.AddComponent<FlatTextureMeshAddedTag>(entity);
+          // commandBuffer.AddComponent<FlatTextureMeshAddedTag>(entity);
+          // commandBuffer.AddComponent<AnimatedTag>(entity);
+          
+          commandBuffer.AddComponent(entity, viewPartCreated);
         }
       }
     }
 
-    private void ProcessEntities(Level level, NativeArray<Entity> entities, NativeArray<MaterialMeshInfo> entityMeshInfos, NativeArray<AnimationData> animationData) {
+    private void ProcessEntities(Level level, NativeArray<Entity> entities, NativeArray<MaterialMeshInfo> entityMeshInfos) {
       for (int entityIndex = 0; entityIndex < entities.Length; ++entityIndex) {
         var entity = entities[entityIndex];
         var instanceData = instanceLookup.GetRefRO(entity).ValueRO;
 
         if (instanceData.Class != ObjectClass.DoorAndGrating) continue; // Non doublesided are handled in ProjectedTextureSystem
 
-        var materialID = TextureUtils.GetResource(
+        var materialID = GetResource(
           entity,
           instanceData,
           level,
@@ -182,9 +177,8 @@ namespace SS.System {
           instanceLookup,
           decorationLookup,
           doorLookup,
-          animationData.AsReadOnly(),
           false,
-          out ushort refWidthOverride);
+          out var refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
@@ -221,48 +215,13 @@ namespace SS.System {
       if (refWidthOverride > 0)
         scale = refWidthOverride / bitmapDesc.Size.x;
 
-      BuildPlaneMesh(mesh, scale * float2(bitmapDesc.Size.x, bitmapDesc.Size.y) / 128f, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
-    }
-
-    // TODO almost identical to one in SpriteSystem
-    private void BuildPlaneMesh(Mesh mesh, float2 extent, bool doubleSided) {
-      mesh.SetVertexBufferParams(4,
-        new VertexAttributeDescriptor(VertexAttribute.Position),
-        new VertexAttributeDescriptor(VertexAttribute.Normal),
-        new VertexAttributeDescriptor(VertexAttribute.Tangent),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
-      );
-
-      mesh.SetVertexBufferData(new[] {
-        new Vertex { pos = float3(-extent.x, extent.y, 0f), uv = half2(half(0f), half(1f)), light = 1f },
-        new Vertex { pos = float3(extent.x, extent.y, 0f), uv = half2(half(1f), half(1f)), light = 1f },
-        new Vertex { pos = float3(extent.x, -extent.y, 0f), uv = half2(half(1f), half(0f)), light = 0f },
-        new Vertex { pos = float3(-extent.x, -extent.y, 0f), uv = half2(half(0f), half(0f)), light = 0f },
-      }, 0, 0, 4);
-
-      mesh.subMeshCount = 1;
-
-      if (doubleSided) {
-        mesh.SetIndexBufferParams(12, IndexFormat.UInt16);
-        mesh.SetIndexBufferData(new ushort[] { 0, 1, 2, 2, 3, 0, 2, 1, 0, 0, 3, 2 }, 0, 0, 12);
-        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 12, MeshTopology.Triangles));
-      } else {
-        mesh.SetIndexBufferParams(6, IndexFormat.UInt16);
-        mesh.SetIndexBufferData(new ushort[] { 2, 1, 0, 0, 3, 2 }, 0, 0, 6);
-        mesh.SetSubMesh(0, new SubMeshDescriptor(0, 6, MeshTopology.Triangles));
-      }
-
-
-      mesh.RecalculateNormals();
-      // mesh.RecalculateTangents();
-      mesh.RecalculateBounds();
-      mesh.UploadMeshData(true);
+      BuildPlaneMesh(mesh, bitmapDesc, scale / 64f, true, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
     }
 
     private struct AsyncLoadTag : IComponentData { }
   }
 
+  /*
   [BurstCompile]
   struct CreateSpriteEntitiesJob : IJobParallelFor {
     public EntityCommandBuffer.ParallelWriter commandBuffer;
@@ -288,6 +247,7 @@ namespace SS.System {
       commandBuffer.AddComponent<FlatTextureMeshAddedTag>(index, entity);
     }
   }
+  */
 
   public struct FlatTextureInfo : IComponentData { }
 

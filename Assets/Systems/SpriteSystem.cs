@@ -4,11 +4,13 @@ using SS.Resources;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static SS.TextureUtils;
+using static SS.MeshUtils;
 using static Unity.Mathematics.math;
 
 namespace SS.System {
@@ -21,6 +23,8 @@ namespace SS.System {
     private EntityQuery removedSpriteQuery;
 
     private EntityArchetype viewPartArchetype;
+    
+    private ComponentLookup<LocalToWorld> localToWorldRO;
 
     private BlobAssetReference<ObjectDatas> objectProperties;
     private RenderMeshDescription renderMeshDescription;
@@ -34,12 +38,14 @@ namespace SS.System {
 
       RequireForUpdate<AsyncLoadTag>();
 
+      localToWorldRO = GetComponentLookup<LocalToWorld>(true);
+
       spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
       spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
       spriteMeshes = new NativeArray<SpriteMesh>(Base.NUM_OBJECT * 8, Allocator.Persistent);
 
       newSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<SpriteInfo>()
+        .WithAll<SpriteInfo, ObjectInstance>()
         .WithNone<SpriteAddedTag>()
         .Build(this);
 
@@ -97,7 +103,7 @@ namespace SS.System {
 
           spriteIndices[bitmapIndex] = artIndex;
 
-          BuildSpriteMesh(mesh, bitmapDesc);
+          BuildPlaneMesh(mesh, bitmapDesc, 1f, false, false);
 
           ++artIndex;
           ++bitmapIndex;
@@ -119,27 +125,16 @@ namespace SS.System {
 
     protected override void OnUpdate() {
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
-
-      /*
-      var prototype = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-      RenderMeshUtility.AddComponents(
-        prototype,
-        EntityManager,
-        renderMeshDescription
-      );
-      */
-
-      var objectProperties = this.objectProperties;
-      var spriteBase = this.spriteBase;
-      var spriteMeshes = this.spriteMeshes;
-      var commandBuffer = ecbSystem.CreateCommandBuffer().AsParallelWriter();
-
-      Entities
-        .WithAll<SpriteInfo, ObjectInstance>()
-        .WithNone<SpriteAddedTag>()
-        .WithReadOnly(spriteBase)
-        .WithReadOnly(spriteMeshes)
-        .ForEach((Entity entity, int entityInQueryIndex, in ObjectInstance instanceData) => {
+      
+      {
+        var commandBuffer = ecbSystem.CreateCommandBuffer();
+        
+        using var newEntities = newSpriteQuery.ToEntityArray(Allocator.Temp);
+        using var instanceDatas = newSpriteQuery.ToComponentDataArray<ObjectInstance>(Allocator.Temp);
+        for (var index = 0; index < newEntities.Length; ++index) {
+          var entity = newEntities[index];
+          var instanceData = instanceDatas[index];
+          
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
           var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(instanceData)];
           var spriteMesh = spriteMeshes[startIndex + currentFrame];
@@ -153,8 +148,7 @@ namespace SS.System {
 
           if (baseData.IsDoubleSize)
             scale *= 2f;
-
-          //var viewPart = commandBuffer.Instantiate(entityInQueryIndex, prototype);
+          
           var viewPart = EntityManager.CreateEntity(viewPartArchetype);
           RenderMeshUtility.AddComponents(
             viewPart,
@@ -167,30 +161,17 @@ namespace SS.System {
             }
           );
 
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new SpritePart { CurrentFrame = currentFrame });
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(entityInQueryIndex, viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale));
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale));
+        }
+        commandBuffer.AddComponent<SpriteAddedTag>(newEntities);
+      }
 
-          commandBuffer.AddComponent<SpriteAddedTag>(entityInQueryIndex, entity);
-        })
-        .WithStructuralChanges()
-        .Run();
-      //.ScheduleParallel();
-
-      var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(Camera.main.transform.forward, Vector3.up);
-
-      Entities
-        .WithAll<SpritePart, LocalTransform, Parent>()
-        .ForEach((ref LocalTransform localTransform, in Parent parent) => {
-          if (parent.Value == Entity.Null) return;
-
-          var parentTransform = SystemAPI.GetComponent<LocalToWorld>(parent.Value);
-          localTransform.Rotation = mul(towardsCameraRotation, inverse(parentTransform.Rotation));
-        })
-        .ScheduleParallel();
-
-      //var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
-      //finalizeCommandBuffer.DestroyEntity(prototype);
+      if (Camera.main != null) {
+        var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(Camera.main.transform.forward, Vector3.up);
+        localToWorldRO.Update(this);
+        new RotateSpritesJob { LocalToWorldRO = localToWorldRO, TowardsCameraRotation = towardsCameraRotation }.ScheduleParallel();
+      }
     }
 
     [BurstCompile]
@@ -204,44 +185,19 @@ namespace SS.System {
       var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(triple)];
       return spriteMeshes[startIndex + frame];
     }
+    
+    [BurstCompile]
+    [WithAll(typeof(SpritePart), typeof(LocalTransform), typeof(Parent))]
+    private partial struct RotateSpritesJob : IJobEntity {
+      [ReadOnly] public ComponentLookup<LocalToWorld> LocalToWorldRO;
+      [ReadOnly] public quaternion TowardsCameraRotation;
 
-    // TODO almost identical to one in FlatTextureSystem
-    private void BuildSpriteMesh(Mesh mesh, BitmapDesc bitmapDescription) {
-      var pivot = bitmapDescription.AnchorPoint;
+      private void Execute(ref LocalTransform localTransform, in Parent parent) {
+        if (parent.Value == Entity.Null) return;
 
-      var width = bitmapDescription.Size.x;
-      var height = bitmapDescription.Size.y;
-
-      if (pivot.x <= 0 && pivot.y <= 0) {
-        pivot.x = (short)(width >> 1);
-        pivot.y = (short)(height - 1);
+        var parentTransformRef = LocalToWorldRO.GetRefRO(parent.Value);
+        localTransform.Rotation = mul(TowardsCameraRotation, inverse(parentTransformRef.ValueRO.Rotation));
       }
-
-      mesh.SetVertexBufferParams(4,
-        new VertexAttributeDescriptor(VertexAttribute.Position),
-        new VertexAttributeDescriptor(VertexAttribute.Normal),
-        new VertexAttributeDescriptor(VertexAttribute.Tangent),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1)
-      );
-
-      mesh.SetVertexBufferData(new[] {
-        new Vertex { pos = float3(-pivot.x, pivot.y, 0f),                 uv = half2(half(0f), half(1f)), light = 1f },
-        new Vertex { pos = float3(width-pivot.x, pivot.y, 0f),            uv = half2(half(1f), half(1f)), light = 1f },
-        new Vertex { pos = float3(width-pivot.x, -(height-pivot.y), 0f),  uv = half2(half(1f), half(0f)), light = 0f },
-        new Vertex { pos = float3(-pivot.x, -(height-pivot.y), 0f),       uv = half2(half(0f), half(0f)), light = 0f },
-      }, 0, 0, 4);
-
-      mesh.subMeshCount = 1;
-
-      mesh.SetIndexBufferParams(6, IndexFormat.UInt16);
-      mesh.SetIndexBufferData(new ushort[] { 0, 1, 2, 2, 3, 0 }, 0, 0, 6);
-      mesh.SetSubMesh(0, new SubMeshDescriptor(0, 6, MeshTopology.Triangles));
-
-      mesh.RecalculateNormals();
-      // mesh.RecalculateTangents();
-      mesh.RecalculateBounds();
-      mesh.UploadMeshData(true);
     }
 
     private struct AsyncLoadTag : IComponentData { }
@@ -255,9 +211,7 @@ namespace SS.System {
 
   public struct SpriteInfo : IComponentData { }
 
-  public struct SpritePart : IComponentData {
-    public int CurrentFrame;
-  }
+  public struct SpritePart : IComponentData { }
 
   internal struct SpriteAddedTag : ICleanupComponentData { }
 }

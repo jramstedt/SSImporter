@@ -104,7 +104,6 @@ namespace SS {
       in ComponentLookup<ObjectInstance> instanceLookup,
       in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
       in ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
-      in NativeArray<AnimationData>.ReadOnly animationData,
       in bool decal,
       out ushort refWidthOverride
     ) {
@@ -117,7 +116,7 @@ namespace SS {
 
         if (instanceData.Class == ObjectClass.Decoration) {
           var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
-          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, animationData);
+          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, level.Animations.AsReadOnly());
           var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
@@ -192,11 +191,14 @@ namespace SS {
     }
     
     public static TextureSet CreateTexture(string name, int width, int height, bool transparent = false) {
+      ushort stride;
       Texture2D texture;
       if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
         texture = new Texture2D(width, height, TextureFormat.R8, false, true);
+        stride = (ushort)width;
       } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
         texture = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
+        stride = (ushort)(width * 4);
       } else {
         throw new Exception("No supported TextureFormat found.");
       }
@@ -209,8 +211,8 @@ namespace SS {
         Description = new() {
           Transparent = transparent,
           Size = new(texture.width, texture.height),
-          AnchorPoint = new(),
-          AnchorRect = new()
+          AnchorPoint = new((short)(texture.width >> 1), (short)(texture.height >> 1)),
+          Stride = stride
         }
       };
 
@@ -238,6 +240,7 @@ namespace SS {
           NativeArray<byte>.Copy(pixelData, (lastY - y) * bitmap.Width, textureData, y * bitmap.Width, bitmap.Width);
 
         texture.Apply();
+        bitmap.Stride = bitmap.Width;
       } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
         texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true) {
           filterMode = FilterMode.Point,
@@ -255,6 +258,7 @@ namespace SS {
         }
 
         texture.Apply();
+        bitmap.Stride = (ushort)(bitmap.Width * 4);
       } else {
         throw new Exception("No supported TextureFormat found.");
       }
@@ -266,18 +270,12 @@ namespace SS {
         }
       }
 
-      var anchorPoint = bitmap.AnchorPoint;
-      var anchorRect = bitmap.AnchorArea;
+      bitmap.BitmapType = BitmapType.Device;
       
-      return new() {
+      return new TextureSet {
         Texture = texture,
-        Description = new() {
-          Transparent = bitmap.Flags.HasFlag(BitmapFlags.Transparent),
-          Size = new Vector2Int(texture.width, texture.height),
-          AnchorPoint = new Vector2Int(anchorPoint.x, anchorPoint.y),
-          AnchorRect = new RectInt(anchorRect.ul.x, anchorRect.ul.y, anchorRect.lr.x - anchorRect.ul.x, anchorRect.lr.y - anchorRect.ul.y),
-          Palette = palette
-        }
+        Palette = palette,
+        Description = bitmap
       };
     }
     
@@ -368,11 +366,11 @@ namespace SS {
 
       var textureSet = CreateTexture(new BitmapSet {
         Bitmap = new Bitmap {
-          BitmapType = BitmapType.Flat8,
+          BitmapType = BitmapType.Device,
           Flags = srcBitmap.Flags,
           Width = (ushort)(srcBitmap.Width << 1),
           Height = (ushort)(srcBitmap.Height << 1),
-          Stride = (ushort)(srcBitmap.Width << 1),
+          Stride = (ushort)(srcBitmap.Stride << 1),
           WidthShift = (byte)(srcBitmap.WidthShift + 1),
           HeightShift = (byte)(srcBitmap.HeightShift + 1),
           AnchorArea = srcBitmap.AnchorArea
@@ -381,8 +379,9 @@ namespace SS {
         Palette = default
       });
 
-      textureSet.Description.Size /= 2; // Halve the size to keep render size the same.
-
+      textureSet.Description.Width >>= 1; // Halve the size to keep render size the same.
+      textureSet.Description.Height >>= 1;
+      
       return textureSet;
     }
   }
@@ -396,18 +395,11 @@ namespace SS {
   
   public class TextureSet : IDisposable {
     public Texture2D Texture;
-    public BitmapDesc Description;
+    public Bitmap Description;
+    public PrivatePalette? Palette;
 
     public void Dispose() {
       if (Texture != null) UnityEngine.Object.Destroy(Texture);
     }
-  }
-    
-  public struct BitmapDesc {
-    public bool Transparent;
-    public Vector2Int Size;
-    public Vector2Int AnchorPoint;
-    public RectInt AnchorRect;
-    public PrivatePalette? Palette;
   }
 }

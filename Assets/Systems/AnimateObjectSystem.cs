@@ -17,12 +17,11 @@ using Random = Unity.Mathematics.Random;
 namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class AnimateObjectSystem : SystemBase {
+    public const ushort MAX_ANIMLIST_SIZE = 64;
+    
     private NativeParallelHashMap<ushort, ushort> blockCounts;
 
     private Resources.ObjectProperties objectProperties;
-
-    private EntityTypeHandle entityTypeHandle;
-    private ComponentTypeHandle<AnimationData> animationTypeHandleRW;
 
     private ComponentLookup<MapElement> mapElementLookupRW;
     private ComponentLookup<ObjectInstance> instanceLookupRW;
@@ -33,8 +32,8 @@ namespace SS.System {
     private ComponentLookup<ObjectInstance.Decoration> decorationLookupRW;
     private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookupRW;
     private ComponentLookup<PhysicsCollider> physicsColliderRW;
+    private ComponentLookup<AnimatedTag> animatedTagRW;
     private NativeArray<Random> randoms;
-    private EntityQuery animationQuery;
 
     private EntityArchetype triggerEventArchetype;
 
@@ -46,10 +45,6 @@ namespace SS.System {
       RequireForUpdate<Hacker>();
       RequireForUpdate<AsyncLoadTag>();
 
-      entityTypeHandle = GetEntityTypeHandle();
-
-      animationTypeHandleRW = GetComponentTypeHandle<AnimationData>();
-
       mapElementLookupRW = GetComponentLookup<MapElement>();
       instanceLookupRW = GetComponentLookup<ObjectInstance>();
       itemLookupRO = GetComponentLookup<ObjectInstance.Item>(true);
@@ -59,14 +54,11 @@ namespace SS.System {
       decorationLookupRW = GetComponentLookup<ObjectInstance.Decoration>();
       doorLookupRW = GetComponentLookup<ObjectInstance.DoorAndGrating>();
       physicsColliderRW = GetComponentLookup<PhysicsCollider>();
+      animatedTagRW = GetComponentLookup<AnimatedTag>();
 
       randoms = new NativeArray<Random>(JobsUtility.ThreadIndexCount, Allocator.Persistent);
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
-
-      animationQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAllRW<AnimationData>()
-        .Build(this);
 
       triggerEventArchetype = EntityManager.CreateArchetype(
         typeof(ScheduleEvent)
@@ -98,8 +90,6 @@ namespace SS.System {
       var player = SystemAPI.GetSingleton<Hacker>();
       var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
-      entityTypeHandle.Update(this);
-      animationTypeHandleRW.Update(this);
       mapElementLookupRW.Update(this);
       instanceLookupRW.Update(this);
       itemLookupRO.Update(this);
@@ -109,30 +99,41 @@ namespace SS.System {
       decorationLookupRW.Update(this);
       doorLookupRW.Update(this);
       physicsColliderRW.Update(this);
+      animatedTagRW.Update(this);
 
-      var animateJobCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
       var processorCommandBuffer = ecbSingleton.CreateCommandBuffer(World.Unmanaged);
 
       var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
       var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
-      // TODO Animating class
+      var removedList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
+      var callbackList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
+      
+      // TODO Animating class objects
       
       var animateJob = new AnimateAnimationJob {
-        entityTypeHandle = entityTypeHandle,
-
-        animationTypeHandleRW = animationTypeHandleRW,
-
         ObjectInstancesBlobAsset = level.ObjectInstances,
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
+        
         TimeData = SystemAPI.Time,
-        blockCounts = blockCounts,
+        LevelIndex = 0, // TODO Level index
+        
+        BlockCounts = blockCounts,
+        Animations = level.Animations.AsArray(),
+        
+        PhysicsColliderRW = physicsColliderRW,
+        AnimatedTagRW = animatedTagRW,
+        
         InstanceLookupRW = instanceLookupRW,
-        DecorationLookupRW = decorationLookupRW,
         ItemLookupRO = itemLookupRO,
         EnemyLookupRO = enemyLookupRO,
-        PhysicsColliderRW = physicsColliderRW,
+        DecorationLookupRO = decorationLookupRW,
+        
+        CallbackOut = callbackList.AsParallelWriter(),
+        RemoveOut = removedList.AsParallelWriter()
+      };
 
+      var processCallbacksJob = new ProcessCallbacksJob() {
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
           TriggerEventArchetype = triggerEventArchetype,
@@ -157,147 +158,186 @@ namespace SS.System {
             Commands = animationCommandListSystemData.Commands.AsWriter()
           }
         },
-
-        CommandBuffer = animateJobCommandBuffer.AsParallelWriter()
+        
+        ObjectInstancesBlobAsset = level.ObjectInstances,
+        Animations = level.Animations,
+        
+        InstanceLookupRW = instanceLookupRW,
+        DecorationLookupRW = decorationLookupRW,
+        
+        Callback = callbackList.AsDeferredJobArray(),
+        Remove = removedList.AsDeferredJobArray()
       };
 
-      Dependency = animateJob.ScheduleParallel(animationQuery, Dependency);
+      Dependency = animateJob.Schedule(level.Animations.Length, Dependency);
+      Dependency = processCallbacksJob.Schedule(Dependency);
+      
+      Dependency.Complete();
     }
 
     [BurstCompile]
-    struct AnimateAnimationJob : IJobChunk {
-      [ReadOnly] public EntityTypeHandle entityTypeHandle;
-      public ComponentTypeHandle<AnimationData> animationTypeHandleRW;
-
+    struct AnimateAnimationJob : IJobFor {
       [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
       [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
 
       [ReadOnly] public TimeData TimeData;
-      [ReadOnly] public byte Level;
+      [ReadOnly] public byte LevelIndex;
 
-      [ReadOnly] public NativeParallelHashMap<ushort, ushort> blockCounts;
+      [ReadOnly] public NativeParallelHashMap<ushort, ushort> BlockCounts;
+      public NativeArray<AnimationData> Animations;
 
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookupRW;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
-      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookupRO;
-      [NativeDisableContainerSafetyRestriction, ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookupRO;
-      [NativeDisableContainerSafetyRestriction] public ComponentLookup<PhysicsCollider> PhysicsColliderRW;
+      public ComponentLookup<PhysicsCollider> PhysicsColliderRW;
+      public ComponentLookup<AnimatedTag> AnimatedTagRW;
 
-      public TriggerProcessor Processor;
+      public ComponentLookup<ObjectInstance> InstanceLookupRW;
+      [ReadOnly] public ComponentLookup<ObjectInstance.Item> ItemLookupRO;
+      [ReadOnly] public ComponentLookup<ObjectInstance.Enemy> EnemyLookupRO;
+      [ReadOnly] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRO;
+      
+      [WriteOnly] public NativeList<byte>.ParallelWriter CallbackOut;
+      [WriteOnly] public NativeList<byte>.ParallelWriter RemoveOut;
 
-      [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
+      public void Execute(int index) {
+        var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime);
+        
+        var animation = Animations[index];
 
-      public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
-        var animationEntities = chunk.GetNativeArray(entityTypeHandle);
-        var animationDatas = chunk.GetNativeArray(ref animationTypeHandleRW);
+        var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
+        ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
 
-        Processor.unfilteredChunkIndex = unfilteredChunkIndex;
-        Processor.animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+        var frameCount = 1;
+        if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          var resourceId = DoorResourceIdBase + ObjectDatasBlobAsset.Value.ClassPropertyIndex(instanceData);
+          frameCount = BlockCounts[(ushort)resourceId];
+        } else if (instanceData.Class == ObjectClass.Decoration) {
+          var decoration = DecorationLookupRO.GetRefRO(entity).ValueRO;
+          frameCount = decoration.Cosmetic;
+          if (frameCount == 0) frameCount = 1;
+        } else if (instanceData.Class == ObjectClass.Item) {
+          var item = ItemLookupRO.GetRefRO(entity).ValueRO;
+          frameCount = item.Cosmetic;
+          if (frameCount == 0) frameCount = 4;
+        } else if (instanceData.Class == ObjectClass.Enemy) {
+          const int MAX_TELEPORT_FRAME = 10;
+          const int DIEGO_DEATH_BATTLE_LEVEL = 8;
 
-        var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime); //(ushort)(timeData.DeltaTime * 1000);
+          var enemy = EnemyLookupRO.GetRefRO(entity).ValueRO;
 
-        for (int i = 0; i < chunk.Count; ++i) {
-          var animationEntity = animationEntities[i];
-          var animation = animationDatas[i];
+          if (instanceData.Triple == 0xe0401 /* DIEGO_TRIPLE */ && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && LevelIndex != DIEGO_DEATH_BATTLE_LEVEL)
+            frameCount = MAX_TELEPORT_FRAME;
+        } else {
+          var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
+          frameCount = baseData.BitmapFrameCount;
+        }
 
-          var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
-          var instanceData = InstanceLookupRW[entity];
+        var frameDeltaTime = deltaTime + instanceData.Info.TimeRemaining;
+        var framesAnimated = frameDeltaTime / animation.FrameTime;
+        instanceData.Info.TimeRemaining = (byte)(frameDeltaTime % animation.FrameTime);
+        while (framesAnimated-- > 0) {
+          if (animation.IsReversing) {
+            --instanceData.Info.CurrentFrame;
 
-          var frameCount = 1;
-          if (instanceData.Class == ObjectClass.DoorAndGrating) {
-            var resourceId = DoorResourceIdBase + ObjectDatasBlobAsset.Value.ClassPropertyIndex(instanceData);
-            frameCount = blockCounts[(ushort)resourceId];
-          } else if (instanceData.Class == ObjectClass.Decoration) {
-            var decoration = DecorationLookupRW[entity];
-            frameCount = decoration.Cosmetic;
-            if (frameCount == 0) frameCount = 1;
-          } else if (instanceData.Class == ObjectClass.Item) {
-            var item = ItemLookupRO[entity];
-            frameCount = item.Cosmetic;
-            if (frameCount == 0) frameCount = 4;
-          } else if (instanceData.Class == ObjectClass.Enemy) {
-            const int MAX_TELEPORT_FRAME = 10;
-            const int DIEGO_DEATH_BATTLE_LEVEL = 8;
+            if (instanceData.Info.CurrentFrame < 0) {
+              if (animation.IsCyclic) {
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
+                  CallbackOut.AddNoResize((byte)index); // ProcessCallback(entity, ref instanceData, animation);
 
-            var enemy = EnemyLookupRO[entity];
+                animation.Flags &= ~AnimationData.AnimationFlags.Reversing;
+                instanceData.Info.CurrentFrame = 0;
+              } else if (animation.IsRepeat) {
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
+                  CallbackOut.AddNoResize((byte)index); // ProcessCallback(entity, ref instanceData, animation);
 
-            if (instanceData.Triple == 0xe0401 /* DIEGO_TRIPLE */ && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && Level != DIEGO_DEATH_BATTLE_LEVEL)
-              frameCount = MAX_TELEPORT_FRAME;
-          } else {
-            var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
-            frameCount = baseData.BitmapFrameCount;
-          }
+                instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
+              } else { // Remove
+                instanceData.Info.CurrentFrame = 0;
+                RemoveOut.AddNoResize((byte)index);
 
-          var frameDeltaTime = deltaTime + instanceData.Info.TimeRemaining;
-          var framesAnimated = frameDeltaTime / animation.FrameTime;
-          instanceData.Info.TimeRemaining = (byte)(frameDeltaTime % animation.FrameTime);
-          while (framesAnimated-- > 0) {
-            if (animation.IsReversing) {
-              --instanceData.Info.CurrentFrame;
-
-              if (instanceData.Info.CurrentFrame < 0) {
-                if (animation.IsCyclic) {
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  animation.Flags &= ~AnimationData.AnimationFlags.Reversing;
-                  instanceData.Info.CurrentFrame = 0;
-                } else if (animation.IsRepeat) {
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-                } else { // Remove
-                  instanceData.Info.CurrentFrame = 0;
-
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
-                }
+                /*
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+                  ProcessCallback(entity, ref instanceData, animation);
+                */
               }
-            } else {
-              ++instanceData.Info.CurrentFrame;
+            }
+          } else {
+            ++instanceData.Info.CurrentFrame;
 
-              if (instanceData.Info.CurrentFrame >= frameCount) {
-                if (animation.IsCyclic) {
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  animation.Flags |= AnimationData.AnimationFlags.Reversing;
-                  instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-                } else if (animation.IsRepeat) {
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  instanceData.Info.CurrentFrame = 0;
-                } else { // Remove
-                  instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-
-                  if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
-                    ProcessCallback(entity, ref instanceData, animation, unfilteredChunkIndex);
-
-                  CommandBuffer.DestroyEntity(unfilteredChunkIndex, animationEntity);
+            if (instanceData.Info.CurrentFrame >= frameCount) {
+              if (animation.IsCyclic) {
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeCycle) {
+                  // Debug.Log($"<color=yellow> CallbackOperation i:{index}");
+                  CallbackOut.AddNoResize((byte)index); // ProcessCallback(entity, ref instanceData, animation);
                 }
+
+                animation.Flags |= AnimationData.AnimationFlags.Reversing;
+                instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
+              } else if (animation.IsRepeat) {
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRepeat) {
+                  // Debug.Log($"<color=yellow> CallbackOperation i:{index}");
+                  CallbackOut.AddNoResize((byte)index); // ProcessCallback(entity, ref instanceData, animation);
+                }
+
+                instanceData.Info.CurrentFrame = 0;
+              } else { // Remove
+                // Debug.Log($"<color=yellow> Remove i:{index}");
+                
+                instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
+                RemoveOut.AddNoResize((byte)index);
+                
+                /*
+                if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+                  ProcessCallback(entity, ref instanceData, animation);
+                */
               }
             }
           }
-          
-          if (instanceData.Class == ObjectClass.DoorAndGrating) {
-            var collisionResponsePolicy = instanceData.Info.CurrentFrame >= ObjectInstance.DoorAndGrating.DOOR_OPEN_FRAME ? CollisionResponsePolicy.None : CollisionResponsePolicy.Collide;
-            PhysicsColliderRW.GetRefRW(entity).ValueRW.Value.Value.SetCollisionResponse(collisionResponsePolicy);
-          }
-
-          InstanceLookupRW[entity] = instanceData;
-          animationDatas[i] = animation;
-
-          CommandBuffer.AddComponent<AnimatedTag>(unfilteredChunkIndex, entity);
         }
+        
+        if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          var collisionResponsePolicy = instanceData.Info.CurrentFrame >= ObjectInstance.DoorAndGrating.DOOR_OPEN_FRAME ? CollisionResponsePolicy.None : CollisionResponsePolicy.Collide;
+          PhysicsColliderRW.GetRefRW(entity).ValueRW.Value.Value.SetCollisionResponse(collisionResponsePolicy);
+        }
+
+        Animations[index] = animation;
+        
+        if(AnimatedTagRW.HasComponent(entity))
+          AnimatedTagRW.SetComponentEnabled(entity, true);
+      }
+    }
+    
+    [BurstCompile]
+    struct ProcessCallbacksJob : IJob {
+      public TriggerProcessor Processor;
+      
+      [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
+      public NativeList<AnimationData> Animations;
+      
+      public ComponentLookup<ObjectInstance> InstanceLookupRW;
+      public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
+
+      [ReadOnly] public NativeArray<byte> Callback;
+      [ReadOnly] public NativeArray<byte> Remove;
+      
+      public void Execute() {
+        Processor.unfilteredChunkIndex = 0;
+        Processor.animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
+        
+        // Debug.Log($"<color=green> ProcessCallbacksJob cl:{Callback.Length} rl:{Remove.Length}");
+
+        for (var i = 0; i < Callback.Length; ++i) {
+          var animation = Animations[Callback[i]];
+          var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
+          ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
+          ProcessCallback(entity, ref instanceData, animation);
+        }
+
+        for (var i = 0; i < Remove.Length; ++i)
+          RemoveAnimation(Remove[i]);
 
         Processor.animationList.Commands.EndForEachIndex();
       }
-
-      private void ProcessCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation, int unfilteredChunkIndex) {
+      
+      private void ProcessCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation) {
         var userData = animation.UserData;
 
         if (animation.CallbackOperation == AnimationData.Callback.UnShodanize) {
@@ -307,10 +347,9 @@ namespace SS.System {
             Debug.Log($"AnimationData.Callback.UnShodanize Setting stuff");
 
             if (instanceData.Class == ObjectClass.Decoration) {
-              var decoration = DecorationLookupRW[entity];
+              ref var decoration = ref DecorationLookupRW.GetRefRW(entity).ValueRW;
               decoration.Data2 = SHODAN_STATIC_MAGIC_COOKIE | ((uint)TextureType.Custom << TPOLY_INDEX_BITS);
               decoration.Cosmetic = 0;
-              DecorationLookupRW[entity] = decoration;
             }
             instanceData.Info.CurrentFrame = 0;
           } else {
@@ -331,17 +370,26 @@ namespace SS.System {
           Debug.LogWarning($"Not supported e:{entity.Index} o:{animation.ObjectIndex} t:{animation.CallbackType} op:{animation.CallbackOperation}");
         }
       }
+
+      private void RemoveAnimation(byte animationIndex) {
+        var animation = Animations[animationIndex];
+        var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
+        ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
+        
+        Animations.RemoveAtSwapBack(animationIndex);
+        
+        if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+          ProcessCallback(entity, ref instanceData, animation);
+      }
     }
 
     private struct AsyncLoadTag : IComponentData { }
   }
 
-  public struct AnimatedTag : IComponentData { }
+  public struct AnimatedTag : IComponentData, IEnableableComponent { }
 
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct AnimationData : IComponentData {
-    public const int MAX_ANIMLIST_SIZE = 64;
-
+  public struct AnimationData {
     [Flags]
     public enum AnimationFlags : byte {
       Repeat = 0x01,

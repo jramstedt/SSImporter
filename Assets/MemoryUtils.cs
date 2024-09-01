@@ -5,7 +5,65 @@ using Unity.Entities.Serialization;
 
 namespace SS {
     [GenerateTestsForBurstCompatibility]
-    public unsafe class BufferBinaryWriter : BinaryWriter
+    public unsafe struct ListBinaryWriter : BinaryWriter {
+        private NativeList<byte> content;
+
+        /// <summary>
+        /// A pointer to the data that has been written to memory.
+        /// </summary>
+        public readonly byte* Data => content.GetUnsafePtr();
+
+        /// <summary>
+        /// The total length of the all written data.
+        /// </summary>
+        public readonly int Length => content.Length;
+
+        /// <summary>
+        /// Gets or sets the current write position of the MemoryBinaryWriter.
+        /// </summary>
+        public long Position { get; set; }
+
+        public ListBinaryWriter(NativeList<byte> content) {
+            this.content = content;
+            Position = 0;
+        }
+        
+        /// <summary>
+        /// Disposes the MemoryBinaryWriter.
+        /// </summary>
+        public void Dispose()
+        {
+        }
+
+        internal NativeArray<byte> GetContentAsNativeArray() => content.AsArray();
+
+        /// <summary>
+        /// Writes the specified number of bytes and advances the current write position by that number of bytes.
+        /// </summary>
+        /// <param name="data">The data to write.</param>
+        /// <param name="bytes">The number of bytes to write.</param>
+        public void WriteBytes(void* data, int bytes)
+        {
+            content.ResizeUninitialized((int)Position + bytes);
+            UnsafeUtility.MemCpy(content.GetUnsafePtr() + (int)Position, data, bytes);
+            Position += bytes;
+        }
+        
+        public void WriteBytes(byte value, int bytes) {
+            content.ResizeUninitialized((int)Position + bytes);
+            UnsafeUtility.MemSet(content.GetUnsafePtr() + (int)Position, value, bytes);
+            Position += bytes;
+        }
+        
+        public void CopyBytes(ref BufferBinaryReader reader, int bytes) {
+            content.ResizeUninitialized((int)Position + bytes);
+            reader.ReadBytes(content.GetUnsafePtr() + Position, bytes);
+            Position += bytes;
+        }
+    }
+    
+    [GenerateTestsForBurstCompatibility]
+    public unsafe struct BufferBinaryWriter : BinaryWriter
     {
         readonly byte* content;
         readonly long length;
@@ -15,8 +73,8 @@ namespace SS {
         /// </summary>
         public long Position { get; set; }
 
-        public long Length => length;
-        public byte* Content => content;
+        public readonly long Length => length;
+        public readonly byte* Content => content;
 
         public BufferBinaryWriter(byte* content, long length) {
             this.content = content;
@@ -57,23 +115,18 @@ namespace SS {
             Position += bytes;
         }
         
-        public void CopyBytes(BufferBinaryReader reader, int bytes) {
+        public void CopyBytes(ref BufferBinaryReader reader, int bytes) {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
             if (Position + bytes > length)
                 throw new ArgumentException("CopyBytes writes beyond end of memory block");
-            
-            if (reader.Position + bytes > reader.Length)
-                throw new ArgumentException("CopyBytes reads beyond end of memory block");
 #endif
-            
-            UnsafeUtility.MemCpy(content + Position, reader.Content + reader.Position, bytes);
+            reader.ReadBytes(content + Position, bytes);
             Position += bytes;
-            reader.Position += bytes;
         }
     }
     
     [GenerateTestsForBurstCompatibility]
-    public unsafe class BufferBinaryReader : BinaryReader
+    public unsafe struct BufferBinaryReader : BinaryReader
     {
         readonly byte* content;
         readonly long length;
@@ -83,8 +136,8 @@ namespace SS {
         /// </summary>
         public long Position { get; set; }
         
-        public long Length => length;
-        public byte* Content => content;
+        public readonly long Length => length;
+        public readonly byte* Content => content;
 
         /// <summary>
         /// Initializes and returns an instance of MemoryBinaryReader.
@@ -104,6 +157,22 @@ namespace SS {
         public void Dispose()
         {
         }
+        
+        /// <summary>
+        /// Reads a byte and advances the current read position by a byte.
+        /// </summary>
+        /// <returns>The read data.</returns>
+        /// <exception cref="ArgumentException">Thrown if attempting read beyond the end of the memory block.</exception>
+        public byte ReadByte()
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+            if (Position + sizeof(byte) > length)
+                throw new ArgumentException("ReadByte reads beyond end of memory block");
+#endif
+            var res = *(content + Position);
+            Position += sizeof(byte);
+            return res;
+        }
 
         /// <summary>
         /// Reads the specified number of bytes and advances the current read position by that number of bytes.
@@ -119,6 +188,12 @@ namespace SS {
 #endif
             UnsafeUtility.MemCpy(data, content + Position, bytes);
             Position += bytes;
+        }
+            
+        public unsafe T Read<T>() where T : unmanaged {
+            T value;
+            ReadBytes(&value, sizeof(T));
+            return value;
         }
     }
 }
