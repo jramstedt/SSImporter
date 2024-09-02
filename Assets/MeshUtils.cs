@@ -1,4 +1,5 @@
 using SS.Resources;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
@@ -6,6 +7,26 @@ using Vertex = SS.Data.Vertex;
 
 namespace SS {
     public static class MeshUtils {
+        public const byte BIGSTUFF_MODEL_XY_SHF = 13;
+        public const byte BIGSTUFF_MODEL_Z_SHF = 10;
+        public const byte CONTAINER_MODEL_SHF = 10;
+        
+        public static readonly NativeParallelHashMap<int, (byte SizeX, byte SizeY, byte SizeZ, byte SideTexture, byte TopBottomTexture)> DefaultSpecialMeshParams;
+
+        static MeshUtils() {
+            DefaultSpecialMeshParams = new (8, Allocator.Persistent) {
+                [0x70700] = (0x04, 0x04, 0x01, 0x80, 0x80),
+                [0x70701] = (0x02, 0x04, 0x01, 0x80, 0x80),
+                [0x70706] = (0x02, 0x02, 0xB0, 0x80, 0x81),
+                [0x70707] = (0x02, 0x04, 0x01, 0x80, 0x80),
+                [0x70709] = (0x00, 0x00, 0x00, 0x00, 0x00), // ??
+                [0x80509] = (0x04, 0x01, 0x10, 0x00, 0x00),
+                [0xD0000] = (0x08, 0x08, 0x08, 0x0C, 0x0B),
+                [0xD0001] = (0x10, 0x10, 0x10, 0x0C, 0x0B),
+                [0xD0002] = (0x20, 0x20, 0x20, 0x0A, 0x0A),
+            };
+        }
+        
         public static void BuildPlaneMesh(Mesh mesh, Bitmap bitmapDescription, float scale, bool centerPivot, bool doubleSided) {
             var pivot = bitmapDescription.AnchorPoint;
             var size = bitmapDescription.Size;

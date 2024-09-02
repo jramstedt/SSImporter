@@ -2,7 +2,6 @@
 using SS.System;
 using System.IO;
 using SS.Physics;
-using Unity.Assertions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -14,6 +13,10 @@ using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using static Unity.Physics.Material;
+using static SS.MeshUtils;
+using BoxCollider = Unity.Physics.BoxCollider;
+using CylinderCollider = Unity.Physics.CylinderCollider;
+using SphereCollider = Unity.Physics.SphereCollider;
 
 namespace SS.Resources {
   public static class SaveLoader {
@@ -193,7 +196,7 @@ namespace SS.Resources {
 
               physicsTranslation = math.float3(-location.FineX / 256f, levelInfo.HeightFactor * -location.Z / 256f, -location.FineY / 256f) + math.float3(0.5f, repulsorCenter, 0.5f);
 
-              collider = Unity.Physics.BoxCollider.Create(
+              collider = BoxCollider.Create(
                 new BoxGeometry {
                   BevelRadius = float.Epsilon,
                   Center = physicsTranslation,
@@ -215,7 +218,7 @@ namespace SS.Resources {
               // Sphere collider??
               // r = -r;
 
-              collider = Unity.Physics.SphereCollider.Create(
+              collider = SphereCollider.Create(
                 new SphereGeometry {
                   Center = physicsTranslation,
                   Radius = r
@@ -232,7 +235,7 @@ namespace SS.Resources {
             } else {
               Debug.Log($"h {h} r {r} e {entity}");
 
-              collider = Unity.Physics.CylinderCollider.Create(
+              collider = CylinderCollider.Create(
                 new CylinderGeometry {
                   BevelRadius = 0f,
                   Center = physicsTranslation,
@@ -247,7 +250,28 @@ namespace SS.Resources {
             entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
             entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
           } else if (baseData.DrawType == DrawType.Special) {
-            // TODO add cube collider for special types
+            BlobAssetReference<Unity.Physics.Collider> collider = default;
+            
+            if (instanceData.Triple == 0x70707 /* FORCE_BRIJ_TRIPLE */ || instanceData.Triple == 0x70709 /* FORCE_BRIJ2_TRIPLE */ ||
+                instanceData.Triple == 0x70700 /* BRIDGE_TRIPLE */ || instanceData.Triple == 0x70701 /* CATWALK_TRIPLE */ || instanceData.Triple == 0x70702 ||
+                instanceData.Triple == 0x70706 /* PILLAR_TRIPLE */ || instanceData.Triple == 0x80509 /* BARRICADE_TRIPLE */)
+            {
+              var Size = GetModelData(instanceData);
+              
+              collider = BoxCollider.Create(
+                new BoxGeometry {
+                  BevelRadius = float.Epsilon,
+                  Center = new float3(0f, Size.z, 0f) / 0xFFFF,
+                  Orientation = quaternion.identity,
+                  Size = new float3(Size.xzy * 2) / 0xFFFF
+                }
+              );
+            }
+
+            if (collider.IsCreated) {
+              entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
+              entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
+            }
           } else if (baseData.DrawType is DrawType.TerrainPolygon or DrawType.FlatTexture or DrawType.TranslucentPolygon) {
             var collider = PolygonCollider.CreateQuad(
               new float3(-.5f, -.5f, 0f),
@@ -309,21 +333,9 @@ namespace SS.Resources {
         } else if (baseData.DrawType == DrawType.FlatTexture) {
           entityManager.AddComponentData(entity, new FlatTextureInfo { });
         } else if (baseData.DrawType == DrawType.Special) {
-          // TODO FIXME move outside somewhere out of the loop
-          using var defaults = new NativeParallelHashMap<int, (byte SizeX, byte SizeY, byte SizeZ, byte SideTexture, byte TopBottomTexture)>(8, Allocator.Persistent) {
-            [0x70700] = (0x04, 0x04, 0x01, 0x80, 0x80),
-            [0x70701] = (0x02, 0x04, 0x01, 0x80, 0x80),
-            [0x70706] = (0x02, 0x02, 0xB0, 0x80, 0x81),
-            [0x70707] = (0x02, 0x04, 0x01, 0x80, 0x80),
-            [0x70709] = (0x00, 0x00, 0x00, 0x00, 0x00), // ??
-            [0x80509] = (0x04, 0x01, 0x10, 0x00, 0x00),
-            [0xD0000] = (0x08, 0x08, 0x08, 0x0C, 0x0B),
-            [0xD0001] = (0x10, 0x10, 0x10, 0x0C, 0x0B),
-            [0xD0002] = (0x20, 0x20, 0x20, 0x0A, 0x0A),
-          };
-
-          var instanceDefault = defaults[instanceData.Triple];
-
+          var instanceDefault = DefaultSpecialMeshParams[instanceData.Triple];
+          var Size = GetModelData(instanceData);
+          
           if (instanceData.Triple == 0x80509 /* BARRICADE_TRIPLE */) {
             var itemInstanceData = itemInstances[instanceData.SpecIndex];
             var texture = itemInstanceData.Data2;
@@ -331,10 +343,7 @@ namespace SS.Resources {
             if (tluc_val == 0)
                tluc_val = me_cybcolor_flr(MAP_GET_XY(OBJ_LOC_BIN_X(_fr_cobj->loc), OBJ_LOC_BIN_Y(_fr_cobj->loc)));
             */
-
-            var SizeX = (itemInstanceData.SizeX != 0 ? itemInstanceData.SizeX : instanceDefault.SizeX) << 13;
-            var SizeY = (itemInstanceData.SizeY != 0 ? itemInstanceData.SizeY : instanceDefault.SizeY) << 13;
-            var SizeZ = (itemInstanceData.SizeZ != 0 ? itemInstanceData.SizeZ : instanceDefault.SizeZ) << 10;
+            
             var SideTexture = (itemInstanceData.SideTexture != 0 ? itemInstanceData.SideTexture : instanceDefault.SideTexture);
             var TopBottomTexture = (itemInstanceData.TopBottomTexture != 0 ? itemInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture);
 
@@ -345,9 +354,7 @@ namespace SS.Resources {
             var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
 
             entityManager.AddComponentData(entity, new Cuboid {
-              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Size = new float3(Size) / 0xFFFF,
               Offset = 0,
               SideTexture = (short)-decorationInstanceData.Color,
               TopBottomTexture = (short)-decorationInstanceData.Color,
@@ -356,9 +363,7 @@ namespace SS.Resources {
             var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
 
             entityManager.AddComponentData(entity, new Cuboid {
-              SizeX = ((decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeY = ((decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << 13) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeZ = ((decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
+              Size = new float3(Size) / 0xFFFF,
               Offset = 0,
               SideTexture = decorationInstanceData.SideTexture != 0 ? decorationInstanceData.SideTexture : instanceDefault.SideTexture,
               TopBottomTexture = decorationInstanceData.TopBottomTexture != 0 ? decorationInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture
@@ -367,10 +372,8 @@ namespace SS.Resources {
             var containerInstanceData = containerInstances[instanceData.SpecIndex];
 
             entityManager.AddComponentData(entity, new Cuboid {
-              SizeX = ((containerInstanceData.SizeX != 0 ? containerInstanceData.SizeX : instanceDefault.SizeX) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeY = ((containerInstanceData.SizeY != 0 ? containerInstanceData.SizeY : instanceDefault.SizeY) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
-              SizeZ = ((containerInstanceData.SizeZ != 0 ? containerInstanceData.SizeZ : instanceDefault.SizeZ) << 10) * 1f / 65536f, // TODO FIXME correct scaling!
-              Offset = (float)baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT,
+              Size = new float3(Size) / 0xFFFF,
+              Offset = baseData.Radius / (float)Base.PHYSICS_RADIUS_UNIT,
               SideTexture = containerInstanceData.SideTexture != 0 ? containerInstanceData.SideTexture : instanceDefault.SideTexture,
               TopBottomTexture = containerInstanceData.TopBottomTexture != 0 ? containerInstanceData.TopBottomTexture : instanceDefault.TopBottomTexture
             });
@@ -610,6 +613,42 @@ namespace SS.Resources {
       //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
 
       return world;
+      
+      int3 GetModelData(ObjectInstance instanceData) {
+        var instanceDefault = DefaultSpecialMeshParams[instanceData.Triple];
+        
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationInstanceData = decorationInstances[instanceData.SpecIndex];
+          
+          return new int3(
+            (decorationInstanceData.SizeX != 0 ? decorationInstanceData.SizeX : instanceDefault.SizeX) << BIGSTUFF_MODEL_XY_SHF,
+            (decorationInstanceData.SizeY != 0 ? decorationInstanceData.SizeY : instanceDefault.SizeY) << BIGSTUFF_MODEL_XY_SHF,
+            (decorationInstanceData.SizeZ != 0 ? decorationInstanceData.SizeZ : instanceDefault.SizeZ) << BIGSTUFF_MODEL_Z_SHF
+          );
+        }
+        
+        if (instanceData.Class == ObjectClass.Item) {
+          var itemInstanceData = itemInstances[instanceData.SpecIndex];
+          
+          return new int3(
+            (itemInstanceData.SizeX != 0 ? itemInstanceData.SizeX : instanceDefault.SizeX) << BIGSTUFF_MODEL_XY_SHF,
+            (itemInstanceData.SizeY != 0 ? itemInstanceData.SizeY : instanceDefault.SizeY) << BIGSTUFF_MODEL_XY_SHF, 
+            (itemInstanceData.SizeZ != 0 ? itemInstanceData.SizeZ : instanceDefault.SizeZ) << BIGSTUFF_MODEL_Z_SHF
+            );
+        }
+
+        if (instanceData.Class == ObjectClass.Container) {
+          var containerInstanceData = containerInstances[instanceData.SpecIndex];
+          
+          return new int3(
+            (containerInstanceData.SizeX != 0 ? containerInstanceData.SizeX : instanceDefault.SizeX) << CONTAINER_MODEL_SHF,
+            (containerInstanceData.SizeY != 0 ? containerInstanceData.SizeY : instanceDefault.SizeY) << CONTAINER_MODEL_SHF,
+            (containerInstanceData.SizeZ != 0 ? containerInstanceData.SizeZ : instanceDefault.SizeZ) << CONTAINER_MODEL_SHF
+          );
+        }
+
+        return int3.zero;
+      }
     }
 
     private static unsafe BlobAssetReference<BlobArray<T>> BuildBlob<T>(in NativeArray<T> array) where T : struct {

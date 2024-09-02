@@ -147,18 +147,20 @@ namespace SS.System {
             22, 21, 20, 20, 23, 22
           };
 
+          // TODO Use Offset? obj_model_hack
+          
           ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
             // Top
-            float3(-cuboid.SizeX, cuboid.SizeZ * 2f, -cuboid.SizeY),
-            float3(cuboid.SizeX, cuboid.SizeZ * 2f, -cuboid.SizeY),
-            float3(cuboid.SizeX, cuboid.SizeZ * 2f, cuboid.SizeY),
-            float3(-cuboid.SizeX, cuboid.SizeZ * 2f, cuboid.SizeY),
+            float3(-cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
+            float3(cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
+            float3(cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
+            float3(-cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
 
             // Bottom
-            float3(-cuboid.SizeX, 0f, -cuboid.SizeY),
-            float3(cuboid.SizeX, 0f, -cuboid.SizeY),
-            float3(cuboid.SizeX, 0f, cuboid.SizeY),
-            float3(-cuboid.SizeX, 0f, cuboid.SizeY)
+            float3(-cuboid.Size.x, 0f, -cuboid.Size.y),
+            float3(cuboid.Size.x, 0f, -cuboid.Size.y),
+            float3(cuboid.Size.x, 0f, cuboid.Size.y),
+            float3(-cuboid.Size.x, 0f, cuboid.Size.y)
           };
           var vertices = meshData.GetVertexData<Vertex>();
 
@@ -323,9 +325,7 @@ namespace SS.System {
   internal struct MeshCachedTag : ICleanupComponentData { }
 
   public struct Cuboid : IComponentData {
-    public float SizeX;
-    public float SizeY;
-    public float SizeZ;
+    public float3 Size;
     public float Offset;
     public short SideTexture;
     public short TopBottomTexture;
