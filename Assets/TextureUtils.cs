@@ -40,15 +40,15 @@ namespace SS {
       in Base baseProperties,
       in ObjectInstance instanceData,
       in Level level,
-      in ComponentLookup<ObjectInstance> instanceLookup,
-      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in ComponentLookup<ObjectInstance> instanceLookupRO,
+      in ComponentLookup<ObjectInstance.Decoration> decorationLookupRO,
       in bool isAnimating
     ) {
 
       var textureData = 0;
 
       var isIndirectable = instanceData.Class == ObjectClass.Decoration &&
-        (baseProperties.DrawType == DrawType.TexturedPolygon || baseProperties.DrawType == DrawType.TerrainPolygon);
+        baseProperties.DrawType is DrawType.TexturedPolygon or DrawType.TerrainPolygon;
 
       //(instanceData.Class == ObjectClass.Decoration && baseProperties.DrawType == DrawType.TexturedPolygon) ||
       //instanceData.Triple == 0x70208 || // SUPERSCREEN_TRIPLE
@@ -56,7 +56,7 @@ namespace SS {
       //instanceData.Triple == 0x70206; // SCREEN_TRIPLE
 
       if (isIndirectable) { // Must be ObjectClass.Decoration
-        var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+        var decorationData = decorationLookupRO.GetRefRO(entity).ValueRO;
 
         var data = decorationData.Data2;
 
@@ -66,8 +66,8 @@ namespace SS {
         if (data != 0 || isAnimating) {
           if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
             var dataEntity = level.ObjectInstances.Value[(int)data & INDIRECTED_STUFF_DATA_MASK];
-            var databObjectInstance = instanceLookup.GetRefRO(dataEntity).ValueRO;
-            var dataDecorationInstance = decorationLookup.GetRefRO(dataEntity).ValueRO;
+            var databObjectInstance = instanceLookupRO.GetRefRO(dataEntity).ValueRO;
+            var dataDecorationInstance = decorationLookupRO.GetRefRO(dataEntity).ValueRO;
 
             textureData = (int)dataDecorationInstance.Data2 + databObjectInstance.Info.CurrentFrame;
           } else {
@@ -88,6 +88,7 @@ namespace SS {
       return textureData;
     }
 
+    [BurstCompile]
     public static bool IsAnimated(ushort objectIndex, in NativeArray<AnimationData>.ReadOnly animationData) {
       for (var index = 0; index < animationData.Length; ++index)
         if (animationData[index].ObjectIndex == objectIndex) return true;

@@ -110,30 +110,30 @@ namespace SS.System {
       var callbackList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       
       // TODO Animating class objects
-      
-      var animateJob = new AnimateAnimationJob {
+
+      Dependency = new AnimateAnimationJob {
         ObjectInstancesBlobAsset = level.ObjectInstances,
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
-        
+
         TimeData = SystemAPI.Time,
         LevelIndex = 0, // TODO Level index
-        
+
         BlockCounts = blockCounts,
         Animations = level.Animations.AsArray(),
-        
+
         PhysicsColliderRW = physicsColliderRW,
         AnimatedTagRW = animatedTagRW,
-        
+
         InstanceLookupRW = instanceLookupRW,
         ItemLookupRO = itemLookupRO,
         EnemyLookupRO = enemyLookupRO,
         DecorationLookupRO = decorationLookupRW,
-        
+
         CallbackOut = callbackList.AsParallelWriter(),
         RemoveOut = removedList.AsParallelWriter()
-      };
+      }.Schedule(level.Animations.Length, Dependency);
 
-      var processCallbacksJob = new ProcessCallbacksJob() {
+      Dependency = new ProcessCallbacksJob() {
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
           TriggerEventArchetype = triggerEventArchetype,
@@ -167,12 +167,7 @@ namespace SS.System {
         
         Callback = callbackList.AsDeferredJobArray(),
         Remove = removedList.AsDeferredJobArray()
-      };
-
-      Dependency = animateJob.Schedule(level.Animations.Length, Dependency);
-      Dependency = processCallbacksJob.Schedule(Dependency);
-      
-      Dependency.Complete();
+      }.Schedule(Dependency);
     }
 
     [BurstCompile]

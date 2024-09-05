@@ -2,8 +2,10 @@ using SS.Data;
 using SS.Resources;
 using System;
 using System.Collections.Concurrent;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -12,6 +14,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using static SS.TextureUtils;
 using static Unity.Mathematics.math;
+using Object = UnityEngine.Object;
 
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
@@ -24,8 +27,7 @@ namespace SS.System {
     private EntityArchetype viewPartArchetype;
 
     private NativeArray<BatchMaterialID> materials;
-    private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
-    private readonly NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
+    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
@@ -36,6 +38,11 @@ namespace SS.System {
       base.OnCreate();
 
       RequireForUpdate<Level>();
+
+      newMeshQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<Cuboid, ObjectInstance>()
+        .WithNone<MeshCachedTag>()
+        .Build(this);
 
       activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<Cuboid, LocalToWorld, MeshCachedTag>()
@@ -117,124 +124,47 @@ namespace SS.System {
 
       var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-      using var entities = newMeshQuery.ToEntityArray(Allocator.TempJob);
+      var level = SystemAPI.GetSingleton<Level>();
+      using var entities = newMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
+      using var cuboids = newMeshQuery.ToComponentDataListAsync<Cuboid>(Allocator.TempJob, out var cuboidsListJobHandle);
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
 
-      var level = SystemAPI.GetSingleton<Level>();
-
-      var vertexAttributes = this.vertexAttributes;
-      var materials = this.materials;
-
-      Entities
-        .WithStoreEntityQueryInField(ref newMeshQuery)
-        .WithAll<Cuboid, ObjectInstance>()
-        .WithNone<MeshCachedTag>()
-        .ForEach((Entity entity, int entityInQueryIndex, in Cuboid cuboid, in ObjectInstance instanceData) => {
-          var meshData = meshDataArray[entityInQueryIndex];
-
-          meshData.subMeshCount = 2;
-          meshData.SetVertexBufferParams(4 * 6, vertexAttributes);
-          meshData.SetIndexBufferParams(6 * 6, IndexFormat.UInt16);
-
-          ReadOnlySpan<ushort> indiceTemplate = stackalloc ushort[] {
-            2, 1, 0, 0, 3, 2,
-            4, 5, 6, 6, 7, 4,
-
-            8, 9, 10, 10, 11, 8,
-            12, 13, 14, 14, 15, 12,
-            16, 17, 18, 18, 19, 16,
-            22, 21, 20, 20, 23, 22
-          };
-
-          // TODO Use Offset? obj_model_hack
-          
-          ReadOnlySpan<float3> verticeTemplate = stackalloc float3[] {
-            // Top
-            float3(-cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
-            float3(cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
-            float3(cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
-            float3(-cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
-
-            // Bottom
-            float3(-cuboid.Size.x, 0f, -cuboid.Size.y),
-            float3(cuboid.Size.x, 0f, -cuboid.Size.y),
-            float3(cuboid.Size.x, 0f, cuboid.Size.y),
-            float3(-cuboid.Size.x, 0f, cuboid.Size.y)
-          };
-          var vertices = meshData.GetVertexData<Vertex>();
-
-          // +Y
-          vertices[0] = new Vertex { pos = verticeTemplate[0], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[1] = new Vertex { pos = verticeTemplate[1], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[2] = new Vertex { pos = verticeTemplate[2], uv = half2(half(1f), half(0f)), light = 0f };
-          vertices[3] = new Vertex { pos = verticeTemplate[3], uv = half2(half(0f), half(0f)), light = 0f };
-
-          // -Y
-          vertices[4] = new Vertex { pos = verticeTemplate[4], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[5] = new Vertex { pos = verticeTemplate[5], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[6] = new Vertex { pos = verticeTemplate[6], uv = half2(half(1f), half(0f)), light = 0f };
-          vertices[7] = new Vertex { pos = verticeTemplate[7], uv = half2(half(0f), half(0f)), light = 0f };
-
-          // +Z
-          vertices[8] = new Vertex { pos = verticeTemplate[0], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[9] = new Vertex { pos = verticeTemplate[1], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[10] = new Vertex { pos = verticeTemplate[5], uv = half2(half(1f), half(0f)), light = 0f };
-          vertices[11] = new Vertex { pos = verticeTemplate[4], uv = half2(half(0f), half(0f)), light = 0f };
-
-          // -Z
-          vertices[12] = new Vertex { pos = verticeTemplate[2], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[13] = new Vertex { pos = verticeTemplate[3], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[14] = new Vertex { pos = verticeTemplate[7], uv = half2(half(1f), half(0f)), light = 0f };
-          vertices[15] = new Vertex { pos = verticeTemplate[6], uv = half2(half(0f), half(0f)), light = 0f };
-
-          // +X
-          vertices[16] = new Vertex { pos = verticeTemplate[1], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[17] = new Vertex { pos = verticeTemplate[2], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[18] = new Vertex { pos = verticeTemplate[6], uv = half2(half(1f), half(0f)), light = 0f };
-          vertices[19] = new Vertex { pos = verticeTemplate[5], uv = half2(half(0f), half(0f)), light = 0f };
-
-          // -X
-          vertices[20] = new Vertex { pos = verticeTemplate[0], uv = half2(half(1f), half(1f)), light = 0f };
-          vertices[21] = new Vertex { pos = verticeTemplate[3], uv = half2(half(0f), half(1f)), light = 0f };
-          vertices[22] = new Vertex { pos = verticeTemplate[7], uv = half2(half(0f), half(0f)), light = 0f };
-          vertices[23] = new Vertex { pos = verticeTemplate[4], uv = half2(half(1f), half(0f)), light = 0f };
-
-          var indices = meshData.GetIndexData<ushort>();
-          indiceTemplate.CopyTo(indices.AsSpan());
-
-          meshData.SetSubMesh(0, new SubMeshDescriptor(0, 2 * 6, MeshTopology.Triangles));
-          meshData.SetSubMesh(1, new SubMeshDescriptor(2 * 6, 4 * 6, MeshTopology.Triangles));
-
-        })
-        .ScheduleParallel();
+      new BuildSpecialMeshJob {
+        MeshDataArray = meshDataArray,
+        VertexAttributes = vertexAttributes,
+      }.ScheduleParallel(newMeshQuery);
+      
+      Dependency = JobHandle.CombineDependencies(Dependency, entitiesListJobHandle, cuboidsListJobHandle);
+      CompleteDependency();
 
       #region Cache mesh of new entities
       var meshes = new Mesh[entityCount];
+      
       for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
         var entity = entities[entityIndex];
-        meshes[entityIndex] = entityMeshes.GetOrAdd(entity, entity => {
-          var mesh = new Mesh();
-          // mesh.MarkDynamic();
 
+        if (entityMeshIDs.TryGetValue(entity, out var batchMeshID)) {
+          meshes[entityIndex] = entitiesGraphicsSystem.GetMesh(batchMeshID);
+        } else {
+          var mesh = new Mesh();
+          
           if (entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh)) == false) {
-            UnityEngine.Object.Destroy(mesh);
+            Object.Destroy(mesh);
             throw new Exception(@"Failed to add registered mesh.");
           }
 
+          meshes[entityIndex] = mesh;
+          
           commandBuffer.AddComponent<MeshCachedTag>(entity);
-
-          return mesh;
-        });
+        }
       }
       #endregion
 
-      CompleteDependency();
-
       Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
-      for (int i = 0; i < meshes.Length; ++i) {
-        var mesh = meshes[i];
+      for (int meshIndex = 0; meshIndex < meshes.Length; ++meshIndex) {
+        var mesh = meshes[meshIndex];
         mesh.RecalculateNormals();
         // mesh.RecalculateTangents();
         mesh.RecalculateBounds();
@@ -243,80 +173,161 @@ namespace SS.System {
 
       // TODO physics
 
-      Entities
-        .WithAll<Cuboid, ObjectInstance>()
-        .WithNone<MeshCachedTag>()
-        .ForEach((Entity entity, int entityInQueryIndex, in Cuboid cuboid, in ObjectInstance instanceData) => {
-          var SideTexture = cuboid.SideTexture;
-          var TopBottomTexture = cuboid.TopBottomTexture;
+      for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        var entity = entities[entityIndex];
+        var cuboid = cuboids[entityIndex];
 
-          if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
-            return;
+        if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
+          continue;
 
-          #region Sides
-          {
-            BatchMaterialID material;
+        var SideTexture = cuboid.SideTexture;
+        var TopBottomTexture = cuboid.TopBottomTexture;
 
-            if (SideTexture < 0) {
-              material = materialProviderSystem.GetTranslucentMaterial((byte)(-SideTexture));
-            } else if ((SideTexture & 0x80) == 0x80) {
-              byte textureMapIndex = (byte)(SideTexture & 0x7F);
-              ushort textureIndex = level.TextureMap[textureMapIndex];
-              material = materialProviderSystem.GetTextureMaterial(textureIndex);
-            } else {
-              material = materials[SideTexture & 0x7F];
-            }
+        #region Sides
+        {
+          BatchMaterialID material;
 
-            var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-            RenderMeshUtility.AddComponents(
-              viewPart,
-              EntityManager,
-              renderMeshDescription,
-              new MaterialMeshInfo {
-                MeshID = meshID,
-                MaterialID = material,
-                SubMesh = 0
-              }
-            );
-
-            commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
+          if (SideTexture < 0) {
+            material = materialProviderSystem.GetTranslucentMaterial((byte)(-SideTexture));
+          } else if ((SideTexture & 0x80) == 0x80) {
+            byte textureMapIndex = (byte)(SideTexture & 0x7F);
+            ushort textureIndex = level.TextureMap[textureMapIndex];
+            material = materialProviderSystem.GetTextureMaterial(textureIndex);
+          } else {
+            material = materials[SideTexture & 0x7F];
           }
-          #endregion
 
-          #region Top and Bottom
-          {
-            BatchMaterialID material;
-
-            if (TopBottomTexture < 0) {
-              material = materialProviderSystem.GetTranslucentMaterial((byte)(-TopBottomTexture));
-            } else if ((TopBottomTexture & 0x80) == 0x80) {
-              byte textureMapIndex = (byte)(TopBottomTexture & 0x7F);
-              ushort textureIndex = level.TextureMap[textureMapIndex];
-              material = materialProviderSystem.GetTextureMaterial(textureIndex);
-            } else {
-              material = materials[TopBottomTexture & 0x7F];
+          var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+          RenderMeshUtility.AddComponents(
+            viewPart,
+            EntityManager,
+            renderMeshDescription,
+            new MaterialMeshInfo {
+              MeshID = meshID,
+              MaterialID = material,
+              SubMesh = 0
             }
+          );
 
-            var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
-            RenderMeshUtility.AddComponents(
-              viewPart,
-              EntityManager,
-              renderMeshDescription,
-              new MaterialMeshInfo {
-                MeshID = meshID,
-                MaterialID = material,
-                SubMesh = 1
-              }
-            );
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
+        }
+        #endregion
 
-            commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-            commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
+        #region Top and Bottom
+        {
+          BatchMaterialID material;
+
+          if (TopBottomTexture < 0) {
+            material = materialProviderSystem.GetTranslucentMaterial((byte)(-TopBottomTexture));
+          } else if ((TopBottomTexture & 0x80) == 0x80) {
+            byte textureMapIndex = (byte)(TopBottomTexture & 0x7F);
+            ushort textureIndex = level.TextureMap[textureMapIndex];
+            material = materialProviderSystem.GetTextureMaterial(textureIndex);
+          } else {
+            material = materials[TopBottomTexture & 0x7F];
           }
-          #endregion
-        })
-        .WithStructuralChanges()
-        .Run();
+
+          var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
+          RenderMeshUtility.AddComponents(
+            viewPart,
+            EntityManager,
+            renderMeshDescription,
+            new MaterialMeshInfo {
+              MeshID = meshID,
+              MaterialID = material,
+              SubMesh = 1
+            }
+          );
+
+          commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
+          commandBuffer.SetComponent(viewPart, LocalTransform.FromPosition(0f, -cuboid.Offset, 0f));
+        }
+        #endregion
+      }
+    }
+
+    [BurstCompile]
+    internal partial struct BuildSpecialMeshJob : IJobEntity {
+      public Mesh.MeshDataArray MeshDataArray;
+      [ReadOnly] public NativeArray<VertexAttributeDescriptor> VertexAttributes;
+
+      private void Execute([EntityIndexInQuery] int entityIndexInQuery, in Cuboid cuboid, in ObjectInstance instanceData) {
+        var meshData = MeshDataArray[entityIndexInQuery];
+
+        meshData.subMeshCount = 2;
+        meshData.SetVertexBufferParams(4 * 6, VertexAttributes);
+        meshData.SetIndexBufferParams(6 * 6, IndexFormat.UInt16);
+
+        ReadOnlySpan<ushort> indicesTemplate = stackalloc ushort[] {
+          2, 1, 0, 0, 3, 2,
+          4, 5, 6, 6, 7, 4,
+
+          8, 9, 10, 10, 11, 8,
+          12, 13, 14, 14, 15, 12,
+          16, 17, 18, 18, 19, 16,
+          22, 21, 20, 20, 23, 22
+        };
+
+        // TODO Use Offset? obj_model_hack
+
+        ReadOnlySpan<float3> verticesTemplate = stackalloc float3[] {
+          // Top
+          float3(-cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
+          float3(cuboid.Size.x, cuboid.Size.z * 2f, -cuboid.Size.y),
+          float3(cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
+          float3(-cuboid.Size.x, cuboid.Size.z * 2f, cuboid.Size.y),
+
+          // Bottom
+          float3(-cuboid.Size.x, 0f, -cuboid.Size.y),
+          float3(cuboid.Size.x, 0f, -cuboid.Size.y),
+          float3(cuboid.Size.x, 0f, cuboid.Size.y),
+          float3(-cuboid.Size.x, 0f, cuboid.Size.y)
+        };
+        var vertices = meshData.GetVertexData<Vertex>();
+
+        // +Y
+        vertices[0] = new Vertex { pos = verticesTemplate[0], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[1] = new Vertex { pos = verticesTemplate[1], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[2] = new Vertex { pos = verticesTemplate[2], uv = half2(half(1f), half(0f)), light = 0f };
+        vertices[3] = new Vertex { pos = verticesTemplate[3], uv = half2(half(0f), half(0f)), light = 0f };
+
+        // -Y
+        vertices[4] = new Vertex { pos = verticesTemplate[4], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[5] = new Vertex { pos = verticesTemplate[5], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[6] = new Vertex { pos = verticesTemplate[6], uv = half2(half(1f), half(0f)), light = 0f };
+        vertices[7] = new Vertex { pos = verticesTemplate[7], uv = half2(half(0f), half(0f)), light = 0f };
+
+        // +Z
+        vertices[8] = new Vertex { pos = verticesTemplate[0], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[9] = new Vertex { pos = verticesTemplate[1], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[10] = new Vertex { pos = verticesTemplate[5], uv = half2(half(1f), half(0f)), light = 0f };
+        vertices[11] = new Vertex { pos = verticesTemplate[4], uv = half2(half(0f), half(0f)), light = 0f };
+
+        // -Z
+        vertices[12] = new Vertex { pos = verticesTemplate[2], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[13] = new Vertex { pos = verticesTemplate[3], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[14] = new Vertex { pos = verticesTemplate[7], uv = half2(half(1f), half(0f)), light = 0f };
+        vertices[15] = new Vertex { pos = verticesTemplate[6], uv = half2(half(0f), half(0f)), light = 0f };
+
+        // +X
+        vertices[16] = new Vertex { pos = verticesTemplate[1], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[17] = new Vertex { pos = verticesTemplate[2], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[18] = new Vertex { pos = verticesTemplate[6], uv = half2(half(1f), half(0f)), light = 0f };
+        vertices[19] = new Vertex { pos = verticesTemplate[5], uv = half2(half(0f), half(0f)), light = 0f };
+
+        // -X
+        vertices[20] = new Vertex { pos = verticesTemplate[0], uv = half2(half(1f), half(1f)), light = 0f };
+        vertices[21] = new Vertex { pos = verticesTemplate[3], uv = half2(half(0f), half(1f)), light = 0f };
+        vertices[22] = new Vertex { pos = verticesTemplate[7], uv = half2(half(0f), half(0f)), light = 0f };
+        vertices[23] = new Vertex { pos = verticesTemplate[4], uv = half2(half(1f), half(0f)), light = 0f };
+
+        var indices = meshData.GetIndexData<ushort>();
+        indicesTemplate.CopyTo(indices);
+
+        meshData.SetSubMesh(0, new SubMeshDescriptor(0, 2 * 6, MeshTopology.Triangles));
+        meshData.SetSubMesh(1, new SubMeshDescriptor(2 * 6, 4 * 6, MeshTopology.Triangles));
+      }
     }
   }
 

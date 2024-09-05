@@ -126,10 +126,10 @@ namespace SS.System {
           SystemAPI.Query<RefRO<ObjectInstance>>()
           .WithAll<FlatTextureInfo>()
           .WithNone<FlatTextureMeshAddedTag, DecalProjectorAddedTag>()
-          .WithEntityAccess()) {
-
+          .WithEntityAccess())
+        {
           var instanceData = instanceDataRef.ValueRO;
-          
+
           if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
           var materialID = GetResource(

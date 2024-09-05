@@ -190,10 +190,14 @@ namespace SS {
             Position += bytes;
         }
             
-        public unsafe T Read<T>() where T : unmanaged {
+        public T Read<T>() where T : unmanaged {
             T value;
             ReadBytes(&value, sizeof(T));
             return value;
+        }
+        
+        public float ReadFixed1616() {
+            return Read<int>() / 65536f;
         }
     }
 }

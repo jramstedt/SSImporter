@@ -25,7 +25,7 @@ namespace SS.Resources {
     private const ushort NumResourceIdsPerLevel = 100;
 
     private static ushort ResourceIdFromLevel(byte level) => (ushort)(SaveGameResourceIdBase + (level * NumResourceIdsPerLevel));
-
+    
     public static async Awaitable<World> LoadMap(byte mapId, string dataPath, string saveGameFile) {
       var saveData = await Res.Open($"{dataPath}\\{saveGameFile}");
 
@@ -233,14 +233,18 @@ namespace SS.Resources {
                 }
               );
             } else {
-              Debug.Log($"h {h} r {r} e {entity}");
+              // Debug.Log($"h {h} r {r} e {entity}");
+              
+              // TODO Add configurable option to use mesh collider if DrawType.TexturedPolygon. And to fix collider position/size on DrawType.Bitmap
+              
+              physicsTranslation.y += h / 2f;
 
               collider = CylinderCollider.Create(
                 new CylinderGeometry {
                   BevelRadius = 0f,
                   Center = physicsTranslation,
                   Height = math.max(h, float.Epsilon),
-                  Orientation = quaternion.identity,
+                  Orientation = quaternion.EulerXZY(math.PIHALF, 0f, 0f),
                   Radius = math.max(r, float.Epsilon),
                   SideCount = 8 // TODO
                 }
