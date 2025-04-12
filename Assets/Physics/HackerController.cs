@@ -57,7 +57,9 @@ namespace SS.Physics {
         public float3 HeadOffset;
     }
 
+    /*
     public struct HackerHead : IComponentData {
         public Entity Body;
     }
+    */
 }

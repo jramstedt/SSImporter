@@ -20,6 +20,8 @@ namespace SS {
     public const int NUM_OBJECTS_TRAP = 160;
     public const int NUM_OBJECTS_CONTAINER = 64;
     public const int NUM_OBJECTS_CRITTER = 64;
+    
+    public const int NUM_REF_OBJECTS = 1600;
   }
 
   public enum ObjectClass : byte {

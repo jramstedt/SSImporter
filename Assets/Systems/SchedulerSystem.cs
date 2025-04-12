@@ -50,7 +50,7 @@ namespace SS.System {
         ScheduleEventTypeHandleRO = scheduleEventTypeHandleRO,
 
         TimeData = SystemAPI.Time,
-        ObjectInstancesBlobAsset = level.ObjectInstances,
+        ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
         ObjectInstanceLookupRO = objectInstanceLookupRO,
         DoorLookupRW = doorLookupRW,
         
@@ -68,7 +68,7 @@ namespace SS.System {
       [ReadOnly] public ComponentTypeHandle<ScheduleEvent> ScheduleEventTypeHandleRO;
 
       [ReadOnly] public TimeData TimeData;
-      [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
+      [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
       [ReadOnly] public ComponentLookup<ObjectInstance> ObjectInstanceLookupRO;
       [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance.DoorAndGrating> DoorLookupRW;
 
@@ -91,12 +91,12 @@ namespace SS.System {
           // TODO handle other ScheduleEvent.Types
 
           if (scheduleEvent.Type == EventType.Door) {
-            DoorScheduleEvent doorEvent = *(DoorScheduleEvent*)scheduleEvent.Data;
+            var doorEvent = *(DoorScheduleEvent*)scheduleEvent.Data;
             
             Debug.Log($"SchedulerJob EventType.Door ets:{scheduleEvent.Timestamp} ts:{timestamp}");
             Debug.Log($"SchedulerJob EventType.Door t:{doorEvent.ObjectIndex} a:{doorEvent.AutoClose}");
             
-            var targetEntity = ObjectInstancesBlobAsset.Value[doorEvent.ObjectIndex];
+            var targetEntity = ObjectInstancesRO[doorEvent.ObjectIndex];
             var targetObjectInstance = ObjectInstanceLookupRO.GetRefRO(targetEntity).ValueRO;
             
             if (targetObjectInstance.Class == ObjectClass.DoorAndGrating) {
@@ -105,7 +105,7 @@ namespace SS.System {
 
               var door = DoorLookupRW.GetRefRO(targetEntity).ValueRO;
               if (door.NeverAutoClose) continue;
-              if (IsDoorClosing(door)) continue;
+              if (door.IsMoving(AnimationData, true)) continue;
               
               CommandBuffer.AddComponent<ObjectUseTag>(unfilteredChunkIndex, targetEntity); // object_use(id, FALSE, OBJ_NULL);
             }
@@ -113,14 +113,14 @@ namespace SS.System {
             // TODO PLAS_ANTENNA_TRIPLE
             
           } else if (scheduleEvent.Type == EventType.Trap) {
-            TrapScheduleEvent trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
+            var trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
 
             // Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} ts:{timestamp}");
             // Debug.Log($"SchedulerJob EventType.Trap t:{trapEvent.TargetObjectIndex} s:{trapEvent.SourceObjectIndex}");
             
             DoMulti(trapEvent.TargetObjectIndex, unfilteredChunkIndex);
             if (trapEvent.SourceObjectIndex != -1)
-              CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesBlobAsset.Value[trapEvent.SourceObjectIndex]); // trap_activate
+              CommandBuffer.SetComponentEnabled<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesRO[trapEvent.SourceObjectIndex], true); // trap_activate
           }
 
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
@@ -138,29 +138,22 @@ namespace SS.System {
 
         return timestamp;
       }
-
-      private readonly bool IsDoorClosing(ObjectInstance.DoorAndGrating door) {
-        foreach (var animationData in AnimationData)
-          if (door.IsMoving(animationData, true)) return true;
-
-        return false;
-      }
-
+      
       private void DoMulti(short objectIndex, int unfilteredChunkIndex) {
         if (objectIndex == 0) return;
         
-        var targetEntity = ObjectInstancesBlobAsset.Value[objectIndex];
+        var targetEntity = ObjectInstancesRO[objectIndex];
         var targetObjectInstance = ObjectInstanceLookupRO.GetRefRO(targetEntity).ValueRO;
 
         if (targetObjectInstance.Class == ObjectClass.Trigger) {
-          CommandBuffer.AddComponent<TriggerActivateTag>(unfilteredChunkIndex, targetEntity);
+          CommandBuffer.SetComponentEnabled<TriggerActivateTag>(unfilteredChunkIndex, targetEntity, true);
         } else {
           if (targetObjectInstance.Class == ObjectClass.DoorAndGrating) {
             ref var door = ref DoorLookupRW.GetRefRW(targetEntity).ValueRW;
             door.Lock = 0;
             door.AccessLevel = 0;
 
-            var otherEntity = ObjectInstancesBlobAsset.Value[door.OtherHalf];
+            var otherEntity = ObjectInstancesRO[door.OtherHalf];
             if (otherEntity != Entity.Null) {
               ref var otherDoor = ref DoorLookupRW.GetRefRW(otherEntity).ValueRW;
               otherDoor.Lock = 0;

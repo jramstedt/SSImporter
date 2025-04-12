@@ -42,28 +42,28 @@ namespace SS.System {
       RequireForUpdate<Level>();
       RequireForUpdate<LevelInfo>();
 
-      viewPartArchetype = EntityManager.CreateArchetype(
-        typeof(LevelViewPart),
+      viewPartArchetype = EntityManager.CreateArchetype(stackalloc[] { 
+        ComponentType.ReadWrite<LevelViewPart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+        
+        ComponentType.ReadWrite<FrozenRenderSceneTag>(),
+      });
 
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds),
-
-        typeof(FrozenRenderSceneTag)
-      );
-
-      physicsArchetype = EntityManager.CreateArchetype(
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(PhysicsCollider),
-        typeof(PhysicsWorldIndex),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
-      );
+      physicsArchetype = EntityManager.CreateArchetype(stackalloc[] { 
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<PhysicsCollider>(),
+        ComponentType.ReadWrite<PhysicsWorldIndex>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+      });
 
       mapElementQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<TileLocation, MapElement, LevelViewPartRebuildTag>()
@@ -106,14 +106,13 @@ namespace SS.System {
 
       var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
-      using var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
+      var entities = mapElementQuery.ToEntityArray(Allocator.TempJob);
 
       var level = SystemAPI.GetSingleton<Level>();
       var levelInfo = SystemAPI.GetSingleton<LevelInfo>();
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
-      using var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
-
+      var submeshTextureIndex = new NativeArray<byte>(entityCount * 6, Allocator.TempJob);
       var colliderArray = new NativeArray<BlobAssetReference<Collider>>(entityCount, Allocator.TempJob);
 
       #region Clean up old view parts that are going to be replaced
@@ -130,7 +129,7 @@ namespace SS.System {
       #endregion
 
       #region Build new view parts
-      NativeArray<int> chunkBaseEntityIndices = mapElementQuery.CalculateBaseEntityIndexArrayAsync(Allocator.TempJob, Dependency, out JobHandle baseIndexJobHandle);
+      var chunkBaseEntityIndices = mapElementQuery.CalculateBaseEntityIndexArrayAsync(Allocator.TempJob, Dependency, out JobHandle baseIndexJobHandle);
 
       var buildJob = new BuildMapElementMeshJob {
         entityTypeHandle = GetEntityTypeHandle(),
@@ -241,6 +240,10 @@ namespace SS.System {
 
       var finalizeCommandBuffer = ecbSystem.CreateCommandBuffer();
       finalizeCommandBuffer.DestroyEntity(physicsPrototype);
+
+      entities.Dispose(Dependency);
+      submeshTextureIndex.Dispose(Dependency);
+      colliderArray.Dispose(Dependency);
     }
   }
 

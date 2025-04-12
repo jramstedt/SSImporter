@@ -53,15 +53,15 @@ namespace SS.System {
         .WithNone<Cuboid>()
         .Build(this);
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(SpecialPart),
-
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
-      );
+      viewPartArchetype = World.EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<SpecialPart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+      });
 
       var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
@@ -125,8 +125,8 @@ namespace SS.System {
       var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
 
       var level = SystemAPI.GetSingleton<Level>();
-      using var entities = newMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
-      using var cuboids = newMeshQuery.ToComponentDataListAsync<Cuboid>(Allocator.TempJob, out var cuboidsListJobHandle);
+      var entities = newMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
+      var cuboids = newMeshQuery.ToComponentDataListAsync<Cuboid>(Allocator.TempJob, out var cuboidsListJobHandle);
 
       var meshDataArray = Mesh.AllocateWritableMeshData(entityCount);
 
@@ -135,6 +135,7 @@ namespace SS.System {
         VertexAttributes = vertexAttributes,
       }.ScheduleParallel(newMeshQuery);
       
+      // Hmmmmmm
       Dependency = JobHandle.CombineDependencies(Dependency, entitiesListJobHandle, cuboidsListJobHandle);
       CompleteDependency();
 
@@ -245,6 +246,9 @@ namespace SS.System {
         }
         #endregion
       }
+
+      entities.Dispose(Dependency);
+      cuboids.Dispose(Dependency);
     }
 
     [BurstCompile]

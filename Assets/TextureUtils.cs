@@ -65,7 +65,7 @@ namespace SS {
 
         if (data != 0 || isAnimating) {
           if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
-            var dataEntity = level.ObjectInstances.Value[(int)data & INDIRECTED_STUFF_DATA_MASK];
+            var dataEntity = level.ObjectInstances[(int)data & INDIRECTED_STUFF_DATA_MASK];
             var databObjectInstance = instanceLookupRO.GetRefRO(dataEntity).ValueRO;
             var dataDecorationInstance = decorationLookupRO.GetRefRO(dataEntity).ValueRO;
 

@@ -24,7 +24,7 @@ namespace SS.System {
       state.RequireForUpdate<EndVariableRateSimulationEntityCommandBufferSystem.Singleton>();
       state.RequireForUpdate<Level>();
       state.RequireForUpdate<Hacker>();
-      
+
       once = false;
 
       entityTypeHandle = state.GetEntityTypeHandle();
@@ -62,9 +62,7 @@ namespace SS.System {
         ObjectInstanceTypeHandleRO = objectInstanceTypeHandleRO,
         DecorationTypeHandleRO = decorationTypeHandleRO,
 
-        AnimationList = new AnimateObjectSystemData.Writer {
-          Commands = animationCommandListSystemData.Commands.AsWriter()
-        },
+        AnimationList = animationCommandListSystemData.AllocateWriter(JobsUtility.ThreadIndexCount, state.WorldUpdateAllocator),
         
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
@@ -97,8 +95,9 @@ namespace SS.System {
       var decorationDatas = chunk.GetNativeArray(ref DecorationTypeHandleRO);
 
       var playerIndex = Player.playerObjectIndex;
-      var playerEntity = Level.ObjectInstances.Value[playerIndex];
+      var playerEntity = Level.ObjectInstances[playerIndex];
 
+      // Debug.Log($"CheckNearbyJob AnimationList.Commands.BeginForEachIndex {JobsUtility.ThreadIndex}");
       AnimationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
 
       for (int i = 0; i < chunk.Count; ++i) {

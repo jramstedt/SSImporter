@@ -559,7 +559,7 @@
                     "path": "<Keyboard>/r",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse;Touch",
+                    "groups": ";Keyboard&Mouse",
                     "action": "Stand",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -570,7 +570,7 @@
                     "path": "<Keyboard>/f",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse;Touch",
+                    "groups": ";Keyboard&Mouse",
                     "action": "Stoop",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -581,7 +581,7 @@
                     "path": "<Keyboard>/v",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse;Touch",
+                    "groups": ";Keyboard&Mouse",
                     "action": "Prone",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -592,7 +592,7 @@
                     "path": "<Keyboard>/x",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse;Touch",
+                    "groups": ";Keyboard&Mouse",
                     "action": "LeanCenter",
                     "isComposite": false,
                     "isPartOfComposite": false

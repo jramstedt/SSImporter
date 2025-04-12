@@ -58,15 +58,15 @@ namespace SS.System {
         .WithNone<FlatTextureInfo>()
         .Build(this);
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(FlatTexturePart),
-
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
-      );
+      viewPartArchetype = World.EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<FlatTexturePart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+      });
 
       renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,
@@ -106,8 +106,8 @@ namespace SS.System {
       var level = SystemAPI.GetSingleton<Level>();
 
       { // Update animated mesh
-        var animatedEntities = animatedFlatTextureQuery.ToEntityArray(Allocator.TempJob);
-        var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.TempJob);
+        var animatedEntities = animatedFlatTextureQuery.ToEntityArray(Allocator.Temp);
+        var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.Temp);
 
         ProcessEntities(level, animatedEntities, entityMeshInfo);
 
@@ -128,8 +128,8 @@ namespace SS.System {
       }
 
       {
-        var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.TempJob);
-        var entityMeshInfos = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.TempJob);
+        var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.Temp);
+        var entityMeshInfos = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.Temp);
         var viewPartCreated = new ComponentTypeSet(ComponentType.ReadOnly<FlatTextureMeshAddedTag>(), ComponentType.ReadOnly<AnimatedTag>());
 
         ProcessEntities(level, newEntities, entityMeshInfos);
@@ -152,10 +152,6 @@ namespace SS.System {
 
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
           commandBuffer.SetComponent(viewPart, LocalTransform.Identity);
-
-          // commandBuffer.AddComponent<FlatTextureMeshAddedTag>(entity);
-          // commandBuffer.AddComponent<AnimatedTag>(entity);
-          
           commandBuffer.AddComponent(entity, viewPartCreated);
         }
       }

@@ -52,6 +52,8 @@ namespace SS.System {
             
             float sensitivity = 1f;
             
+            InputSystem.Update();
+            
             float2 moveDelta = moveAction.ReadValue<Vector2>();
             float2 lookDelta = lookAction.ReadValue<Vector2>();
             float jumping = jumpAction.ReadValue<float>();

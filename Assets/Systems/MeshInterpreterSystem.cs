@@ -17,6 +17,7 @@ using static SS.TextureUtils;
 using Object = UnityEngine.Object;
 
 namespace SS.System {
+  [BurstCompile]
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class MeshInterpeterSystem : SystemBase {
@@ -61,15 +62,15 @@ namespace SS.System {
         .WithNone<MeshInfo>()
         .Build(this);
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(ModelPart),
-
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
-      );
+      viewPartArchetype = World.EntityManager.CreateArchetype(stackalloc[] { 
+        ComponentType.ReadWrite<ModelPart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+      });
 
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
 
@@ -138,7 +139,7 @@ namespace SS.System {
         decorationLookupRO.Update(this);
         
         var level = SystemAPI.GetSingleton<Level>();
-        using var entities = activeMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
+        var entities = activeMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
 
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
 
@@ -259,6 +260,8 @@ namespace SS.System {
             // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
           }
         }
+
+        entities.Dispose(Dependency);
       }
 
       var removeMeshToCacheJob = new RemoveMeshFromCacheJob() {
@@ -309,7 +312,7 @@ namespace SS.System {
             if (EntityMeshIDs.TryGetValue(entity, out BatchMeshID meshID))
               EntitiesGraphicsSystem.UnregisterMesh(meshID);
 
-            UnityEngine.Object.Destroy(mesh);
+            Object.Destroy(mesh);
           }
         }
       }
@@ -402,7 +405,7 @@ namespace SS.System {
         // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
 
         // TODO could more of this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
-        var objectIndex = Level.ObjectReferences.Value[instanceData.CrossReferenceTableIndex].ObjectIndex;
+        var objectIndex = Level.ObjectReferences[instanceData.CrossReferenceTableIndex].ObjectIndex;
         var isAnimating = IsAnimated(objectIndex, Level.Animations.AsReadOnly());
 
         TextureDatas[entityIndexInQuery] = CalculateTextureData(entity, baseProperties, instanceData, Level, InstanceLookupRO, DecorationLookupRO, isAnimating);

@@ -74,20 +74,10 @@ namespace SS.System {
         randoms[i] = Random.CreateFromIndex((uint)i);
 
       clutMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP CLUT"));
-
       clutDecalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Decal"));
-
       translucencyMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/ForceField"));
-
-      clutColorMaterialTemplate = new Material(Shader.Find("Universal Render Pipeline/System Shock/CLUT Color"));
-      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-      clutColorMaterialTemplate.DisableKeyword(ShaderKeywordStrings._ALPHAMODULATE_ON);
-      clutColorMaterialTemplate.EnableKeyword(@"_LIGHTGRID");
-      clutColorMaterialTemplate.SetFloat(@"_BlendOp", (float)BlendOp.Add);
-      clutColorMaterialTemplate.SetFloat(@"_SrcBlend", (float)BlendMode.One);
-      clutColorMaterialTemplate.SetFloat(@"_DstBlend", (float)BlendMode.Zero);
-
+      clutColorMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP CLUT Color"));
+      clutColorMaterialTemplate.EnableKeyword("_LIGHTGRID");
       decalMaterialTemplate = new Material(Shader.Find(@"Shader Graphs/URP Decal"));
       cameraMaterialTemplate = new Material(Shader.Find("Shader Graphs/URP Camera"));
 

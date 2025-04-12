@@ -64,6 +64,8 @@ namespace SS.System {
         
         var localToWorld = localToWorldRef.ValueRO;
         camera.transform.SetPositionAndRotation(localToWorld.Position, localToWorld.Rotation);
+        camera.targetTexture = cameraTextureSets[surveillanceSource.CameraIndex].Texture;
+        camera.clearFlags = CameraClearFlags.Depth;
         
         commandBuffer.AddComponent(entity, camera);
         commandBuffer.AddComponent(entity, urpCameraData);
@@ -73,7 +75,6 @@ namespace SS.System {
         });
 
         ++cameraSourceCount[surveillanceSource.CameraIndex];
-        camera.targetTexture = cameraTextureSets[surveillanceSource.CameraIndex].Texture;
       }
 
       foreach (var (cameraRef, localToWorldRef) in

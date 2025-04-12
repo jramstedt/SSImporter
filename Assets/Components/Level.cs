@@ -12,9 +12,9 @@ namespace SS.Resources {
     public TextureMap TextureMap;
     public BlobAssetReference<BlobArray<Entity>> TextureAnimations;
     public BlobAssetReference<BlobArray<Entity>> TileMap;
-    public BlobAssetReference<BlobArray<Entity>> ObjectInstances; // TODO needs to be mutable
-    public BlobAssetReference<BlobArray<Entity>> SurveillanceCameras; // TODO needs to be mutable
-    public BlobAssetReference<BlobArray<ObjectReference>> ObjectReferences; // TODO needs to be mutable
+    public NativeArray<Entity> ObjectInstances;
+    public NativeArray<Entity> SurveillanceCameras;
+    public NativeArray<ObjectReference> ObjectReferences;
     public NativeList<AnimationData> Animations;
   }
 

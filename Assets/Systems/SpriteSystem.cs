@@ -1,4 +1,3 @@
-using SS.Data;
 using SS.ObjectProperties;
 using SS.Resources;
 using Unity.Burst;
@@ -58,15 +57,15 @@ namespace SS.System {
         .WithNone<SpriteInfo>()
         .Build(this);
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(SpritePart),
-
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld),
-        typeof(RenderBounds)
-      );
+      viewPartArchetype = World.EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<SpritePart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+        ComponentType.ReadWrite<RenderBounds>(),
+      });
 
       renderMeshDescription = new RenderMeshDescription(
         shadowCastingMode: ShadowCastingMode.Off,

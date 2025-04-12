@@ -38,10 +38,13 @@ namespace SS.Resources {
     public const int MAX_ACCURACY = 100;
 
 
-    public const int MISSION_DIFF_QUEST_VAR = 0xD;
-    public const int CYBER_DIFF_QUEST_VAR = 0xE;
-    public const int COMBAT_DIFF_QUEST_VAR = 0xF;
+    public const int MISSION_DIFF_QUEST_VAR = 0x0D;
+    public const int CYBER_DIFF_QUEST_VAR = 0x0E;
+    public const int COMBAT_DIFF_QUEST_VAR = 0x0F;
     public const int PUZZLE_DIFF_QUEST_VAR = 0x1E;
+    
+    public const int DOOR_UNUSABLE_QUEST_VAR = 0x5E;
+    public const int DOOR_UNUSABLE2_QUEST_VAR = 0xE7;
 
     public const int CONTROL_XVEL = 0; // x translation
     public const int CONTROL_YVEL = 1; // y translation
@@ -86,7 +89,7 @@ namespace SS.Resources {
     public short playerObjectIndex;
     public Location realspaceLocation;            // This is where the player will come back out of cspace into
     public int versionNumber;
-    public unsafe fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
+    private unsafe fixed short inventory[NUM_GENERAL_SLOTS];   // general inventory
 
     // Random physics state.
     public Posture posture;                   // current posture (standing/stooped/prone)
@@ -303,14 +306,16 @@ namespace SS.Resources {
       actives[(int)Active.Email] = 0xFF;
     }
 
-    public unsafe bool GetQuestBit(int index) => (questBits[index >> 3] & (1 << (index & 0xF))) != 0;
+    public readonly unsafe bool GetQuestBit(int index) => (questBits[index >> 3] & (1 << (index & 0xF))) != 0;
     public unsafe void SetQuestBit(int index, bool value) {
       if (value) questBits[index >> 3] |= (byte)(1 << (index & 0xF));
       else questBits[index >> 3] &= (byte)~(1 << (index & 0xF));
     }
 
-    public unsafe short GetQuestVar(int index) => questVars[index];
+    public readonly unsafe short GetQuestVar(int index) => questVars[index];
     public unsafe void SetQuestVar(int index, short value) => questVars[index] = value;
+
+    public readonly unsafe short GetGeneralInventoryItem(int index) => inventory[index];
 
     [Flags]
     public enum EmailFlags : byte {

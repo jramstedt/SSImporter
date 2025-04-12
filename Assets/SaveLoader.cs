@@ -43,7 +43,6 @@ namespace SS.Resources {
 
       var objectInstances = saveData.GetResourceDataArray<ObjectInstance>((ushort)(0x008 + resourceId));
       var crossReferenceTable = saveData.GetResourceDataArray<ObjectReference>((ushort)(0x009 + resourceId));
-      // 0x0009 Cross reference table
 
       var weaponInstances = saveData.GetResourceDataArray<ObjectInstance.Weapon>((ushort)(0x000A + resourceId));
       var ammunitionInstances = saveData.GetResourceDataArray<ObjectInstance.Ammunition>((ushort)(0x000B + resourceId));
@@ -109,15 +108,15 @@ namespace SS.Resources {
       var lightmap = await Services.LightmapTexture;
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
-      var textureAnimationArchetype = entityManager.CreateArchetype(typeof(TextureAnimationData));
+      var textureAnimationArchetype = entityManager.CreateArchetype(stackalloc[] { ComponentType.ReadWrite<TextureAnimationData>() });
       using var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Temp);
 
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
-
+      
       // Create Entities
-      var objectInstanceArchetype = entityManager.CreateArchetype(typeof(ObjectInstance), typeof(LocalTransform), typeof(LocalToWorld));
-      using var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Temp);
+      var objectInstanceArchetype = entityManager.CreateArchetype(stackalloc[] { ComponentType.ReadWrite<ObjectInstance>(), ComponentType.ReadWrite<LocalTransform>(), ComponentType.ReadWrite<LocalToWorld>() });
+      var objectInstanceEntities = entityManager.CreateEntity(objectInstanceArchetype, ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
       for (int i = 0; i < ObjectConstants.NUM_OBJECTS; ++i) {
         var entity = objectInstanceEntities[i];
         var instanceData = objectInstances[i];
@@ -160,6 +159,11 @@ namespace SS.Resources {
 
         if (!instanceData.Active) continue;
         if (instanceData.CrossReferenceTableIndex == 0) continue;
+
+        if (instanceClass == ObjectClass.Trigger) {
+          entityManager.AddComponent<TriggerActivateTag>(entity);
+          entityManager.SetComponentEnabled<TriggerActivateTag>(entity, false);
+        }
 
         #region Physics
         if (baseData.TerrainType != Base.TerrainTypes.Ignore) {
@@ -391,8 +395,8 @@ namespace SS.Resources {
         }
         #endregion
       }
-
-      var surveillanceSourceEntities = new NativeArray<Entity>(TextureUtils.NUM_HACK_CAMERAS, Allocator.Temp);
+      
+      var surveillanceSourceEntities = new NativeArray<Entity>(TextureUtils.NUM_HACK_CAMERAS, Allocator.Persistent);
       for (var i = 0; i < surveillanceSourceEntities.Length; ++i) {
         //var objIndex = surveillanceSources[i];
         //var obj = objectInstances[i];
@@ -405,8 +409,8 @@ namespace SS.Resources {
           CameraIndex = (byte)i
         });
       }
-
-      var paletteEffectArchetype = entityManager.CreateArchetype(typeof(PaletteEffect));
+      
+      var paletteEffectArchetype = entityManager.CreateArchetype(stackalloc[] { ComponentType.ReadWrite<PaletteEffect>() });
       using (var paletteEffects = entityManager.CreateEntity(paletteEffectArchetype, 6, Allocator.Temp)) {
         entityManager.AddComponentData(paletteEffects[0], new PaletteEffect { First = 0x03, Last = 0x07, FrameTime = 68, TimeRemaining = 0 });
         entityManager.AddComponentData(paletteEffects[1], new PaletteEffect { First = 0x0B, Last = 0x0F, FrameTime = 40, TimeRemaining = 0 });
@@ -416,8 +420,7 @@ namespace SS.Resources {
         entityManager.AddComponentData(paletteEffects[5], new PaletteEffect { First = 0x1B, Last = 0x1F, FrameTime = 64, TimeRemaining = 0 });
       }
 
-      var levelInfoArchetype = entityManager.CreateArchetype(typeof(LevelInfo), typeof(Level));
-      var levelInfoEntity = entityManager.CreateEntity(levelInfoArchetype);
+      var levelInfoEntity = entityManager.CreateEntity(stackalloc[] { ComponentType.ReadWrite<LevelInfo>(), ComponentType.ReadWrite<Level>() });
       entityManager.SetComponentData(levelInfoEntity, levelInfo);
       
       var animList = new NativeList<AnimationData>(AnimateObjectSystem.MAX_ANIMLIST_SIZE, Allocator.Persistent);
@@ -432,13 +435,13 @@ namespace SS.Resources {
         Id = mapId,
         TextureMap = textureMap,
         TextureAnimations = BuildBlob(textureAnimationEntities),
-        ObjectInstances = BuildBlob(objectInstanceEntities),
-        SurveillanceCameras = BuildBlob(surveillanceSourceEntities),
-        ObjectReferences = BuildBlob(crossReferenceTable),
+        ObjectInstances = objectInstanceEntities,
+        SurveillanceCameras = surveillanceSourceEntities,
+        ObjectReferences = new NativeArray<ObjectReference>(crossReferenceTable, Allocator.Persistent), // TODO make sure it is allocated NUM_REF_OBJECTS, TODO object init
         Animations = animList
       };
-
-      var mapElementArchetype = entityManager.CreateArchetype(typeof(TileLocation), typeof(LocalTransform), typeof(MapElement), typeof(LocalToWorld));
+      
+      var mapElementArchetype = entityManager.CreateArchetype(stackalloc[] { ComponentType.ReadWrite<TileLocation>(), ComponentType.ReadWrite<LocalTransform>(), ComponentType.ReadWrite<MapElement>(), ComponentType.ReadWrite<LocalToWorld>() });
       using (var mapElementEntities = entityManager.CreateEntity(mapElementArchetype, levelInfo.Width * levelInfo.Height, Allocator.Temp)) {
         for (int x = 0; x < levelInfo.Width; ++x) {
           for (int y = 0; y < levelInfo.Height; ++y) {
@@ -458,9 +461,8 @@ namespace SS.Resources {
       }
 
       entityManager.SetComponentData(levelInfoEntity, level);
-
-      var hackerArchetype = entityManager.CreateArchetype(typeof(LocalTransform), typeof(Hacker), typeof(HackerControllerComponentData), typeof(HackerControllerInternalData));
-      var hackerEntity = entityManager.CreateEntity(hackerArchetype);
+      
+      var hackerEntity = entityManager.CreateEntity(stackalloc[] { ComponentType.ReadWrite<LocalTransform>(), ComponentType.ReadWrite<Hacker>(), ComponentType.ReadWrite<HackerControllerComponentData>(), ComponentType.ReadWrite<HackerControllerInternalData>() });
       hackerState.Initialize(); // TODO FIXME only on new game
       hackerState.currentLevel = mapId;
       unsafe {
@@ -468,7 +470,7 @@ namespace SS.Resources {
           hackerState.initialShodanSecurityLevels[hackerState.currentLevel] = hackerState.GetQuestVar(Shodan.GetShodanQuestVar(hackerState.currentLevel));
       }
       entityManager.SetComponentData(hackerEntity, hackerState);
-
+      
       {
         // TODO FIXME New game only
 
@@ -600,6 +602,7 @@ namespace SS.Resources {
         entityManager.AddComponentData(hackerEntity, bodyCollider);
       }
       
+      /*
       var physicsConfigEntity = entityManager.CreateEntity();
       entityManager.AddComponentData(physicsConfigEntity, new PhysicsDebugDisplayData {
         DrawColliders = 0,
@@ -612,6 +615,7 @@ namespace SS.Resources {
         DrawTriggerEvents = 0,
         DrawJoints = 0
       });
+      */
 
       //DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, defaultSystems);
       //ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);

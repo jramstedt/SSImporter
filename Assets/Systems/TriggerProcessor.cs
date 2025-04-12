@@ -30,7 +30,7 @@ namespace SS.System {
     [ReadOnly] public LevelInfo LevelInfo;
 
     [ReadOnly] public BlobAssetReference<BlobArray<Entity>> TileMapBlobAsset;
-    [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
+    [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
 
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<MapElement> MapElementLookupRW;
     [NativeDisableContainerSafetyRestriction] public ComponentLookup<ObjectInstance> InstanceLookupRW;
@@ -42,13 +42,16 @@ namespace SS.System {
 
     public AnimateObjectSystemData.Writer animationList;
 
+    /*
+     * trap_activate
+     */
     public bool Activate(in Entity entity, out bool message) {
       message = false;
-
+      
       if (TriggerLookupRW.HasComponent(entity)) {
         var instance = InstanceLookupRW[entity];
         var trigger = TriggerLookupRW[entity];
-
+        
         //Debug.Log($"Activate e:{entity.Index} o:{trigger.Link.ObjectIndex}");
 
         uint comparator = instance.Info.Type switch {
@@ -58,11 +61,15 @@ namespace SS.System {
           _ => trigger.Comparator
         };
 
-        if (ComparatorCheck(comparator, entity, out byte specialCode))
-          ProcessTrigger(entity);
+        if (!ComparatorCheck(comparator, entity, out var specialCode)) return false;
+        
+        ProcessTrigger(entity, instance, ref trigger, trigger.ActionParam1, trigger.ActionParam2, trigger.ActionParam3, trigger.ActionParam4);
+        TriggerLookupRW[entity] = trigger;
 
         return true;
-      } else if (InterfaceLookupRW.HasComponent(entity)) {
+      }
+
+      if (InterfaceLookupRW.HasComponent(entity)) {
         var instance = InstanceLookupRW[entity];
         var fixture = InterfaceLookupRW[entity];
 
@@ -72,45 +79,40 @@ namespace SS.System {
           _ => fixture.Comparator
         };
 
-        if (ComparatorCheck(comparator, entity, out byte specialCode))
-          ProcessTrigger(entity);
-
+        if (!ComparatorCheck(comparator, entity, out var specialCode)) return false;
+        
+        ProcessTrigger(entity, instance, ref fixture, fixture.ActionParam1, fixture.ActionParam2, fixture.ActionParam3, fixture.ActionParam4);
+        InterfaceLookupRW[entity] = fixture;
+        
         return true;
       }
 
       return false;
     }
 
-    private unsafe void ProcessTrigger(in Entity entity) {
-      if (!TriggerLookupRW.HasComponent(entity)) return;
-
-      var instance = InstanceLookupRW[entity];
-      var trigger = TriggerLookupRW[entity]; // TODO interfaces
-
-      var actionParam1 = trigger.ActionParam1;
-      var actionParam2 = trigger.ActionParam2;
-      var actionParam3 = trigger.ActionParam3;
-      var actionParam4 = trigger.ActionParam4;
-
-      if (trigger.ActionType == ActionType.Propagate) {
+    /*
+     * grind_trap
+     */
+    public unsafe void ProcessTrigger<T>(in Entity entity, in ObjectInstance instance, ref T triggerable, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) where T : unmanaged, ITriggerable {
+      if (triggerable.ActionType == ActionType.Propagate) {
         TimedMulti(actionParam1);
         TimedMulti(actionParam2);
         TimedMulti(actionParam3);
         TimedMulti(actionParam4);
-      } else if (trigger.ActionType == ActionType.Lighting) {
+      } else if (triggerable.ActionType == ActionType.Lighting) {
         // Debug.Log($"Light e:{entity.Index} o:{trigger.Link.ObjectIndex} ap3:{trigger.ActionParam3}");
 
         if ((actionParam3 & 0x10000) == 0x10000 || (actionParam3 & 0x20000) == 0x20000)
-          ChangeLighting(ref instance, ref trigger, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+          ChangeLighting(instance, ref triggerable, false, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
         if ((actionParam3 & 0x10000) != 0x10000)
-          ChangeLighting(ref instance, ref trigger, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
+          ChangeLighting(instance, ref triggerable, true, actionParam1, actionParam2, actionParam3 & 0xFFFF, actionParam4);
 
         if ((actionParam2 & 0xFFFF) != 0) {
           var steps = (actionParam2 >> 16) & 0xFFF;
-          trigger.ActionParam2 &= 0xF000FFFF; // clear step count
+          triggerable.ActionParam2 &= 0xF000FFFF; // clear step count
 
           if (steps < NUM_LIGHT_STEPS) {
-            trigger.ActionParam2 |= ++steps << 16;
+            triggerable.ActionParam2 |= ++steps << 16;
 
             var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
             var timeStamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + (TimeUtils.CIT_CYCLE >> 4))) + 1);
@@ -121,7 +123,7 @@ namespace SS.System {
             };
             *((TrapScheduleEvent*)scheduleEvent.Data) = new TrapScheduleEvent {
               TargetObjectIndex = 0,
-              SourceObjectIndex = (short)trigger.Link.ObjectIndex
+              SourceObjectIndex = (short)triggerable.Link.ObjectIndex
             };
 
             // Debug.Log($"Schedule Light steps:{steps} t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex}");
@@ -130,13 +132,13 @@ namespace SS.System {
             CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
           }
         }
-      } else if (trigger.ActionType == ActionType.Scheduler) {
+      } else if (triggerable.ActionType == ActionType.Scheduler) {
         if (actionParam3 >= 0xFFFF
             || (actionParam3 > 0x1000 && Player.GetQuestBit((int)(actionParam3 & 0xFFF)))
-            || (actionParam3 < 0x1000 && actionParam3 > 0)
+            || actionParam3 is < 0x1000 and > 0
         ) {
-          if (actionParam3 < 0x1000 && actionParam3 > 0)
-            --trigger.ActionParam3;
+          if (actionParam3 is < 0x1000 and > 0)
+            --triggerable.ActionParam3;
 
           var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
 
@@ -157,7 +159,7 @@ namespace SS.System {
           };
           *((TrapScheduleEvent*)scheduleEvent.Data) = new TrapScheduleEvent {
             TargetObjectIndex = QuestDataParse((ushort)actionParam1),
-            SourceObjectIndex = (short)trigger.Link.ObjectIndex
+            SourceObjectIndex = (short)triggerable.Link.ObjectIndex
           };
 
           // Debug.Log($"Schedule t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex} ts:{timeStamp}");
@@ -165,10 +167,10 @@ namespace SS.System {
           var eventEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, TriggerEventArchetype);
           CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
         } else {
-          Debug.LogWarning($"Scheduling failed e:{entity.Index} o:{trigger.Link.ObjectIndex} p3:{trigger.ActionParam3}");
+          Debug.LogWarning($"Scheduling failed e:{entity.Index} o:{triggerable.Link.ObjectIndex} p3:{triggerable.ActionParam3}");
         }
-      } else if (trigger.ActionType == ActionType.PropagateAlternating) {
-        var triggerIndex = trigger.Link.ObjectIndex;
+      } else if (triggerable.ActionType == ActionType.PropagateAlternating) {
+        var triggerIndex = triggerable.Link.ObjectIndex;
 
         var phase = actionParam4;
         var maxPhase = actionParam3 == 0 ? 1 : 2;
@@ -184,26 +186,23 @@ namespace SS.System {
           phase = 0;
 
         SetTrapData(triggerIndex, 4, phase);
-      } else if (trigger.ActionType == ActionType.ChangeClassData) {
+      } else if (triggerable.ActionType == ActionType.ChangeClassData) {
         ChangeInstance((ushort)QuestDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4);
         ChangeInstance((ushort)QuestDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4);
-      } else if (trigger.ActionType == ActionType.ChangeAnimation) {
+      } else if (triggerable.ActionType == ActionType.ChangeAnimation) {
         ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 & 0xFFFF)), actionParam2, actionParam3, actionParam4 != 0);
         ChangeAnimation((ushort)QuestDataParse((ushort)(actionParam1 >> 16)), actionParam2, actionParam3, actionParam4 != 0);
       } else {
-        Debug.LogWarning($"Not supported e:{entity.Index} o:{trigger.Link.ObjectIndex} at:{(int)trigger.ActionType}");
+        Debug.LogWarning($"Not supported e:{entity.Index} o:{triggerable.Link.ObjectIndex} at:{(int)triggerable.ActionType}");
       }
 
-      if (trigger.DestroyCount > 0) {
-        if (--trigger.DestroyCount == 0)
+      if (triggerable.DestroyCount > 0) {
+        if (--triggerable.DestroyCount == 0)
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
       }
-
-      TriggerLookupRW[entity] = trigger;
     }
 
-    // TODO interfaces
-    private unsafe void ChangeLighting(ref ObjectInstance instance, ref ObjectInstance.Trigger trigger, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) {
+    private unsafe void ChangeLighting<T>(in ObjectInstance instance, ref T triggerable, bool floor, uint actionParam1, uint actionParam2, uint actionParam3, uint actionParam4) where T : unmanaged, ITriggerable {
       var transitionType = actionParam2 & 0xFFFF;
       var numSteps = transitionType != 0 ? (int)((actionParam2 >> 16) & 0xFFF) : -1;
       byte lightState = (byte)(actionParam2 >> 28); // Are we turning on or off. Last nibble.
@@ -229,8 +228,8 @@ namespace SS.System {
         var secondObjID = QuestDataParse((ushort)(actionParam1 >> 16));
         if (firstObjID == 0 || secondObjID == 0) return;
 
-        var firstEntity = ObjectInstancesBlobAsset.Value[firstObjID];
-        var secondEntity = ObjectInstancesBlobAsset.Value[secondObjID];
+        var firstEntity = ObjectInstancesRO[firstObjID];
+        var secondEntity = ObjectInstancesRO[secondObjID];
         //if (!InstanceFromEntity.HasComponent(ulEntity) || !InstanceFromEntity.HasComponent(lrEntity)) return;
 
         var firstObj = InstanceLookupRW[firstEntity];
@@ -242,9 +241,9 @@ namespace SS.System {
 
       if (numSteps == -1 || numSteps == NUM_LIGHT_STEPS) { // Toggle state if done transitioning
         if (lightState == 0)
-          trigger.ActionParam2 |= 0x10000000;
+          triggerable.ActionParam2 |= 0x10000000;
         else
-          trigger.ActionParam2 &= 0x0FFFFFFF;
+          triggerable.ActionParam2 &= 0x0FFFFFFF;
       }
 
       byte startShade;
@@ -256,7 +255,7 @@ namespace SS.System {
 
         // Debug.Log($"All ls:{lightState} start:{startShade} end:{endShade}");
 
-        if (numSteps >= 0 && numSteps < NUM_LIGHT_STEPS)
+        if (numSteps is >= 0 and < NUM_LIGHT_STEPS)
           startShade -= (byte)(((startShade - endShade) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
 
         deltaShade = 0;
@@ -267,17 +266,18 @@ namespace SS.System {
         endShade = lightState != 0 ? values[1] : values[3];
         var endShadeEnd = lightState != 0 ? values[3] : values[1];
 
-        if (numSteps >= 0 && numSteps < NUM_LIGHT_STEPS) {
+        if (numSteps is >= 0 and < NUM_LIGHT_STEPS) {
           startShade -= (byte)(((startShade - startShadeEnd) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
           endShade -= (byte)(((endShade - endShadeEnd) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
         }
 
-        if (actionParam3 == 1) // EW Smooth
-          deltaShade = (byte)((endShade - startShade) / (rectMax.x - rectMin.x));
-        else if (actionParam3 == 2) // NS Smooth
-          deltaShade = (byte)((endShade - startShade) / (rectMax.y - rectMin.y));
-        else // Radial
-          deltaShade = (byte)(endShade - startShade);
+        deltaShade = actionParam3 switch {
+          // EW Smooth
+          1 => (byte)((endShade - startShade) / (rectMax.x - rectMin.x)),
+          // NS Smooth
+          2 => (byte)((endShade - startShade) / (rectMax.y - rectMin.y)),
+          _ => (byte)(endShade - startShade)
+        };
       }
 
       var tempLight = startShade;
@@ -336,10 +336,10 @@ namespace SS.System {
     /// <param name="parameterNumber">From 1 to 4</param>
     /// <param name="value"></param>
     private void SetTrapData(ushort objectIndex, byte parameterNumber, uint value) {
-      if (parameterNumber < 1 || parameterNumber > 4) return;
+      if (parameterNumber is < 1 or > 4) return;
       if (objectIndex == 0) return;
 
-      var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+      var entity = ObjectInstancesRO[objectIndex];
       if (TriggerLookupRW.HasComponent(entity)) {
         var trigger = TriggerLookupRW[entity];
 
@@ -364,7 +364,7 @@ namespace SS.System {
     private void ChangeInstance(ushort objectIndex, uint actionParam2, uint actionParam3, uint actionParam4) {
       if (objectIndex == 0) return;
 
-      var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+      var entity = ObjectInstancesRO[objectIndex];
       if (InstanceLookupRW.HasComponent(entity)) {
         var instance = InstanceLookupRW[entity];
 
@@ -399,7 +399,7 @@ namespace SS.System {
 
       byte frames = 0;
 
-      var entity = ObjectInstancesBlobAsset.Value[objectIndex];
+      var entity = ObjectInstancesRO[objectIndex];
       if (InstanceLookupRW.HasComponent(entity) && DecorationLookupRW.HasComponent(entity)) {
         var instance = InstanceLookupRW[entity];
 
@@ -440,28 +440,45 @@ namespace SS.System {
         InstanceLookupRW[entity] = instance;
       }
     }
-
+    
     public void Multi(short objectIndex) {
       if (objectIndex == 0) return;
+        
+      var targetEntity = ObjectInstancesRO[objectIndex];
+      var targetObjectInstance = InstanceLookupRW.GetRefRO(targetEntity).ValueRO;
 
-      var entity = ObjectInstancesBlobAsset.Value[objectIndex];
-      if (TriggerLookupRW.HasComponent(entity)) {
-        Activate(entity, out bool message);
-      } else { // TODO Interfaces?
-        // TODO
-        // if door then unlock it
+      if (targetObjectInstance.Class == ObjectClass.Trigger) {
+        Activate(targetEntity, out var message);
+      } else {
+        if (targetObjectInstance.Class == ObjectClass.DoorAndGrating) {
+          ref var door = ref DoorLookupRW.GetRefRW(targetEntity).ValueRW;
+          door.Lock = 0;
+          door.AccessLevel = 0;
 
-        // object use !!!
+          var otherEntity = ObjectInstancesRO[door.OtherHalf];
+          if (otherEntity != Entity.Null && DoorLookupRW.HasComponent(otherEntity)) {
+            ref var otherDoor = ref DoorLookupRW.GetRefRW(otherEntity).ValueRW;
+            otherDoor.Lock = 0;
+            otherDoor.AccessLevel = 0;
+          }
+        }
+        
+        Debug.Log("OBJ USE TAG");
+        
+        // TODO Change to Enable component
+        CommandBuffer.AddComponent<ObjectUseTag>(unfilteredChunkIndex, targetEntity); // object_use(id, FALSE, OBJ_NULL);
       }
     }
 
-    public unsafe void TimedMulti(uint param) {
+    private unsafe void TimedMulti(uint param) {
+      const uint MULTI_TIME_UNIT = 10;
+      
       uint timeUnits = param >> 16; // 0.1 seconds per unit
       if (timeUnits != 0) {
         var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
 
         var scheduleEvent = new ScheduleEvent {
-          Timestamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + (TimeUtils.CIT_CYCLE * timeUnits) / 10)) + 1),
+          Timestamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + (TimeUtils.CIT_CYCLE * timeUnits) / MULTI_TIME_UNIT)) + 1),
           Type = EventType.Trap
         };
         *((TrapScheduleEvent*)scheduleEvent.Data) = new TrapScheduleEvent {
@@ -478,13 +495,13 @@ namespace SS.System {
       }
     }
 
-    private readonly bool ComparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME
+    private readonly bool ComparatorCheck(uint comparator, in Entity entity, out byte specialCode) { // TODO FIXME comparator_check
       specialCode = 0;
       return true;
     }
 
     private unsafe short QuestDataParse(ushort qdata) {
-      short contents = (short)(qdata & 0xFFF);
+      var contents = (short)(qdata & 0xFFF);
       if ((qdata & 0x1000) == 0x1000) {
         if (contents >= Shodan.FIRST_SHODAN_QUEST_VAR && (contents <= Shodan.FIRST_SHODAN_QUEST_VAR + Shodan.NUM_SHODAN_LEVELS)) {
           if (Player.GetQuestVar(Hacker.MISSION_DIFF_QUEST_VAR) <= 1)
@@ -501,5 +518,15 @@ namespace SS.System {
         return contents;
       }
     }
+  }
+  
+  public interface ITriggerable {
+    Link Link { get; }
+    ActionType ActionType { get; }
+    byte DestroyCount { get; set; }
+    uint ActionParam1 { get; set; }
+    uint ActionParam2 { get; set; }
+    uint ActionParam3 { get; set; }
+    uint ActionParam4 { get; set; }
   }
 }

@@ -52,14 +52,14 @@ namespace SS.System {
         .WithNone<FlatTextureInfo>()
         .Build(this);
 
-      viewPartArchetype = World.EntityManager.CreateArchetype(
-        typeof(FlatTexturePart),
-
-        typeof(LocalTransform),
-        typeof(Parent),
-
-        typeof(LocalToWorld)
-      );
+      viewPartArchetype = World.EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<FlatTexturePart>(),
+        
+        ComponentType.ReadWrite<LocalTransform>(),
+        ComponentType.ReadWrite<Parent>(),
+        
+        ComponentType.ReadWrite<LocalToWorld>(),
+      });
 
       instanceLookup = GetComponentLookup<ObjectInstance>(true);
       decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);

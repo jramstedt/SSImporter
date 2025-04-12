@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using SS.System;
+using Unity.Collections;
 using Unity.Entities;
 
 namespace SS.Resources {
@@ -142,20 +143,51 @@ namespace SS.Resources {
       public readonly byte TopBottomTexture => (byte)((Data1 & 0xFF000000) >> 24);
       public readonly byte Color => (byte)(Data2 & 0xFF);
       #endregion
+
+      public readonly uint AccessBits => Data1;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Interface : IComponentData {
-      public Link Link;
+    public struct Interface : IComponentData, ITriggerable {
+      private Link link;
 
-      public ActionType ActionType; // ?? trap_type
-      public byte DestroyCount;
-      public uint Comparator; // ?? comparator
-      public uint ActionParam1;
-      public uint ActionParam2;
-      public uint ActionParam3;
-      public uint ActionParam4;
+      private ActionType actionType; // ?? trap_type
+      private byte destroyCount;
+      public uint Comparator;
+      private uint actionParam1;
+      private uint actionParam2;
+      private uint actionParam3;
+      private uint actionParam4;
       public ushort AccessLevel;
+      
+      public readonly Link Link => link;
+
+      public readonly ActionType ActionType => actionType;
+
+      public byte DestroyCount {
+        readonly get => destroyCount;
+        set => destroyCount = value;
+      }
+
+      public uint ActionParam1 {
+        readonly get => actionParam1;
+        set => actionParam1 = value;
+      }
+
+      public uint ActionParam2 {
+        readonly get => actionParam2;
+        set => actionParam2 = value;
+      }
+
+      public uint ActionParam3 {
+        readonly get => actionParam3;
+        set => actionParam3 = value;
+      }
+
+      public uint ActionParam4 {
+        readonly get => actionParam4;
+        set => actionParam4 = value;
+      }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -175,12 +207,32 @@ namespace SS.Resources {
       /// <summary>See InstanceFlags.AutoClose</summary>
       public const int AUTOCLOSE_SHIFT = 6;
 
+      public const int NUM_ACCESS_CODES = 32;
+      public const int COMPAR_ESC_ACCESS = 0xFF;
+
+      public const ushort ANIM_SPEED = 32;
+      public const ushort DOOR_TIME_UNIT = 2;
+
       public readonly bool NeverAutoClose => AutocloseTime == NEVER_AUTOCLOSE_COOKIE;
 
-      public readonly bool IsMoving(AnimationData animationData, bool doorClosing) => animationData.ObjectIndex == Link.ObjectIndex && animationData.IsReversing == doorClosing;
+      public readonly bool IsMoving(NativeArray<AnimationData>.ReadOnly allAnimationData, bool doorClosing) {
+        foreach (var animationData in allAnimationData) {
+          if (animationData.ObjectIndex == Link.ObjectIndex && animationData.IsReversing == doorClosing)
+            return true;
+        }
+
+        return false;
+      }
       
+      public static bool Closed(ObjectInstance door) => door.Info.CurrentFrame < DOOR_OPEN_FRAME;
       public static bool IsReallyClosed(ObjectInstance door) => door.Info.CurrentFrame == 0;
       public static byte GetAutoCloseCode(ObjectInstance door) => (byte)((int)door.Info.Flags >> AUTOCLOSE_SHIFT);
+
+      public static void SetAutoCloseCode(ObjectInstance door, byte code) {
+        door.Info.Flags &= ~InstanceFlags.AutoClose;
+        door.Info.Flags |= (InstanceFlags)(code << AUTOCLOSE_SHIFT);
+      }
+      
       public static bool AutoClose(ObjectInstance door, byte autoCloseCode) => ((byte)door.Info.Flags >> AUTOCLOSE_SHIFT) == autoCloseCode;
     }
 
@@ -194,21 +246,21 @@ namespace SS.Resources {
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Trigger : IComponentData {
-      public Link Link;
+    public struct Trigger : IComponentData, ITriggerable {
+      private Link link;
 
-      public ActionType ActionType;
-      public byte DestroyCount;
+      private ActionType actionType;
+      private byte destroyCount;
       public uint Comparator;
-      public uint ActionParam1;
-      public uint ActionParam2;
-      public uint ActionParam3;
-      public uint ActionParam4;
+      private uint actionParam1;
+      private uint actionParam2;
+      private uint actionParam3;
+      private uint actionParam4;
 
-      public readonly float RepulsorBottom => ActionParam2 / 65536f;
-      public readonly float RepulsorTop => ActionParam3 / 65536f;
-      public readonly Direction RepulsorDirection => (Direction)((ActionParam4 + 1) & 0x7);
-      public readonly bool RepulsorIsFast => (ActionParam4 & 0x8) != 0;
+      public readonly float RepulsorBottom => actionParam2 / 65536f;
+      public readonly float RepulsorTop => actionParam3 / 65536f;
+      public readonly Direction RepulsorDirection => (Direction)((actionParam4 + 1) & 0x7);
+      public readonly bool RepulsorIsFast => (actionParam4 & 0x8) != 0;
 
       public enum Direction : byte {
         Null = 0,
@@ -218,6 +270,35 @@ namespace SS.Resources {
         South,
         East,
         West
+      }
+
+      public readonly Link Link => link;
+
+      public readonly ActionType ActionType => actionType;
+
+      public byte DestroyCount {
+        readonly get => destroyCount;
+        set => destroyCount = value;
+      }
+
+      public uint ActionParam1 {
+        readonly get => actionParam1;
+        set => actionParam1 = value;
+      }
+
+      public uint ActionParam2 {
+        readonly get => actionParam2;
+        set => actionParam2 = value;
+      }
+
+      public uint ActionParam3 {
+        readonly get => actionParam3;
+        set => actionParam3 = value;
+      }
+
+      public uint ActionParam4 {
+        readonly get => actionParam4;
+        set => actionParam4 = value;
       }
     }
 

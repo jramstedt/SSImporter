@@ -32,7 +32,7 @@ namespace SS.Resources {
 
   [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 4)]
   public struct DoorScheduleEvent {
-    public short ObjectIndex;
+    public ushort ObjectIndex;
     public ushort AutoClose;
   }
 

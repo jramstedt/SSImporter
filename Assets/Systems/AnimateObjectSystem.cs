@@ -2,9 +2,7 @@ using SS.Resources;
 using System;
 using System.Runtime.InteropServices;
 using Unity.Burst;
-using Unity.Burst.Intrinsics;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Core;
 using Unity.Entities;
 using Unity.Jobs;
@@ -60,9 +58,9 @@ namespace SS.System {
       for (int i = 0; i < randoms.Length; ++i)
         randoms[i] = Random.CreateFromIndex((uint)i);
 
-      triggerEventArchetype = EntityManager.CreateArchetype(
-        typeof(ScheduleEvent)
-      );
+      triggerEventArchetype = EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<ScheduleEvent>(),
+      });
 
       objectProperties = await Services.ObjectProperties;
 
@@ -106,13 +104,13 @@ namespace SS.System {
       var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
       var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
-      var removedList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       var callbackList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
+      var removedList = new NativeList<ushort>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       
       // TODO Animating class objects
 
       Dependency = new AnimateAnimationJob {
-        ObjectInstancesBlobAsset = level.ObjectInstances,
+        ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
         ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
 
         TimeData = SystemAPI.Time,
@@ -143,7 +141,7 @@ namespace SS.System {
           LevelInfo = levelInfo,
 
           TileMapBlobAsset = level.TileMap,
-          ObjectInstancesBlobAsset = level.ObjectInstances,
+          ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
 
           MapElementLookupRW = mapElementLookupRW,
           InstanceLookupRW = instanceLookupRW,
@@ -154,12 +152,10 @@ namespace SS.System {
 
           RandomsRW = randoms,
 
-          animationList = new AnimateObjectSystemData.Writer {
-            Commands = animationCommandListSystemData.Commands.AsWriter()
-          }
+          animationList = animationCommandListSystemData.AllocateWriter(JobsUtility.MaxJobThreadCount, WorldUpdateAllocator)
         },
         
-        ObjectInstancesBlobAsset = level.ObjectInstances,
+        ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
         Animations = level.Animations,
         
         InstanceLookupRW = instanceLookupRW,
@@ -168,11 +164,14 @@ namespace SS.System {
         Callback = callbackList.AsDeferredJobArray(),
         Remove = removedList.AsDeferredJobArray()
       }.Schedule(Dependency);
+
+      callbackList.Dispose(Dependency);
+      removedList.Dispose(Dependency);
     }
 
     [BurstCompile]
     struct AnimateAnimationJob : IJobFor {
-      [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
+      [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
       [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
 
       [ReadOnly] public TimeData TimeData;
@@ -190,14 +189,14 @@ namespace SS.System {
       [ReadOnly] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRO;
       
       [WriteOnly] public NativeList<byte>.ParallelWriter CallbackOut;
-      [WriteOnly] public NativeList<byte>.ParallelWriter RemoveOut;
+      [WriteOnly] public NativeList<ushort>.ParallelWriter RemoveOut;
 
       public void Execute(int index) {
         var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime);
         
         var animation = Animations[index];
 
-        var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
+        var entity = ObjectInstancesRO[animation.ObjectIndex];
         ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
 
         var frameCount = 1;
@@ -229,6 +228,9 @@ namespace SS.System {
         var framesAnimated = frameDeltaTime / animation.FrameTime;
         instanceData.Info.TimeRemaining = (byte)(frameDeltaTime % animation.FrameTime);
         while (framesAnimated-- > 0) {
+          //if (instanceData.Class == ObjectClass.DoorAndGrating)
+          //  Debug.Log($"DoorAndGrating CurrentFrame {instanceData.Info.CurrentFrame}");
+          
           if (animation.IsReversing) {
             --instanceData.Info.CurrentFrame;
 
@@ -246,7 +248,7 @@ namespace SS.System {
                 instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
               } else { // Remove
                 instanceData.Info.CurrentFrame = 0;
-                RemoveOut.AddNoResize((byte)index);
+                RemoveOut.AddNoResize(animation.ObjectIndex);
 
                 /*
                 if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
@@ -277,7 +279,7 @@ namespace SS.System {
                 // Debug.Log($"<color=yellow> Remove i:{index}");
                 
                 instanceData.Info.CurrentFrame = (sbyte)(frameCount - 1);
-                RemoveOut.AddNoResize((byte)index);
+                RemoveOut.AddNoResize(animation.ObjectIndex);
                 
                 /*
                 if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
@@ -301,30 +303,26 @@ namespace SS.System {
     }
     
     [BurstCompile]
-    struct ProcessCallbacksJob : IJob {
+    private struct ProcessCallbacksJob : IJob {
       public TriggerProcessor Processor;
       
-      [ReadOnly] public BlobAssetReference<BlobArray<Entity>> ObjectInstancesBlobAsset;
+      [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
       public NativeList<AnimationData> Animations;
       
       public ComponentLookup<ObjectInstance> InstanceLookupRW;
       public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRW;
 
       [ReadOnly] public NativeArray<byte> Callback;
-      [ReadOnly] public NativeArray<byte> Remove;
+      [ReadOnly] public NativeArray<ushort> Remove;
       
       public void Execute() {
         Processor.unfilteredChunkIndex = 0;
         Processor.animationList.Commands.BeginForEachIndex(JobsUtility.ThreadIndex);
         
-        // Debug.Log($"<color=green> ProcessCallbacksJob cl:{Callback.Length} rl:{Remove.Length}");
+        // Debug.Log($"<color=green> ProcessCallbacksJob cl:{Callback.Length} rl:{Remove.Length} ti:{JobsUtility.ThreadIndex}");
 
-        for (var i = 0; i < Callback.Length; ++i) {
-          var animation = Animations[Callback[i]];
-          var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
-          ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
-          ProcessCallback(entity, ref instanceData, animation);
-        }
+        for (var i = 0; i < Callback.Length; ++i)
+          ProcessCallback(Animations[Callback[i]]);
 
         for (var i = 0; i < Remove.Length; ++i)
           RemoveAnimation(Remove[i]);
@@ -332,7 +330,10 @@ namespace SS.System {
         Processor.animationList.Commands.EndForEachIndex();
       }
       
-      private void ProcessCallback(in Entity entity, ref ObjectInstance instanceData, in AnimationData animation) {
+      private void ProcessCallback(in AnimationData animation) {
+        var entity = ObjectInstancesRO[animation.ObjectIndex];
+        ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
+        
         var userData = animation.UserData;
 
         if (animation.CallbackOperation == AnimationData.Callback.UnShodanize) {
@@ -366,15 +367,19 @@ namespace SS.System {
         }
       }
 
-      private void RemoveAnimation(byte animationIndex) {
-        var animation = Animations[animationIndex];
-        var entity = ObjectInstancesBlobAsset.Value[animation.ObjectIndex];
-        ref var instanceData = ref InstanceLookupRW.GetRefRW(entity).ValueRW;
-        
-        Animations.RemoveAtSwapBack(animationIndex);
-        
-        if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
-          ProcessCallback(entity, ref instanceData, animation);
+      private void RemoveAnimation(ushort objectIndex) {
+        for (var i = 0; i < Animations.Length; ++i) {
+          var animation = Animations[i];
+
+          if (animation.ObjectIndex != objectIndex) continue;
+
+          Animations.RemoveAtSwapBack(i);
+
+          if (animation.CallbackOperation != 0 && animation.IsCallbackTypeRemove)
+            ProcessCallback(animation);
+            
+          return;
+        }
       }
     }
 
