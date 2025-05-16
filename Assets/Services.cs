@@ -167,8 +167,8 @@ namespace SS {
         var palette = await Palette;
         var shadeTable = await ShadeTable;
 
-        using var colors = palette.ToNativeArray(Allocator.Temp);
-        using var distances = new NativeArray<uint>(MAX_COLOR * MAX_COLOR * MAX_COLOR, Allocator.Temp);
+        var colors = palette.ToNativeArray(Allocator.Temp);
+        var distances = new NativeArray<uint>(MAX_COLOR * MAX_COLOR * MAX_COLOR, Allocator.Temp);
 
         unsafe {
           var value = stackalloc uint[1] { uint.MaxValue };

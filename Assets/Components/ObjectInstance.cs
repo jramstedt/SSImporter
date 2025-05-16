@@ -149,6 +149,7 @@ namespace SS.Resources {
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Interface : IComponentData, ITriggerable {
+      [SerializeField]
       private Link link;
 
       private ActionType actionType; // ?? trap_type
@@ -247,6 +248,7 @@ namespace SS.Resources {
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Trigger : IComponentData, ITriggerable {
+      [SerializeField]
       private Link link;
 
       private ActionType actionType;

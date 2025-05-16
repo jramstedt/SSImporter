@@ -5,7 +5,7 @@ using System.Runtime.ExceptionServices;
 
 namespace SS.Resources {
   public class LoaderBase<T> : IResHandle<T> {
-    public bool IsCompleted { get; private set; } = false;
+    public bool IsCompleted { get; private set; }
     public ExceptionDispatchInfo Error { get; private set; }
     public T Result { get; private set; }
 

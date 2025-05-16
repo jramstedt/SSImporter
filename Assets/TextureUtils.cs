@@ -78,8 +78,9 @@ namespace SS {
           textureData = SECRET_FURNITURE_DEFAULT_O3DREP;
         }
       } else if (baseProperties.DrawType != DrawType.TerrainPolygon && baseProperties.DrawType != DrawType.TexturedPolygon) {
-        textureData = baseProperties.BitmapIndex;
-
+        textureData = baseProperties.BitmapIndex; // TODO This needs to be pre calculated, obj_load_art
+        Debug.LogWarning("BitmapIndex missing");
+        
         if (baseProperties.DrawType != DrawType.Voxel && instanceData.Class != ObjectClass.DoorAndGrating && instanceData.Info.CurrentFrame != -1) {
           textureData += instanceData.Info.CurrentFrame;
         }

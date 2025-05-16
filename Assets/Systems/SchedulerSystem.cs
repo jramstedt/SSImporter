@@ -8,6 +8,8 @@ using Unity.Entities;
 using UnityEngine;
 using EventType = SS.Resources.EventType;
 
+// TODO Global schedule
+
 namespace SS.System {
   [BurstCompile]
   [UpdateBefore(typeof(TriggerSystem))]
@@ -85,8 +87,9 @@ namespace SS.System {
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           var scheduleEvent = scheduleEvents[i];
-
-          if (ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= ExpandTimestamp(timestamp, timestamp)) continue;
+          
+          if (ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= ExpandTimestamp(timestamp, timestamp))
+            continue;
 
           // TODO handle other ScheduleEvent.Types
 
@@ -121,6 +124,8 @@ namespace SS.System {
             DoMulti(trapEvent.TargetObjectIndex, unfilteredChunkIndex);
             if (trapEvent.SourceObjectIndex != -1)
               CommandBuffer.SetComponentEnabled<TriggerActivateTag>(unfilteredChunkIndex, ObjectInstancesRO[trapEvent.SourceObjectIndex], true); // trap_activate
+          } else {
+            Debug.LogWarning($"SchedulerJob ${scheduleEvent.Type} ets:{scheduleEvent.Timestamp} ts:{timestamp} UHANDLED");
           }
 
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);

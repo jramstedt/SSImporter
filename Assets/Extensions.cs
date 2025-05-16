@@ -2,7 +2,8 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Unity.Collections;
-using Unity.Entities.Serialization;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using BinaryReader = System.IO.BinaryReader;
 
 namespace SS {
@@ -29,6 +30,15 @@ namespace SS {
       gcHandle.Free();
 
       return structure;
+    }
+    
+    public static unsafe void Read<T>(this BinaryReader binaryReader, ref BlobBuilder blobBuilder, ref BlobArray<T> targetBlobArray, int elementCount) where T : struct {
+      var blobArray = blobBuilder.Allocate(ref targetBlobArray, elementCount);
+      var span = new Span<byte>(blobArray.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * elementCount);
+      var read = 0;
+      do {
+        read += binaryReader.Read(span[read..]);
+      } while(read < span.Length);
     }
 
     public static T Read<T>(this byte[] bytes, int offset = 0) {
@@ -79,7 +89,7 @@ namespace SS {
       return hex.ToString();
     }
 
-    public static unsafe void Deconstruct<TKey, TValue>(this KVPair<TKey, TValue> pair, out TKey key, out TValue value)
+    public static void Deconstruct<TKey, TValue>(this KVPair<TKey, TValue> pair, out TKey key, out TValue value)
       where TKey : unmanaged, IEquatable<TKey>
       where TValue : unmanaged
     {

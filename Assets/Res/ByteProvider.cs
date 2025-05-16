@@ -9,7 +9,7 @@ namespace SS.Resources {
       }
     }
 
-    public IResHandle<byte[]> Provide(ResourceFile resFile, ResourceFile.ResourceInfo resInfo, ushort blockIndex) {
+    public IResHandle<byte[]> Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
       return new ByteLoader(resFile, resInfo, blockIndex);
     }
   }

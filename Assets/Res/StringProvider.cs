@@ -11,9 +11,9 @@ namespace SS.Resources {
       }
     }
 
-    public IResHandle<string> Provide(ResourceFile resFile, ResourceFile.ResourceInfo resInfo, ushort blockIndex) {
-      if (resInfo.info.ContentType != ResourceFile.ContentType.String)
-        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.String)}.");
+    public IResHandle<string> Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      if (resInfo.info.ContentType != ContentType.String)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ContentType.String)}.");
 
       return new StringLoader(resFile, resInfo, blockIndex);
     }

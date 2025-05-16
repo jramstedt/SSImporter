@@ -105,8 +105,8 @@ namespace SS.Resources {
     }
 
     IResHandle<BitmapSet> IResProvider<BitmapSet>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-      if (resInfo.info.ContentType != ResourceFile.ContentType.Image)
-        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Image)}.");
+      if (resInfo.info.ContentType != ContentType.Image)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ContentType.Image)}.");
 
       return new BitmapLoader(resFile, resInfo, blockIndex);
     }

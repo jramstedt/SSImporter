@@ -5,7 +5,6 @@ using Unity.Collections;
 using Unity.Core;
 using Unity.Entities;
 using Unity.Rendering;
-using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using static Unity.Mathematics.math;
 

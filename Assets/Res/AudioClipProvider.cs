@@ -43,7 +43,7 @@ namespace SS.Resources {
           }
         }
         
-        using var result = new NativeArray<float>(wavData.Length, Allocator.TempJob);
+        var result = new NativeArray<float>(wavData.Length, Allocator.TempJob);
 
         ParallelConvert convertJob = new() {
           wavData = wavData.AsReadOnly(),
@@ -60,6 +60,7 @@ namespace SS.Resources {
         jobHandle.Complete();
 
         audioClip.SetData(result, 0);
+        result.Dispose(jobHandle);
 
         InvokeCompletionEvent(audioClip);
       }

@@ -18,8 +18,8 @@ namespace SS.Resources {
     }
 
     IResHandle<Palette> IResProvider<Palette>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-      if (resInfo.info.ContentType != ResourceFile.ContentType.Palette)
-        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Palette)}.");
+      if (resInfo.info.ContentType != ContentType.Palette)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ContentType.Palette)}.");
 
       return new PaletteLoader(resFile, resInfo, blockIndex);
     }

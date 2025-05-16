@@ -30,7 +30,7 @@ namespace SS.System {
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
     private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
-    private readonly NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
+    private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(64 * 64, Allocator.Persistent);
 
     private RenderMeshDescription renderMeshDescription;
 
@@ -333,7 +333,7 @@ namespace SS.System {
     private const int VerticesPerViewPart = 8;
     private const int IndicesPerViewPart = 12;
 
-    private static unsafe void ClearMeshData(in Mesh.MeshData mesh) {
+    private static unsafe void ClearMeshData(ref Mesh.MeshData mesh) {
       var index = mesh.GetIndexData<ushort>();
       UnsafeUtility.MemClear(index.GetUnsafePtr(), index.Length * UnsafeUtility.SizeOf<ushort>());
 
@@ -359,7 +359,7 @@ namespace SS.System {
 
       mesh.SetIndexBufferParams(IndicesPerViewPart * mesh.subMeshCount, IndexFormat.UInt16);
 
-      ClearMeshData(mesh);
+      ClearMeshData(ref mesh);
 
       var colliderBlobs = new NativeArray<BlobAssetReference<Collider>>(mesh.subMeshCount, Allocator.Temp);
 
@@ -476,7 +476,7 @@ namespace SS.System {
 
       var indicesTemplate = faceIndices.Slice(faceIndicesOffset[tileType], faceIndicesLength[tileType]);
 
-      if (isCeiling == true) {
+      if (isCeiling) {
         vertices[vertexStart + 0] = new Vertex { pos = float3(0f, (float)tile.CeilingCornerHeight(0) / (float)levelInfo.HeightDivisor, 0f), uv = UVTemplate[(0 + tile.CeilingRotation) & 0b11], light = 1f };
         vertices[vertexStart + 1] = new Vertex { pos = float3(0f, (float)tile.CeilingCornerHeight(1) / (float)levelInfo.HeightDivisor, 1f), uv = UVTemplate[(1 + tile.CeilingRotation) & 0b11], light = 1f };
         vertices[vertexStart + 2] = new Vertex { pos = float3(1f, (float)tile.CeilingCornerHeight(2) / (float)levelInfo.HeightDivisor, 1f), uv = UVTemplate[(2 + tile.CeilingRotation) & 0b11], light = 1f };

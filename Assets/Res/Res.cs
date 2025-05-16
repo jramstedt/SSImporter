@@ -19,7 +19,8 @@ namespace SS.Resources {
 
     private static readonly Dictionary<ushort, ResourceFile> resourceRecord = new();
 
-    private static readonly Dictionary<ContentType, IResProvider[]> contentProviders = new() {
+    private static readonly IReadOnlyDictionary<ContentType, IReadOnlyCollection<IResProvider>> contentProviders = 
+      new Dictionary<ContentType, IReadOnlyCollection<IResProvider>> {
         { ContentType.Palette, new[]{ new PaletteProvider() } },
         { ContentType.String, new[]{ new StringProvider() } },
         { ContentType.Image, new[]{ new BitmapProvider() } },
@@ -29,7 +30,7 @@ namespace SS.Resources {
         { ContentType.Obj3D, new[]{ new MeshProvider() } },
         // Movie
         // Map
-    };
+      };
 
     [RuntimeInitializeOnLoadMethod]
     private static async Awaitable InitAsync() {
@@ -110,10 +111,7 @@ namespace SS.Resources {
     }
 
     public static IResHandle<T> Load<T>(ushort resId, ushort blockIndex = 0) {
-      if (InitState.IsCompleted)
-        return Provide<T>(resId, blockIndex);
-      else
-        return new WaitInitialization<T>(InitState, () => Provide<T>(resId, blockIndex));
+      return InitState.IsCompleted ? Provide<T>(resId, blockIndex) : new WaitInitialization<T>(InitState, () => Provide<T>(resId, blockIndex));
     }
 
     private static IResHandle<T> Provide<T>(ushort resId, ushort blockIndex = 0) {
@@ -184,7 +182,7 @@ namespace SS.Resources {
     }
 
     private class InitializationState {
-      public bool IsCompleted { get; private set; } = false;
+      public bool IsCompleted { get; private set; }
 
       private Action CompletedAction;
       public event Action Completed {
@@ -223,7 +221,7 @@ namespace SS.Resources {
 
       public Awaiter(IResHandle<T> resHandle) { this.resHandle = resHandle; }
 
-      public readonly void OnCompleted(Action continuation) {
+      public void OnCompleted(Action continuation) {
         SynchronizationContext context = SynchronizationContext.Current;
         if (context != null)
           resHandle.Completed += _ => context.Post(state => continuation(), null);
@@ -235,9 +233,9 @@ namespace SS.Resources {
         resHandle.Completed += _ => continuation();
       }
 
-      public readonly bool IsCompleted => resHandle.IsCompleted;
+      public bool IsCompleted => resHandle.IsCompleted;
 
-      public readonly T GetResult() {
+      public T GetResult() {
         resHandle.Error?.Throw();
         return resHandle.Result;
       }

@@ -199,8 +199,8 @@ namespace SS.System {
         var otherDoorInstance = instanceLookup.GetRefRO(otherDoorEntity).ValueRO;
         var isDoor = otherDoorInstance.Class == ObjectClass.DoorAndGrating;
           
-        var otherDoorRef = doorLookup.GetRefROOptional(otherDoorEntity);
-        if (!isDoor || !otherDoorRef.IsValid || door.IsMoving(allAnimationData, true) != (ObjectInstance.DoorAndGrating.IsReallyClosed(otherDoorInstance) || otherDoorRef.ValueRO.IsMoving(allAnimationData, true)))
+        var doorFound = doorLookup.TryGetRefRO(otherDoorEntity, out var otherDoorRef);
+        if (!isDoor || !doorFound || door.IsMoving(allAnimationData, true) != (ObjectInstance.DoorAndGrating.IsReallyClosed(otherDoorInstance) || otherDoorRef.ValueRO.IsMoving(allAnimationData, true)))
           UseObject(otherDoorEntity, player, ref level, ref commandBuffer, ref animationList, (byte)(isDoor ? useFlags | DoorUseFlags.DontUseOtherHalf : DoorUseFlags.None));
       }
       

@@ -67,7 +67,7 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct EffectJob : IJobChunk {
+    private struct EffectJob : IJobChunk {
       public ComponentTypeHandle<PaletteEffect> paletteEffectTypeHandleRW;
 
       [NativeDisableParallelForRestriction] public NativeArray<Color32> palette;
@@ -77,7 +77,7 @@ namespace SS.System {
       public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask) {
         var paletteEffects = chunk.GetNativeArray(ref paletteEffectTypeHandleRW);
 
-        using var tmpPal = new NativeArray<Color32>(256, Allocator.Temp);
+        var tmpPal = new NativeArray<Color32>(256, Allocator.Temp);
         for (int i = 0; i < chunk.Count; ++i) {
           var paletteEffect = paletteEffects[i];
 

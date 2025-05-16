@@ -50,8 +50,8 @@ namespace SS.Resources {
     }
 
     IResHandle<FontSet> IResProvider<FontSet>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-      if (resInfo.info.ContentType != ResourceFile.ContentType.Font)
-        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Font)}.");
+      if (resInfo.info.ContentType != ContentType.Font)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ContentType.Font)}.");
 
       return new FontLoader(resFile, resInfo, blockIndex);
     }

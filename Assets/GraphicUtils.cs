@@ -26,7 +26,7 @@ namespace SS {
       for (int index = 0; index < fullText.Length; index++) {
         char chr = fullText[index];
 
-        if (chr == '\n' || chr == SOFTCR) {
+        if (chr is '\n' or SOFTCR) {
           chrPos.x = origin.x;
           chrPos.y += font.Rows;
           continue;

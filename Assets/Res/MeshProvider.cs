@@ -26,8 +26,8 @@ namespace SS.Resources {
     }
 
     IResHandle<MeshInfo> IResProvider<MeshInfo>.Provide(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
-      if (resInfo.info.ContentType != ResourceFile.ContentType.Obj3D)
-        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ResourceFile.ContentType.Obj3D)}.");
+      if (resInfo.info.ContentType != ContentType.Obj3D)
+        throw new Exception($"Resource {resInfo.info.Id:X4}:{blockIndex:X4} is not {nameof(ContentType.Obj3D)}.");
 
       return new MeshLoader(resFile, resInfo, blockIndex);
     }

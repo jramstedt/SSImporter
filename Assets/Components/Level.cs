@@ -28,6 +28,8 @@ namespace SS.Resources {
    */
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct LevelInfo : IComponentData {
+    public const int MAP_SCHEDULE_SIZE = 128;
+    
     public enum LevelType : byte {
       Normal,
       Cyberspace
@@ -38,7 +40,7 @@ namespace SS.Resources {
     public int XShift; // def 6
     public int YShift; // def 6
     public int ZShift; // def 3
-    private uint InternalPointer;
+    private uint InternalPointer; // Pointer to MapElem array
     public LevelType Type;
 
     private unsafe fixed byte Unused[12]; // x_scale, y_scale, z_scale
@@ -51,16 +53,6 @@ namespace SS.Resources {
     public readonly int HeightFactor => MapElement.MAX_HEIGHT >> ZShift;
 
     public readonly override string ToString() => $"Width = {Width}, Height = {Height}, XShift = {XShift}, YShift = {YShift}, ZShift = {ZShift}, Type = {Type}";
-  }
-
-  [StructLayout(LayoutKind.Sequential, Pack = 1)]
-  public struct SchedulerInfo {
-    public uint Size; // Must be 0x40 (64)
-    public uint Count;
-    public uint ElementSize; // Must be 0x08
-    public byte Grow;
-    private readonly uint InternalPointer;
-    private readonly uint InternalPointer2;
   }
 
   public enum TileType : byte {
