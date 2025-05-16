@@ -12,6 +12,8 @@ namespace SS.ObjectProperties {
 
     public const int NUM_CRITTER = NUM_MUTANT_CRITTER + NUM_ROBOT_CRITTER + NUM_CYBORG_CRITTER + NUM_CYBER_CRITTER + NUM_ROBOBABE_CRITTER;
 
+    public const int NUM_CRITTER_POSTURES = 8;
+    
     public byte Intelligence;
     public WeaponInfo MainAttack;
     public WeaponInfo AlternativeAttack;
@@ -21,7 +23,8 @@ namespace SS.ObjectProperties {
     public int Flags;
     [MarshalAs(UnmanagedType.U1)] public bool Mirror;
 
-    public EightOf<byte> Frames;
+    private EightOf<byte> Frames; // Computed values. Use enemyPostureFrames instead.
+    //public unsafe fixed byte Frames[NUM_CRITTER_POSTURES];
     public byte AnimSpeed;
 
     public byte AttackSound;

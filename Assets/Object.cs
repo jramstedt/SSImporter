@@ -36,7 +36,7 @@ namespace SS {
     Item,           // CLASS_SMALLSTUFF
     Interface,      // CLASS_FIXTURE
     DoorAndGrating, // CLASS_DOOR
-    Animated,       // CLASS_ANIMATING
+    Animating,       // CLASS_ANIMATING
     Trigger,        // CLASS_TRAP
     Container,      // CLASS_CONTAINER
     Enemy,          // CLASS_CRITTER

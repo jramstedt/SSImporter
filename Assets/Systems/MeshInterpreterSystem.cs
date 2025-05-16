@@ -120,7 +120,7 @@ namespace SS.System {
       Dependency = addMeshToCacheJob.ScheduleParallel(newMeshQuery, dependsOn: Dependency);
       */
 
-      foreach (var entity in newMeshQuery.ToEntityArray(Allocator.Temp)) {
+      foreach (var entity in newMeshQuery.ToEntityArray(WorldUpdateAllocator)) {
         var mesh = new Mesh();
         mesh.MarkDynamic();
         if (entityMeshes.TryAdd(entity, mesh) && entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh))) {
@@ -139,17 +139,17 @@ namespace SS.System {
         decorationLookupRO.Update(this);
         
         var level = SystemAPI.GetSingleton<Level>();
-        var entities = activeMeshQuery.ToEntityListAsync(Allocator.TempJob, out var entitiesListJobHandle);
+        var entities = activeMeshQuery.ToEntityListAsync(WorldUpdateAllocator, out var entitiesListJobHandle);
 
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
 
-        using var textureIds = new NativeArray<ushort>(entityCount * 8, Allocator.TempJob);
-        using var textureDatas = new NativeArray<int>(entityCount, Allocator.TempJob);
+        var textureIds = new NativeArray<ushort>(entityCount * 8, Allocator.TempJob);
+        var textureDatas = new NativeArray<int>(entityCount, Allocator.TempJob);
 
         var cameraWorldPosition = Camera.main?.transform.position ?? Vector3.zero;
 
         //var parameterData = (byte*)UnsafeUtility.Malloc(4 * 100, 4, Allocator.Persistent);
-        using var parameterData = new NativeArray<byte>(4 * 100, Allocator.TempJob);
+        var parameterData = new NativeArray<byte>(4 * 100, Allocator.TempJob);
         
         new BuildMeshJob {
           Level = level,
@@ -172,6 +172,7 @@ namespace SS.System {
         }.ScheduleParallel(activeMeshQuery);
         
         Dependency = JobHandle.CombineDependencies(Dependency, entitiesListJobHandle);
+        parameterData.Dispose(Dependency);
         CompleteDependency();
 
         // Debug.Log($"textureIdAccumulator {textureIdAccumulator} entities {entityCount} max {textureIds.Length}");
@@ -261,7 +262,8 @@ namespace SS.System {
           }
         }
 
-        entities.Dispose(Dependency);
+        textureIds.Dispose(Dependency);
+        textureDatas.Dispose(Dependency);
       }
 
       var removeMeshToCacheJob = new RemoveMeshFromCacheJob() {
@@ -334,7 +336,7 @@ namespace SS.System {
       
       [ReadOnly] public NativeArray<VertexAttributeDescriptor> VertexAttributes;
       
-      [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
+      [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectDatasBlobAsset;
       
       [ReadOnly] public ShadeTableData ShadeTable;
       

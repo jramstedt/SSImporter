@@ -81,7 +81,7 @@ namespace SS.Resources {
 
       #region Load archive.dat
       Debug.Log(@"Load archive.dat");
-      await SaveLoader.LoadMap(1, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
+      await SaveLoader.LoadMap(3, Res.rootPath + @"\DATA", @"ARCHIVE.DAT");
       #endregion
     }
 
@@ -115,10 +115,9 @@ namespace SS.Resources {
     }
 
     private static IResHandle<T> Provide<T>(ushort resId, ushort blockIndex = 0) {
-      if (resourceRecord.TryGetValue(resId, out ResourceFile resourceFile)) {
-        var resourceInfo = resourceFile.GetResourceInfo(resId);
-
-        if (contentProviders.TryGetValue(resourceInfo.info.ContentType, out IResProvider[] providers)) {
+      if (resourceRecord.TryGetValue(resId, out var resourceFile)) {
+        var resourceInfo = resourceFile.ResourceEntries[resId];
+        if (contentProviders.TryGetValue(resourceInfo.info.ContentType, out var providers)) {
           foreach (var provider in providers) {
             if (provider is IResProvider<T> matchingProvider)
               return matchingProvider.Provide(resourceFile, resourceInfo, blockIndex);
@@ -132,24 +131,36 @@ namespace SS.Resources {
 
       return default;
     }
+    
+    public static IResHandle<ushort> GetResourceBlockCount(ushort resId) {
+      return InitState.IsCompleted ? ProvideResourceBlockCount(resId) : new WaitInitialization<ushort>(InitState, () => ProvideResourceBlockCount(resId));
+    }
+
+    private static IResHandle<ushort> ProvideResourceBlockCount(ushort resId) {
+      if (resourceRecord.TryGetValue(resId, out var resourceFile))
+        return new CompletedLoader<ushort>(resourceFile.GetResourceBlockCount(resId));
+
+      Debug.LogError($"No resource file for {resId:X4} found");
+      return default;
+    }
 
     public static IResHandle<ResourceFile> Open(string filePath) {
-      if (!resourceFileHandles.TryGetValue(filePath, out IResHandle<ResourceFile> resLoader)) {
-        var byteLoader = new FileByteLoader(filePath);
-        resLoader = new PickResultLoader<ResourceFile, byte[]>(byteLoader, rawBytes => new ResourceFile(rawBytes));
+      if (resourceFileHandles.TryGetValue(filePath, out var resLoader)) return resLoader;
+      
+      var byteLoader = new FileByteLoader(filePath);
+      resLoader = new PickResultLoader<ResourceFile, byte[]>(byteLoader, rawBytes => new ResourceFile(rawBytes));
 
-        if (resourceFileHandles.TryAdd(filePath, resLoader)) {
-          resLoader.Completed += resHandle => {
-            var resFile = resHandle.Result;
+      if (resourceFileHandles.TryAdd(filePath, resLoader)) {
+        resLoader.Completed += resHandle => {
+          var resFile = resHandle.Result;
 
-            foreach (var (resId, resource) in resFile.ResourceEntries) {
-              Debug.Log($"{(global::System.IO.Path.GetFileName(filePath))}: Adding {resId:X4} {resource.info.Id:X4} {resource.info.ContentType}");
+          foreach (var (resId, resource) in resFile.ResourceEntries) {
+            Debug.Log($"{(global::System.IO.Path.GetFileName(filePath))}: Adding {resId:X4} {resource.info.Id:X4} {resource.info.ContentType}");
 
-              if (!resourceRecord.TryAdd(resId, resFile))
-                Debug.LogWarning($"{(global::System.IO.Path.GetFileName(filePath))}: Resource record already contains {resId:X4}");
-            }
-          };
-        }
+            if (!resourceRecord.TryAdd(resId, resFile))
+              Debug.LogWarning($"{(global::System.IO.Path.GetFileName(filePath))}: Resource record already contains {resId:X4}");
+          }
+        };
       }
 
       return resLoader;

@@ -7,7 +7,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace SS {
   [BurstCompile]
@@ -95,101 +94,6 @@ namespace SS {
         if (animationData[index].ObjectIndex == objectIndex) return true;
 
       return false;
-    }
-
-    public static BatchMaterialID GetResource(
-      in Entity entity,
-      in ObjectInstance instanceData,
-      in Level level,
-      in BlobAssetReference<ObjectDatas> objectProperties,
-      in MaterialProviderSystem materialProviderSystem,
-      in ComponentLookup<ObjectInstance> instanceLookup,
-      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
-      in ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
-      in bool decal,
-      out ushort refWidthOverride
-    ) {
-      var baseProperties = objectProperties.Value.BasePropertyData(instanceData);
-
-      refWidthOverride = 0;
-
-      if (baseProperties.DrawType == DrawType.TerrainPolygon) {
-        const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
-
-        if (instanceData.Class == ObjectClass.Decoration) {
-          var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
-          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, level.Animations.AsReadOnly());
-          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
-
-          if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
-            refWidthOverride = 128;
-            return materialProviderSystem.GetMaterial((ushort)(0x03E8 + level.TextureMap[textureData]), 0, true, decal, false);
-          } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
-            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidthOverride = 128; // 1 << 7
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
-          } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
-            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidthOverride = 64; // 1 << 6
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
-          } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
-            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
-            refWidthOverride = 32; // 1 << 5
-            return materialProviderSystem.ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
-          } else {
-            var materialID = materialProviderSystem.ParseTextureData(textureData, true, decal, out var textureType, out var scale);
-            refWidthOverride = (ushort)(1 << scale);
-            return materialID;
-          }
-        }
-      } else if (baseProperties.DrawType == DrawType.FlatTexture) {
-        if (instanceData.Class == ObjectClass.Decoration) {
-          if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
-            const byte MEDIAN_WORD_SCALE = 4;
-
-            var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
-            byte size = (byte)decorationData.WordScale;
-
-            var colorIndex = decorationData.WordColor;
-            var style = decorationData.WordStyle;
-            var wordIndex = decorationData.WordIndex;
-
-            if (size != 0)
-              size -= MEDIAN_WORD_SCALE;
-
-            refWidthOverride = (ushort)(size == 0 ? 128 : (1 << (7 + size))); // 1 << 7 = 128 is default word size
-
-            return materialProviderSystem.GetWordMaterial(wordIndex, colorIndex, style);
-          } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
-            return materialProviderSystem.GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
-          } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
-            return materialProviderSystem.GetMaterial(GraffitiResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
-          } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
-            return materialProviderSystem.GetMaterial(RepulsorResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
-          }
-        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
-          // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
-          return materialProviderSystem.GetMaterial((ushort)(DoorResourceIdBase + objectProperties.Value.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal, false);
-        }
-      } else if (baseProperties.DrawType == DrawType.TranslucentPolygon) {
-        byte colorIndex = 0;
-
-        // TODO ObjectClass.Item
-
-        if (instanceData.Class == ObjectClass.Decoration) {
-          var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
-          colorIndex = (byte)decorationData.Data2;
-        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
-          var doorData = doorLookup.GetRefRO(entity).ValueRO;
-          colorIndex = doorData.Color;
-        }
-
-        if (colorIndex == 0) colorIndex = 0xFF;
-
-        return materialProviderSystem.GetTranslucentMaterial(colorIndex);
-      }
-
-      return BatchMaterialID.Null;
     }
     
     public static TextureSet CreateTexture(string name, int width, int height, bool transparent = false) {

@@ -18,14 +18,15 @@ namespace SS.System {
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class SpriteSystem : SystemBase {
     private EntityQuery newSpriteQuery;
-    private EntityQuery activeSpriteQuery;
+    private EntityQuery animatedSpriteQuery;
     private EntityQuery removedSpriteQuery;
 
     private EntityArchetype viewPartArchetype;
     
     private ComponentLookup<LocalToWorld> localToWorldRO;
+    private BufferLookup<Child> childLookupRO;
 
-    private BlobAssetReference<ObjectDatas> objectProperties;
+    private BlobAssetReference<ObjectPropertiesBlob> objectProperties;
     private RenderMeshDescription renderMeshDescription;
 
     private NativeArray<ushort> spriteBase;
@@ -38,6 +39,7 @@ namespace SS.System {
       RequireForUpdate<AsyncLoadTag>();
 
       localToWorldRO = GetComponentLookup<LocalToWorld>(true);
+      childLookupRO = GetBufferLookup<Child>(true);
 
       spriteBase = new NativeArray<ushort>(Base.NUM_OBJECT, Allocator.Persistent);
       spriteIndices = new NativeArray<ushort>(Base.NUM_OBJECT * 8, Allocator.Persistent);
@@ -48,8 +50,8 @@ namespace SS.System {
         .WithNone<SpriteAddedTag>()
         .Build(this);
 
-      activeSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<SpriteInfo, SpriteAddedTag>()
+      animatedSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<SpriteInfo, ObjectInstance, SpriteAddedTag, AnimatedTag>()
         .Build(this);
 
       removedSpriteQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -88,7 +90,7 @@ namespace SS.System {
 
         ++artIndex; // Skip 2D icon
 
-        for (var j = 0; j < frameCount; ++j) {
+        for (var frameIndex = 0; frameIndex < frameCount; ++frameIndex) {
           var materialID = materialProviderSystem.GetMaterial(ArtResourceIdBase, artIndex, true, false, true);
           var bitmapDesc = await materialProviderSystem.GetBitmapDesc(materialID);
 
@@ -122,31 +124,62 @@ namespace SS.System {
       spriteMeshes.Dispose();
     }
 
+    private void CalculateSprite(in ObjectInstance instanceData, out SpriteMesh spriteMesh, out float radius, out float scale) {
+      var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
+      var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(instanceData)];
+      spriteMesh = spriteMeshes[startIndex + currentFrame];
+      var baseData = objectProperties.Value.BasePropertyData(instanceData);
+          
+      scale = (float)(2048 / 3) / ushort.MaxValue;
+          
+      if (spriteMesh.AnchorPoint.x > 0 || spriteMesh.AnchorPoint.y > 0)
+        radius = 0f;
+      else
+        radius = (float)baseData.Radius / Base.PHYSICS_RADIUS_UNIT;
+
+      if (baseData.IsDoubleSize)
+        scale *= 2f;
+    }
+
     protected override void OnUpdate() {
+      childLookupRO.Update(this);
+      
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
+      var commandBuffer = ecbSystem.CreateCommandBuffer();
+
+      {
+        var animatedEntities = animatedSpriteQuery.ToEntityArray(WorldUpdateAllocator);
+        var instanceDatas = animatedSpriteQuery.ToComponentDataArray<ObjectInstance>(WorldUpdateAllocator);
+
+        for (var index = 0; index < animatedEntities.Length; ++index) {
+          var entity = animatedEntities[index];
+          
+          CalculateSprite(instanceDatas[index], out var spriteMesh, out var radius, out var scale);
+
+          if (childLookupRO.TryGetBuffer(entity, out DynamicBuffer<Child> children)) {
+            // TODO should use AddComponents to make sure bounds and other stuff is updated?
+
+            var viewPart = children[0].Value;
+            commandBuffer.SetComponent(viewPart, new MaterialMeshInfo { // TODO CACHE THIS IN SPRITE DATA?
+              MeshID = spriteMesh.Mesh,
+              MaterialID = spriteMesh.Material,
+              SubMesh = 0
+            });
+            commandBuffer.SetComponent(viewPart, new SpritePart { Radius = radius, Scale = scale });
+            commandBuffer.SetComponentEnabled<AnimatedTag>(entity, false);
+          }
+        }
+      }
       
       {
-        var commandBuffer = ecbSystem.CreateCommandBuffer();
+        var newEntities = newSpriteQuery.ToEntityArray(WorldUpdateAllocator);
+        var instanceDatas = newSpriteQuery.ToComponentDataArray<ObjectInstance>(WorldUpdateAllocator);
         
-        using var newEntities = newSpriteQuery.ToEntityArray(Allocator.Temp);
-        using var instanceDatas = newSpriteQuery.ToComponentDataArray<ObjectInstance>(Allocator.Temp);
         for (var index = 0; index < newEntities.Length; ++index) {
           var entity = newEntities[index];
           var instanceData = instanceDatas[index];
           
-          var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
-          var startIndex = spriteBase[objectProperties.Value.BasePropertyIndex(instanceData)];
-          var spriteMesh = spriteMeshes[startIndex + currentFrame];
-          var baseData = objectProperties.Value.BasePropertyData(instanceData);
-
-          var scale = (float)(2048 / 3) / ushort.MaxValue;
-          var radius = (float)baseData.Radius / Base.PHYSICS_RADIUS_UNIT;
-
-          if (spriteMesh.AnchorPoint.x > 0 || spriteMesh.AnchorPoint.y > 0)
-            radius = 0f;
-
-          if (baseData.IsDoubleSize)
-            scale *= 2f;
+          CalculateSprite(instanceData, out var spriteMesh, out var radius, out var scale);
           
           var viewPart = EntityManager.CreateEntity(viewPartArchetype);
           RenderMeshUtility.AddComponents(
@@ -161,7 +194,10 @@ namespace SS.System {
           );
 
           commandBuffer.SetComponent(viewPart, new Parent { Value = entity });
-          commandBuffer.SetComponent(viewPart, LocalTransform.FromPositionRotationScale(float3(0f, -radius, 0f), Unity.Mathematics.quaternion.identity, scale));
+          commandBuffer.SetComponent(viewPart, new SpritePart { Radius = radius, Scale = scale });
+          
+          if (instanceData.Class == ObjectClass.Animating)
+            commandBuffer.AddComponent<AnimatedTag>(entity);
         }
         commandBuffer.AddComponent<SpriteAddedTag>(newEntities);
       }
@@ -169,7 +205,7 @@ namespace SS.System {
       if (Camera.main != null) {
         var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(Camera.main.transform.forward, Vector3.up);
         localToWorldRO.Update(this);
-        new RotateSpritesJob { LocalToWorldRO = localToWorldRO, TowardsCameraRotation = towardsCameraRotation }.ScheduleParallel();
+        Dependency = new RotateSpritesJob { LocalToWorldRO = localToWorldRO, TowardsCameraRotation = towardsCameraRotation }.ScheduleParallel(Dependency);
       }
     }
 
@@ -186,16 +222,17 @@ namespace SS.System {
     }
     
     [BurstCompile]
-    [WithAll(typeof(SpritePart), typeof(LocalTransform), typeof(Parent))]
     private partial struct RotateSpritesJob : IJobEntity {
       [ReadOnly] public ComponentLookup<LocalToWorld> LocalToWorldRO;
       [ReadOnly] public quaternion TowardsCameraRotation;
 
-      private void Execute(ref LocalTransform localTransform, in Parent parent) {
+      private void Execute(ref LocalTransform localTransform, in SpritePart spritePart, in Parent parent) {
         if (parent.Value == Entity.Null) return;
-
+        
         var parentTransformRef = LocalToWorldRO.GetRefRO(parent.Value);
-        localTransform.Rotation = mul(TowardsCameraRotation, inverse(parentTransformRef.ValueRO.Rotation));
+        localTransform.Position = float3(0f, -spritePart.Radius, 0f);
+        localTransform.Rotation = mul(inverse(parentTransformRef.ValueRO.Rotation), TowardsCameraRotation);
+        localTransform.Scale = spritePart.Scale;
       }
     }
 
@@ -210,7 +247,10 @@ namespace SS.System {
 
   public struct SpriteInfo : IComponentData { }
 
-  public struct SpritePart : IComponentData { }
+  public struct SpritePart : IComponentData {
+    public float Radius;
+    public float Scale;
+  }
 
   internal struct SpriteAddedTag : ICleanupComponentData { }
 }

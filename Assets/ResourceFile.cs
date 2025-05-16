@@ -45,10 +45,6 @@ namespace SS.Resources {
       #endregion
     }
 
-    public ResourceInfo GetResourceInfo(ushort resourceId) {
-      return resourceEntries[resourceId];
-    }
-
     public BinaryReader GetBinaryReader(long position) {
       fileStream.Position = position;
       return binaryReader;

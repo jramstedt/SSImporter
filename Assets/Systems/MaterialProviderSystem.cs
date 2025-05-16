@@ -1,6 +1,6 @@
 using SS.Resources;
-using System;
 using System.Collections.Generic;
+using SS.ObjectProperties;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -51,14 +51,31 @@ namespace SS.System {
 
     private NativeArray<CameraTextureSet> cameraTextureSets;
     private NativeArray<byte> cameraSourceCount;
+    private NativeArray<ushort> doorFrames;
+    private NativeArray<ushort> enemyDirectionBase;
+    private NativeArray<ushort> enemyPostureFrames;
+    
     private Bitmap defaultBitmapDesc;
+    
+    private Resources.ObjectProperties objectProperties;
 
-    protected override void OnCreate() {
+    protected override async void OnCreate() {
       base.OnCreate();
 
+      RequireForUpdate<AsyncLoadTag>();
+      
       cameraTextureSets = new NativeArray<CameraTextureSet>(NUM_HACK_CAMERAS, Allocator.Persistent);
       cameraSourceCount = new NativeArray<byte>(NUM_HACK_CAMERAS, Allocator.Persistent);
-      EntityManager.AddComponentData(SystemHandle, new MaterialProviderSystemData { CameraTextureSets = cameraTextureSets, CameraSourceCount = cameraSourceCount });
+      doorFrames = new NativeArray<ushort>(DoorAndGrating.NUM_DOOR, Allocator.Persistent);
+      enemyDirectionBase = new NativeArray<ushort>(Enemy.NUM_CRITTER, Allocator.Persistent);
+      enemyPostureFrames = new NativeArray<ushort>(Enemy.NUM_CRITTER * Enemy.NUM_CRITTER_POSTURES * 8, Allocator.Persistent);
+      
+      EntityManager.AddComponentData(SystemHandle, new MaterialProviderSystemData {
+        CameraTextureSets = cameraTextureSets,
+        CameraSourceCount = cameraSourceCount,
+        DoorFrames = doorFrames.AsReadOnly(),
+        EnemyPostureFrames = enemyPostureFrames.AsReadOnly()
+      });
 
       bitmapMaterials = new(1024, Allocator.Persistent);
       cameraMaterials = new(128, Allocator.Persistent);
@@ -103,8 +120,6 @@ namespace SS.System {
       }
 
       {
-        
-
         for (var i = 0; i < NUM_HACK_CAMERAS; ++i) {
           cameraTextureSets[i] = new () {
             Texture = new RenderTexture(new RenderTextureDescriptor(128, 128, RenderTextureFormat.ARGB32, 16)) {
@@ -144,6 +159,53 @@ namespace SS.System {
         Size = new(64, 64),
         AnchorPoint = new(),
       };
+      
+      objectProperties = await Services.ObjectProperties;
+
+      #region Cache animation constants
+      {
+        ushort enemyDirectionCount = 0;
+        for (var enemyIndex = 0; enemyIndex < Enemy.NUM_CRITTER; ++enemyIndex) {
+          enemyDirectionBase[enemyIndex] = enemyDirectionCount;
+          var directions = objectProperties.ObjectDatasBlobAsset.Value.EnemyProps[enemyIndex].Views;
+          
+          // Debug.Log($"Enemy property cache ei:{enemyIndex} dc:{directions}");
+          
+          for (var posture = 0; posture < Enemy.NUM_CRITTER_POSTURES; ++posture) {
+            var (resBase, directional) = (ObjectInstance.Enemy.PostureType)posture switch {
+              ObjectInstance.Enemy.PostureType.Standing => (0x631, true), // RES_bmCritterStanding_0
+              ObjectInstance.Enemy.PostureType.Moving => (0x758, true), // RES_bmCritterMovement_0
+              ObjectInstance.Enemy.PostureType.Attacking => (0x578, false), // RES_bmCritterAttack_0
+              ObjectInstance.Enemy.PostureType.AttackRest => (0x59d, false), // RES_bmCritterAttackRest_0
+              ObjectInstance.Enemy.PostureType.Knockback => (0x5e7, false), // RES_bmCritterKnockback_0
+              ObjectInstance.Enemy.PostureType.Death => (0x5c2, false), // RES_bmCritterDeath_0
+              ObjectInstance.Enemy.PostureType.Disrupt => (0x60c, false), // RES_bmCritterDisrupt_0
+              ObjectInstance.Enemy.PostureType.Attacking2 => (0x841, false), // RES_bmCritterAttack2_0
+              _ => (0x631, true) // Default
+            };
+
+            if (directional) {
+              for (var direction = 0; direction < directions; ++direction) {
+                enemyPostureFrames[(enemyIndex * posture * 8) + direction] = await Res.GetResourceBlockCount((ushort)(resBase + enemyDirectionCount + direction));
+                // Debug.Log($"Enemy property cache d:{direction} frames:{enemyPostureFrames[(enemyIndex * posture * 8) + direction]}");
+              }
+            } else {
+              enemyPostureFrames[enemyIndex * posture * 8] = await Res.GetResourceBlockCount((ushort)(resBase + enemyIndex));
+              // Debug.Log($"Enemy property cache frames:{enemyPostureFrames[(enemyIndex * posture * 8) + 0]}");
+            }
+          }
+          
+          enemyDirectionCount += directions;
+        }
+      }
+
+      {
+        for (var doorIndex = 0; doorIndex < DoorAndGrating.NUM_DOOR; ++doorIndex)
+          doorFrames[doorIndex] = await Res.GetResourceBlockCount((ushort)(DoorResourceIdBase + doorIndex));
+      }
+      #endregion
+      
+      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnDestroy() {
@@ -162,6 +224,12 @@ namespace SS.System {
           Object.Destroy(cameraTextureSet.Texture);
       }
 
+      translucencyTable.Dispose();
+      
+      enemyDirectionBase.Dispose();
+      enemyPostureFrames.Dispose();
+      doorFrames.Dispose();
+      
       cameraTextureSets.Dispose();
       cameraSourceCount.Dispose();
     }
@@ -499,6 +567,155 @@ namespace SS.System {
 
       return BatchMaterialID.Null;
     }
+    
+    public ushort GetEnemyDirectionBase(Triple triple) {
+      var classIndex = objectProperties.ClassPropertyIndex(triple);
+      return enemyDirectionBase[classIndex];
+    }
+    
+    
+    public BatchMaterialID GetResource (
+      in Entity entity,
+      in ObjectInstance instanceData,
+      in Level level,
+      in ComponentLookup<ObjectInstance> instanceLookup,
+      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      in ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
+      in ComponentLookup<ObjectInstance.Enemy> enemyLookup,
+      in bool decal,
+      out ushort refWidthOverride
+    ) {
+      var baseProperties = objectProperties.BasePropertyData(instanceData);
+
+      refWidthOverride = 0;
+
+      if (baseProperties.DrawType == DrawType.TerrainPolygon) {
+        const int DESTROYED_SCREEN_ANIM_BASE = 0x1B;
+
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
+          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, level.Animations.AsReadOnly());
+          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
+
+          if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
+            refWidthOverride = 128;
+            return GetMaterial((ushort)(0x03E8 + level.TextureMap[textureData]), 0, true, decal, false);
+          } else if (instanceData.Triple == 0x70208) { // SUPERSCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 128; // 1 << 7
+            return ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70209) { // BIGSCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 64; // 1 << 6
+            return ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
+          } else if (instanceData.Triple == 0x70206) { // SCREEN_TRIPLE
+            var lightmapped = decorationData.Data2 == DESTROYED_SCREEN_ANIM_BASE + 3; // screen is full bright if not destroyed
+            refWidthOverride = 32; // 1 << 5
+            return ParseTextureData(textureData, lightmapped, decal, out var textureType, out var scale);
+          } else {
+            var materialID = ParseTextureData(textureData, true, decal, out var textureType, out var scale);
+            refWidthOverride = (ushort)(1 << scale);
+            return materialID;
+          }
+        }
+      } else if (baseProperties.DrawType == DrawType.FlatTexture) {
+        if (instanceData.Class == ObjectClass.Decoration) {
+          if (instanceData.Triple == 0x70203) { // WORDS_TRIPLE
+            const byte MEDIAN_WORD_SCALE = 4;
+
+            var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+            byte size = decorationData.WordScale;
+
+            var colorIndex = decorationData.WordColor;
+            var style = decorationData.WordStyle;
+            var wordIndex = decorationData.WordIndex;
+
+            if (size != 0)
+              size -= MEDIAN_WORD_SCALE;
+
+            refWidthOverride = (ushort)(size == 0 ? 128 : (1 << (7 + size))); // 1 << 7 = 128 is default word size
+
+            return GetWordMaterial(wordIndex, colorIndex, style);
+          } else if (instanceData.Triple == 0x70201) { // ICON_TRIPLE
+            return GetMaterial(IconResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
+          } else if (instanceData.Triple == 0x70202) { // GRAF_TRIPLE
+            return GetMaterial(GraffitiResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
+          } else if (instanceData.Triple == 0x7020a) { // REPULSWALL_TRIPLE
+            return GetMaterial(RepulsorResourceIdBase, (ushort)instanceData.Info.CurrentFrame, true, decal, false);
+          }
+        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          // Debug.Log($"{DoorResourceIdBase} {objectProperties.ClassPropertyIndex(instanceData)} : {instanceData.Info.CurrentFrame}");
+          return GetMaterial((ushort)(DoorResourceIdBase + objectProperties.ClassPropertyIndex(instanceData)), (ushort)instanceData.Info.CurrentFrame, true, decal, false);
+        }
+      } else if (baseProperties.DrawType == DrawType.TranslucentPolygon) {
+        byte colorIndex = 0;
+
+        // TODO ObjectClass.Item
+
+        if (instanceData.Class == ObjectClass.Decoration) {
+          var decorationData = decorationLookup.GetRefRO(entity).ValueRO;
+          colorIndex = (byte)decorationData.Data2;
+        } else if (instanceData.Class == ObjectClass.DoorAndGrating) {
+          var doorData = doorLookup.GetRefRO(entity).ValueRO;
+          colorIndex = doorData.Color;
+        }
+
+        if (colorIndex == 0) colorIndex = 0xFF;
+
+        return GetTranslucentMaterial(colorIndex);
+      } else if (baseProperties.DrawType is DrawType.DirectionalEnemySprite or DrawType.DirectionalSprite) {
+        // ref_from_critter_data
+        
+        // Obj pos to eye pos delta
+        // View Dir
+        
+        var direction = ObjectInstance.Enemy.ViewDirection.Front; // TODO
+        var transparent = false;
+
+        if (instanceData.Class == ObjectClass.Enemy) {
+          var enemyData = enemyLookup.GetRefRO(entity).ValueRO;
+
+          // TODO DIEGO_TRIPLE DIEGO_DEATH_BATTLE_LEVEL etc.
+          
+          var posture = enemyData.Posture;
+          if (instanceData.Triple == 0xe0400 /* ROBOBABE_TRIPLE */) { // SHODAN
+            posture = ObjectInstance.Enemy.PostureType.Standing;
+            direction = 0;
+          } else if (instanceData.Triple == 0xe0007 /* INVISO_CRIT_TRIPLE */) {
+            transparent = true; // TODO
+          }
+
+          var classIndex = objectProperties.ClassPropertyIndex(instanceData);
+
+          var (resBase, directional) = posture switch {
+            ObjectInstance.Enemy.PostureType.Standing => (0x631, true), // RES_bmCritterStanding_0
+            ObjectInstance.Enemy.PostureType.Moving => (0x758, true), // RES_bmCritterMovement_0
+            ObjectInstance.Enemy.PostureType.Attacking => (0x578, false), // RES_bmCritterAttack_0
+            ObjectInstance.Enemy.PostureType.AttackRest => (0x59d, false), // RES_bmCritterAttackRest_0
+            ObjectInstance.Enemy.PostureType.Knockback => (0x5e7, false), // RES_bmCritterKnockback_0
+            ObjectInstance.Enemy.PostureType.Death => (0x5c2, false), // RES_bmCritterDeath_0
+            ObjectInstance.Enemy.PostureType.Disrupt => (0x60c, false), // RES_bmCritterDisrupt_0
+            ObjectInstance.Enemy.PostureType.Attacking2 => (0x841, false), // RES_bmCritterAttack2_0
+            _ => (0x631, true) // Default
+          };
+
+          if (!directional)
+            return GetMaterial((ushort)(resBase + classIndex), (ushort)instanceData.Info.CurrentFrame, true, false, true);
+          
+          //ushort frames = enemyPostureFrames[(classIndex * (int)posture * 8) + (int)direction];
+          var directionBase = GetEnemyDirectionBase(instanceData);
+          //var frame = (ushort)(instanceData.Info.CurrentFrame % frames);
+          var frame = (ushort)instanceData.Info.CurrentFrame;
+            
+          return GetMaterial((ushort)(resBase + directionBase + (int)direction), frame, true, false, true);
+        }
+        
+        var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, false);
+        return ParseTextureData(textureData + (int)direction, true, decal, out var textureType, out var scale);
+      }
+
+      return BatchMaterialID.Null;
+    }
 
     /*
     private class MipMapLoader : LoaderBase<BitmapSet> {
@@ -546,7 +763,7 @@ namespace SS.System {
     */
 
     [BurstCompile]
-    struct FillNoiseTexture : IJobParallelForBatch {
+    private struct FillNoiseTexture : IJobParallelForBatch {
       [ReadOnly] public byte ColorBase;
       [ReadOnly] public int Stride;
 
@@ -579,6 +796,10 @@ namespace SS.System {
     public struct MaterialProviderSystemData : IComponentData {
       public NativeArray<CameraTextureSet> CameraTextureSets;
       public NativeArray<byte> CameraSourceCount;
+      public NativeArray<ushort>.ReadOnly DoorFrames;
+      public NativeArray<ushort>.ReadOnly EnemyPostureFrames;
     }
+    
+    private struct AsyncLoadTag : IComponentData { }
   }
 }

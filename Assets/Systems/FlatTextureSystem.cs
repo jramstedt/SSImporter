@@ -25,22 +25,20 @@ namespace SS.System {
 
     private RenderMeshDescription renderMeshDescription;
 
-    private ComponentLookup<ObjectInstance> instanceLookup;
-    private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
-    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
-    private BufferLookup<Child> childLookup;
+    private ComponentLookup<ObjectInstance> instanceLookupRO;
+    private ComponentLookup<ObjectInstance.Decoration> decorationLookupRO;
+    private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookupRO;
+    private ComponentLookup<ObjectInstance.Enemy> enemyLookupRO;
+    private BufferLookup<Child> childLookupRO;
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
     private MaterialProviderSystem materialProviderSystem;
     private SpriteSystem spriteSystem;
 
-    private Resources.ObjectProperties objectProperties;
-
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
-      RequireForUpdate<AsyncLoadTag>();
 
       resourceMaterialMeshInfos = new(512, Allocator.Persistent);
 
@@ -50,7 +48,7 @@ namespace SS.System {
         .Build(this);
 
       animatedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<FlatTextureMeshAddedTag, AnimatedTag, FlatTextureInfo, ObjectInstance>()
+        .WithAll<FlatTextureInfo, ObjectInstance, FlatTextureMeshAddedTag, AnimatedTag>()
         .Build(this);
 
       removedFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -74,18 +72,15 @@ namespace SS.System {
         staticShadowCaster: false
       );
 
-      instanceLookup = GetComponentLookup<ObjectInstance>(true);
-      decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
-      doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>(true);
-      childLookup = GetBufferLookup<Child>(true);
+      instanceLookupRO = GetComponentLookup<ObjectInstance>(true);
+      decorationLookupRO = GetComponentLookup<ObjectInstance.Decoration>(true);
+      doorLookupRO = GetComponentLookup<ObjectInstance.DoorAndGrating>(true);
+      enemyLookupRO = GetComponentLookup<ObjectInstance.Enemy>(true);
+      childLookupRO = GetBufferLookup<Child>(true);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
       spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
-
-      objectProperties = await Services.ObjectProperties;
-
-      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnDestroy() {
@@ -95,10 +90,10 @@ namespace SS.System {
     }
 
     protected override void OnUpdate() {
-      instanceLookup.Update(this);
-      decorationLookup.Update(this);
-      doorLookup.Update(this);
-      childLookup.Update(this);
+      instanceLookupRO.Update(this);
+      decorationLookupRO.Update(this);
+      doorLookupRO.Update(this);
+      childLookupRO.Update(this);
 
       var ecbSystem = World.GetExistingSystemManaged<EndVariableRateSimulationEntityCommandBufferSystem>();
       var commandBuffer = ecbSystem.CreateCommandBuffer();
@@ -106,18 +101,18 @@ namespace SS.System {
       var level = SystemAPI.GetSingleton<Level>();
 
       { // Update animated mesh
-        var animatedEntities = animatedFlatTextureQuery.ToEntityArray(Allocator.Temp);
+        var animatedEntities = animatedFlatTextureQuery.ToEntityArray(WorldUpdateAllocator);
         var entityMeshInfo = new NativeArray<MaterialMeshInfo>(animatedEntities.Length, Allocator.Temp);
 
         ProcessEntities(level, animatedEntities, entityMeshInfo);
 
         for (var index = 0; index < animatedEntities.Length; ++index) {
           var entity = animatedEntities[index];
-          var instanceData = instanceLookup.GetRefRO(entity).ValueRO;
+          var instanceData = instanceLookupRO.GetRefRO(entity).ValueRO;
 
           if (instanceData.Class != ObjectClass.DoorAndGrating) continue; // Only ObjectClass.DoorAndGrating are handled here.
 
-          if (childLookup.TryGetBuffer(entity, out DynamicBuffer<Child> children)) {
+          if (childLookupRO.TryGetBuffer(entity, out DynamicBuffer<Child> children)) {
             // TODO should use AddComponents to make sure bounds and other stuff is updated?
 
             var viewPart = children[0].Value;
@@ -128,7 +123,7 @@ namespace SS.System {
       }
 
       {
-        var newEntities = newFlatTextureQuery.ToEntityArray(Allocator.Temp);
+        var newEntities = newFlatTextureQuery.ToEntityArray(WorldUpdateAllocator);
         var entityMeshInfos = new NativeArray<MaterialMeshInfo>(newEntities.Length, Allocator.Temp);
         var viewPartCreated = new ComponentTypeSet(ComponentType.ReadOnly<FlatTextureMeshAddedTag>(), ComponentType.ReadOnly<AnimatedTag>());
 
@@ -160,19 +155,18 @@ namespace SS.System {
     private void ProcessEntities(Level level, NativeArray<Entity> entities, NativeArray<MaterialMeshInfo> entityMeshInfos) {
       for (int entityIndex = 0; entityIndex < entities.Length; ++entityIndex) {
         var entity = entities[entityIndex];
-        var instanceData = instanceLookup.GetRefRO(entity).ValueRO;
+        var instanceData = instanceLookupRO.GetRefRO(entity).ValueRO;
 
         if (instanceData.Class != ObjectClass.DoorAndGrating) continue; // Non doublesided are handled in ProjectedTextureSystem
 
-        var materialID = GetResource(
+        var materialID = materialProviderSystem.GetResource(
           entity,
           instanceData,
           level,
-          objectProperties.ObjectDatasBlobAsset,
-          materialProviderSystem,
-          instanceLookup,
-          decorationLookup,
-          doorLookup,
+          instanceLookupRO,
+          decorationLookupRO,
+          doorLookupRO,
+          enemyLookupRO,
           false,
           out var refWidthOverride);
 
@@ -213,8 +207,6 @@ namespace SS.System {
 
       BuildPlaneMesh(mesh, bitmapDesc, scale / 64f, true, true); // double sided, instanceData.Class == ObjectClass.DoorAndGrating
     }
-
-    private struct AsyncLoadTag : IComponentData { }
   }
 
   /*

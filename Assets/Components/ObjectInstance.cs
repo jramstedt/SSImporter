@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using SS.System;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine;
 
 namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -238,12 +239,34 @@ namespace SS.Resources {
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Animated : IComponentData {
+    public struct Animating : IComponentData {
       public Link Link;
 
-      public byte StartFrame;
+      private byte StartFrame;
       public byte EndFrame;
       public ushort Owner;
+
+      public const byte EFFECT_LIGHT_MAP_SHIFT = 3;
+      public const byte EFFECT_LIGHT_MAP_MASK = 0x78;
+      
+      public const byte EFFECT_DESTROY_OBJ_FLAG = 0x80;
+      
+      public bool EffectDestroy {
+        readonly get => (StartFrame & EFFECT_DESTROY_OBJ_FLAG) == EFFECT_DESTROY_OBJ_FLAG;
+        set {
+          if (value)
+            StartFrame |= EFFECT_DESTROY_OBJ_FLAG;
+          else
+            StartFrame &= ~EFFECT_DESTROY_OBJ_FLAG & 0xFF;
+        }
+      }
+
+      public byte EffectLightMap {
+        readonly get => (byte)((StartFrame & EFFECT_LIGHT_MAP_MASK) >> EFFECT_LIGHT_MAP_SHIFT);
+        set => StartFrame = (byte)((StartFrame & ~EFFECT_DESTROY_OBJ_FLAG) | (value << EFFECT_LIGHT_MAP_SHIFT));
+      }
+      
+      public sbyte StartFrameIndex => (sbyte)(StartFrame & ~(EFFECT_LIGHT_MAP_MASK | EFFECT_DESTROY_OBJ_FLAG));
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -336,7 +359,7 @@ namespace SS.Resources {
       public byte AiMode;
       public byte Mood;
       public byte Orders;
-      public byte ViewPosture;
+      private byte ViewPosture;
       public byte X;
       public byte Y;
       public byte DestinationX;
@@ -348,9 +371,18 @@ namespace SS.Resources {
       public ushort Loot1;
       public ushort Loot2;
       public int Sidestep;
-
-      public readonly PostureType Posture => (PostureType)(ViewPosture & 0xF); // TODO Setter
-      public readonly int View => ViewPosture >> 8; // TODO Setter
+      
+      public PostureType Posture {
+        readonly get => (PostureType)(ViewPosture & 0xF);
+        set => ViewPosture = (byte)((ViewPosture & 0xF0) | (byte)value);
+      }
+      
+      /*
+      public ViewDirection View {
+        readonly get => (ViewDirection)(ViewPosture >> 8);
+        set => ViewPosture = (byte)(((byte)value << 8) | (ViewPosture & 0xF));
+      }
+      */
 
       public enum PostureType : byte {
         Standing,
@@ -360,7 +392,32 @@ namespace SS.Resources {
         Knockback,
         Death,
         Disrupt,
-        Attacking2
+        Attacking2,
+        
+        Default = Standing,
+        FirstFrontOnly = Attacking // Frames are from front direction only
+      }
+      
+      public enum ViewDirection : byte {
+        East,
+        SouthEast,
+        South,
+        SouthWest,
+        West,
+        NorthWest,
+        North,
+        NorthEast,
+        Top,
+        Bottom,
+        
+        Back = South,
+        BackLeft = SouthEast,
+        BackRight = SouthWest,
+        Right = West,
+        Front = North,
+        FrontRight = NorthWest,
+        FrontLeft = NorthEast,
+        Left = East
       }
     }
   }

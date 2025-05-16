@@ -1,6 +1,7 @@
 using SS.Resources;
 using System;
 using System.Runtime.InteropServices;
+using SS.ObjectProperties;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Core;
@@ -17,8 +18,6 @@ namespace SS.System {
   public partial class AnimateObjectSystem : SystemBase {
     public const ushort MAX_ANIMLIST_SIZE = 64;
     
-    private NativeParallelHashMap<ushort, ushort> blockCounts;
-
     private Resources.ObjectProperties objectProperties;
 
     private ComponentLookup<MapElement> mapElementLookupRW;
@@ -41,6 +40,7 @@ namespace SS.System {
       RequireForUpdate<Level>();
       RequireForUpdate<LevelInfo>();
       RequireForUpdate<Hacker>();
+      RequireForUpdate<MaterialProviderSystem.MaterialProviderSystemData>();
       RequireForUpdate<AsyncLoadTag>();
 
       mapElementLookupRW = GetComponentLookup<MapElement>();
@@ -64,20 +64,12 @@ namespace SS.System {
 
       objectProperties = await Services.ObjectProperties;
 
-      var artResources = await Res.Open(Res.dataPath + @"objart3.res");
-
-      // TODO Make better somehow. Don't load specific file and scan trough.
-      blockCounts = new(artResources.ResourceEntries.Count, Allocator.Persistent);
-      foreach (var (id, resourceInfo) in artResources.ResourceEntries)
-        blockCounts.Add(id, artResources.GetResourceBlockCount(resourceInfo));
-
       EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnDestroy() {
       base.OnDestroy();
 
-      blockCounts.Dispose();
       randoms.Dispose();
     }
 
@@ -104,19 +96,24 @@ namespace SS.System {
       var animationCommandListSystem = World.GetExistingSystem<AnimationCommandListSystem>();
       var animationCommandListSystemData = SystemAPI.GetComponent<AnimateObjectSystemData>(animationCommandListSystem);
 
+      var materialSystemData = SystemAPI.GetSingleton<MaterialProviderSystem.MaterialProviderSystemData>();
+      
       var callbackList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       var removedList = new NativeList<ushort>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       
-      // TODO Animating class objects
+      Dependency = new AnimateAnimatingJob {
+        ObjectPropertiesBlobAsset = objectProperties.ObjectDatasBlobAsset,
+        TimeData = SystemAPI.Time,
+      }.Schedule(Dependency);
 
       Dependency = new AnimateAnimationJob {
         ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
-        ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
+        ObjectPropertiesBlobAsset = objectProperties.ObjectDatasBlobAsset,
 
         TimeData = SystemAPI.Time,
         LevelIndex = 0, // TODO Level index
 
-        BlockCounts = blockCounts,
+        DoorFrames = materialSystemData.DoorFrames,
         Animations = level.Animations.AsArray(),
 
         PhysicsColliderRW = physicsColliderRW,
@@ -130,7 +127,7 @@ namespace SS.System {
         CallbackOut = callbackList.AsParallelWriter(),
         RemoveOut = removedList.AsParallelWriter()
       }.Schedule(level.Animations.Length, Dependency);
-
+      
       Dependency = new ProcessCallbacksJob() {
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
@@ -170,14 +167,66 @@ namespace SS.System {
     }
 
     [BurstCompile]
+    [WithPresent(typeof(AnimatedTag))]
+    private partial struct AnimateAnimatingJob : IJobEntity {
+      [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectPropertiesBlobAsset;
+      
+      [ReadOnly] public TimeData TimeData;
+      
+      private void Execute(ref ObjectInstance instanceData, ref ObjectInstance.Animating animating, EnabledRefRW<AnimatedTag> animatedTagEnabled) {
+        var deltaTime = TimeUtils.SecondsToFastTicks(TimeData.DeltaTime);
+        
+        if (animating.Link.ObjectIndex == 0) return; // Unnecessary?
+
+        var baseData = ObjectPropertiesBlobAsset.Value.BasePropertyData(instanceData);
+        var animatingData = ObjectPropertiesBlobAsset.Value.AnimatingPropertyData(instanceData);
+
+        var frameTime = animatingData.FrameTime == 0 ? Animating.DEFAULT_ANIMATION_SPEED : animatingData.FrameTime;
+        var frameDeltaTime = deltaTime + instanceData.Info.TimeRemaining;
+        var framesAnimated = frameDeltaTime / frameTime;
+
+        if (framesAnimated > 0) {
+          // Debug.Log($"Animated CurrentFrame {instanceData.Info.CurrentFrame}");
+          animatedTagEnabled.ValueRW = true;
+        }
+        
+        instanceData.Info.TimeRemaining = (byte)(frameDeltaTime % frameTime);
+        while (framesAnimated-- > 0) {
+          ++instanceData.Info.CurrentFrame;
+
+          if (instanceData.SubClass == 2 /* ANIMATING_SUBCLASS_EXPLOSION */) {
+            var explosionData = ObjectPropertiesBlobAsset.Value.ExplosionAnimatingProps[instanceData.Info.Type];
+            if (animating.EffectDestroy && instanceData.Info.CurrentFrame == explosionData.FrameExplode) {
+              // do_object_explosion
+              animating.EffectDestroy = false;
+            }
+          }
+
+          if (instanceData.Info.CurrentFrame > baseData.BitmapFrameCount) {
+            if (animatingData.HasEffectLight) {
+              // TODO Set level map element light
+              animatingData.Flags &= ~Animating.EffectFlags.Light;
+            }
+
+            if (instanceData.SubClass is 1 /* ANIMATING_SUBCLASS_TRANSITORY */ or 2 /* ANIMATING_SUBCLASS_EXPLOSION */) {
+              // TODO Add to destroyed list and destroy
+            } else {
+              instanceData.Info.CurrentFrame = animating.StartFrameIndex;
+            }
+          }
+        }
+      }
+    }
+    
+    [BurstCompile]
     struct AnimateAnimationJob : IJobFor {
       [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
-      [ReadOnly] public BlobAssetReference<ObjectDatas> ObjectDatasBlobAsset;
+      [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectPropertiesBlobAsset;
 
       [ReadOnly] public TimeData TimeData;
       [ReadOnly] public byte LevelIndex;
 
-      [ReadOnly] public NativeParallelHashMap<ushort, ushort> BlockCounts;
+      [ReadOnly] public NativeArray<ushort>.ReadOnly DoorFrames;
       public NativeArray<AnimationData> Animations;
 
       public ComponentLookup<PhysicsCollider> PhysicsColliderRW;
@@ -201,8 +250,7 @@ namespace SS.System {
 
         var frameCount = 1;
         if (instanceData.Class == ObjectClass.DoorAndGrating) {
-          var resourceId = DoorResourceIdBase + ObjectDatasBlobAsset.Value.ClassPropertyIndex(instanceData);
-          frameCount = BlockCounts[(ushort)resourceId];
+          frameCount = DoorFrames[ObjectPropertiesBlobAsset.Value.ClassPropertyIndex(instanceData)];
         } else if (instanceData.Class == ObjectClass.Decoration) {
           var decoration = DecorationLookupRO.GetRefRO(entity).ValueRO;
           frameCount = decoration.Cosmetic;
@@ -220,7 +268,7 @@ namespace SS.System {
           if (instanceData.Triple == 0xe0401 /* DIEGO_TRIPLE */ && enemy.Posture == ObjectInstance.Enemy.PostureType.Death && LevelIndex != DIEGO_DEATH_BATTLE_LEVEL)
             frameCount = MAX_TELEPORT_FRAME;
         } else {
-          var baseData = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
+          var baseData = ObjectPropertiesBlobAsset.Value.BasePropertyData(instanceData);
           frameCount = baseData.BitmapFrameCount;
         }
 
@@ -425,6 +473,7 @@ namespace SS.System {
     public readonly bool IsCyclic => (Flags & AnimationFlags.Cyclic) == AnimationFlags.Cyclic;
     public readonly bool IsReversing => (Flags & AnimationFlags.Reversing) == AnimationFlags.Reversing;
 
+    // TODO FIXME WARNINGS
     public readonly bool IsCallbackTypeRemove => (CallbackType & AnimationCallbackType.Remove) == AnimationCallbackType.Remove;
     public readonly bool IsCallbackTypeRepeat => (CallbackType & AnimationCallbackType.Repeat) == AnimationCallbackType.Repeat;
     public readonly bool IsCallbackTypeCycle => (CallbackType & AnimationCallbackType.Cycle) == AnimationCallbackType.Cycle;

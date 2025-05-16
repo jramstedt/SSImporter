@@ -38,9 +38,9 @@ namespace SS.Resources {
       var hackerState = saveData.GetResourceData<Hacker>((ushort)(SaveGameResourceIdBase + 1));
       var levelInfo = saveData.GetResourceData<LevelInfo>((ushort)(0x0004 + resourceId));
       var tileMap = ReadMapElements(saveData.GetResourceData((ushort)(0x0005 + resourceId), 0), levelInfo);
-      var schedules = saveData.GetResourceData<ScheduleEvent>((ushort)(0x0006 + resourceId));
+      var schedules = saveData.GetResourceDataArray<ScheduleEvent>((ushort)(0x0006 + resourceId));
       var textureMap = saveData.GetResourceData<TextureMap>((ushort)(0x0007 + resourceId));
-
+      
       var objectInstances = saveData.GetResourceDataArray<ObjectInstance>((ushort)(0x008 + resourceId));
       var crossReferenceTable = saveData.GetResourceDataArray<ObjectReference>((ushort)(0x009 + resourceId));
 
@@ -55,7 +55,7 @@ namespace SS.Resources {
       var itemInstances = saveData.GetResourceDataArray<ObjectInstance.Item>((ushort)(0x0012 + resourceId));
       var interfaceInstances = saveData.GetResourceDataArray<ObjectInstance.Interface>((ushort)(0x0013 + resourceId));
       var doorGratingInstances = saveData.GetResourceDataArray<ObjectInstance.DoorAndGrating>((ushort)(0x0014 + resourceId));
-      var animatedInstances = saveData.GetResourceDataArray<ObjectInstance.Animated>((ushort)(0x0015 + resourceId));
+      var animatingInstances = saveData.GetResourceDataArray<ObjectInstance.Animating>((ushort)(0x0015 + resourceId));
       var triggerInstances = saveData.GetResourceDataArray<ObjectInstance.Trigger>((ushort)(0x0016 + resourceId));
       var containerInstances = saveData.GetResourceDataArray<ObjectInstance.Container>((ushort)(0x0017 + resourceId));
       var enemyInstances = saveData.GetResourceDataArray<ObjectInstance.Enemy>((ushort)(0x0018 + resourceId));
@@ -71,7 +71,7 @@ namespace SS.Resources {
       var itemTemplates = saveData.GetResourceDataArray<ObjectInstance.Item>((ushort)(0x0021 + resourceId));
       var interfaceTemplates = saveData.GetResourceDataArray<ObjectInstance.Interface>((ushort)(0x0022 + resourceId));
       var doorGratingTemplates = saveData.GetResourceDataArray<ObjectInstance.DoorAndGrating>((ushort)(0x0023 + resourceId));
-      var animatedTemplates = saveData.GetResourceDataArray<ObjectInstance.Animated>((ushort)(0x0024 + resourceId));
+      var animatedTemplates = saveData.GetResourceDataArray<ObjectInstance.Animating>((ushort)(0x0024 + resourceId));
       var triggerTemplates = saveData.GetResourceDataArray<ObjectInstance.Trigger>((ushort)(0x0025 + resourceId));
       var containerTemplates = saveData.GetResourceDataArray<ObjectInstance.Container>((ushort)(0x0026 + resourceId));
       var enemyTemplates = saveData.GetResourceDataArray<ObjectInstance.Enemy>((ushort)(0x0027 + resourceId));
@@ -91,7 +91,13 @@ namespace SS.Resources {
       var animationData = saveData.GetResourceDataArray<AnimationData>((ushort)(0x0033 + resourceId));
       var animationCounter = saveData.GetResourceData<ushort>((ushort)(0x0034 + resourceId));
 
-      var heightSemaphores = saveData.GetResourceData<HeightSemaphore>((ushort)(0x0034 + resourceId));
+      var heightSemaphores = saveData.GetResourceData<HeightSemaphore>((ushort)(0x0035 + resourceId));
+      
+      // Game schedule, level independent.
+      // TODO Load only when loading from save, not for new game.
+      //var gameSchedulerInfo = saveData.GetResourceData<SchedulerInfo>(SchedulerInfo.SCHEDULE_BASE_ID + 0);
+      //var gameSchedules = saveData.GetResourceDataArray<ScheduleEvent>(SchedulerInfo.SCHEDULE_BASE_ID + 1);
+      // TODO Implement game scheduler
 
       // Initialize systems
       var defaultSystems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
@@ -109,7 +115,7 @@ namespace SS.Resources {
       lightmap.Reinitialize(levelInfo.Width, levelInfo.Height);
 
       var textureAnimationArchetype = entityManager.CreateArchetype(stackalloc[] { ComponentType.ReadWrite<TextureAnimationData>() });
-      using var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Temp);
+      var textureAnimationEntities = entityManager.CreateEntity(textureAnimationArchetype, textureAnimation.Length, Allocator.Temp);
 
       for (int i = 0; i < textureAnimation.Length; ++i)
         entityManager.SetComponentData(textureAnimationEntities[i], textureAnimation[i]);
@@ -150,7 +156,7 @@ namespace SS.Resources {
           ObjectClass.Item => entityManager.AddComponentData(entity, itemInstances[instanceData.SpecIndex]),
           ObjectClass.Interface => entityManager.AddComponentData(entity, interfaceInstances[instanceData.SpecIndex]),
           ObjectClass.DoorAndGrating => entityManager.AddComponentData(entity, doorGratingInstances[instanceData.SpecIndex]),
-          ObjectClass.Animated => entityManager.AddComponentData(entity, animatedInstances[instanceData.SpecIndex]),
+          ObjectClass.Animating => entityManager.AddComponentData(entity, animatingInstances[instanceData.SpecIndex]),
           ObjectClass.Trigger => entityManager.AddComponentData(entity, triggerInstances[instanceData.SpecIndex]),
           ObjectClass.Container => entityManager.AddComponentData(entity, containerInstances[instanceData.SpecIndex]),
           ObjectClass.Enemy => entityManager.AddComponentData(entity, enemyInstances[instanceData.SpecIndex]),
@@ -288,46 +294,13 @@ namespace SS.Resources {
               new float3(-.5f, .5f, 0f)
             );
             
-            entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
+            // entityManager.AddSharedComponentManaged(entity, new PhysicsWorldIndex { Value = 0 });
             entityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
           }
         }
         #endregion
 
         #region Rendering
-        // ?? compute_3drep
-
-        var rep = -1;
-        if (instanceData.Class == ObjectClass.Decoration &&
-            (baseData.DrawType == DrawType.TexturedPolygon || instanceData.Triple == 0x70206 /*SCREEN_TRIPLE*/ || instanceData.Triple == 0x70208 /*SUPERSCREEN_TRIPLE*/ || instanceData.Triple == 0x70209 /*BIGSCREEN_TRIPLE*/) &&
-            (decorationInstances[instanceData.SpecIndex].Data2 != 0 /* || is animating */ )) {
-
-          const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
-          const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
-
-          var data = decorationInstances[instanceData.SpecIndex].Data2;
-          if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
-            var newObjId = data & INDIRECTED_STUFF_DATA_MASK;
-            var dataObj = objectInstances[newObjId];
-            rep = (int)decorationInstances[dataObj.SpecIndex].Data2 + dataObj.Info.CurrentFrame;
-          } else {
-            rep = (int)decorationInstances[instanceData.SpecIndex].Data2 + instanceData.Info.CurrentFrame;
-          }
-        } else {
-          if (baseData.DrawType == DrawType.TerrainPolygon || baseData.DrawType == DrawType.TexturedPolygon) {
-            rep = 0;
-          } else {
-            rep = (baseData.Bitmap & 0x3FF) + ((baseData.Bitmap & 0x8000) >> 5);
-            if (baseData.DrawType != DrawType.Voxel && instanceData.Class != ObjectClass.DoorAndGrating && instanceData.Info.CurrentFrame != -1)
-              rep += instanceData.Info.CurrentFrame;
-          }
-        }
-
-        if (instanceData.Class == ObjectClass.Decoration && instanceData.SubClass == 1 /* BIGSTUFF_SUBCLASS_FURNISHING */ && decorationInstances[instanceData.SpecIndex].Data2 == 0) { // Furniture
-          const int SECRET_FURNITURE_DEFAULT_O3DREP = 0x80;
-          rep = SECRET_FURNITURE_DEFAULT_O3DREP;
-        }
-
         if (baseData.DrawType == DrawType.TexturedPolygon) {
           // TODO parallel?
           var meshInfo = await Res.Load<MeshInfo>((ushort)(ModelResourceIdBase + baseData.MfdId));
@@ -390,6 +363,8 @@ namespace SS.Resources {
           }
         } else if (baseData.DrawType == DrawType.TranslucentPolygon) {
           entityManager.AddComponentData(entity, new FlatTextureInfo { });
+        } else if (baseData.DrawType == DrawType.DirectionalEnemySprite) {
+          entityManager.AddComponentData(entity, new SpriteInfo { });
         } else {
           Debug.LogWarning($"Unsupported draw type {baseData.DrawType}.");
         }
@@ -430,6 +405,7 @@ namespace SS.Resources {
       animList.Length = animationCounter;
       
       // Assert.AreEqual(animationCounter, animList.Length);
+      // TODO if animationCounter == 0 add animations, see do_anims
       
       var level = new Level {
         Id = mapId,
@@ -600,6 +576,12 @@ namespace SS.Resources {
         
         entityManager.AddSharedComponentManaged(hackerEntity, new PhysicsWorldIndex { Value = 0 });
         entityManager.AddComponentData(hackerEntity, bodyCollider);
+      }
+      
+      foreach (var schedule in schedules) {
+        Debug.Log($"Scheduled {schedule.Timestamp} {schedule.Type}");
+        var scheduleEvent = entityManager.CreateEntity(stackalloc[] { ComponentType.ReadWrite<ScheduleEvent>() });
+        entityManager.SetComponentData(scheduleEvent, schedule);
       }
       
       /*

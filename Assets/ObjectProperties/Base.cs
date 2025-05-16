@@ -27,7 +27,7 @@ namespace SS.ObjectProperties {
     public byte Toughness;
     public FlagMasks Flags;
     public ushort MfdId; // ?? mfd_id
-    public ushort Bitmap;
+    private ushort Bitmap;
     public byte DestroyEffect; // ?? destroy_effect
 
     public readonly byte Radius => PhysicsX;

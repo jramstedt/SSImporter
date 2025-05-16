@@ -78,4 +78,20 @@ namespace SS.Resources {
     public readonly byte Mung => (byte)(DataMung & 0xFF);
     public readonly TypeVersion Version => (TypeVersion)(DataMung >> 8);
   }
+  
+  [StructLayout(LayoutKind.Sequential, Pack = 1)]
+  public struct SchedulerInfo {
+    public const ushort SCHEDULE_BASE_ID = 0x024E;
+      
+    // For levels:
+    // Size: 64, but could be MAP_SCHEDULE_SIZE
+    // ElementSize: sizeof(ScheduleEvent) = 0x08
+    
+    public uint Size;
+    public uint Count;
+    public uint ElementSize;
+    public byte Grow;
+    private readonly uint InternalPointer; // Pointer to ScheduleEvents
+    private readonly uint InternalPointer2; // Pointer to comparison function
+  }
 }

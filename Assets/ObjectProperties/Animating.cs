@@ -11,9 +11,13 @@ namespace SS.ObjectProperties {
 
     public const int NUM_ANIMATING = NUM_OBJECT_ANIMATING + NUM_TRANSITORY_ANIMATING + NUM_EXPLOSION_ANIMATING;
 
-    public byte Speed;
-    public byte Flags;
+    public const int DEFAULT_ANIMATION_SPEED = 32;
+    
+    public byte FrameTime;
+    public EffectFlags Flags;
 
+    public bool HasEffectLight => (Flags & EffectFlags.Light) == EffectFlags.Light;
+    
     [Serializable]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Object {
@@ -30,6 +34,11 @@ namespace SS.ObjectProperties {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Explosion {
       public byte FrameExplode;
+    }
+
+    [Flags]
+    public enum EffectFlags : byte {
+      Light = 0x01
     }
   }
 }

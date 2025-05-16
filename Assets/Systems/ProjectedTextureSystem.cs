@@ -25,18 +25,16 @@ namespace SS.System {
     private ComponentLookup<ObjectInstance> instanceLookup;
     private ComponentLookup<ObjectInstance.Decoration> decorationLookup;
     private ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup;
+    private ComponentLookup<ObjectInstance.Enemy> enemyLookup;
 
     private EntitiesGraphicsSystem entitiesGraphicsSystem;
     private MaterialProviderSystem materialProviderSystem;
     private SpriteSystem spriteSystem;
 
-    private Resources.ObjectProperties objectProperties;
-
-    protected override async void OnCreate() {
+    protected override void OnCreate() {
       base.OnCreate();
 
       RequireForUpdate<Level>();
-      RequireForUpdate<AsyncLoadTag>();
 
       newFlatTextureQuery = new EntityQueryBuilder(Allocator.Temp)
         .WithAll<FlatTextureInfo, ObjectInstance>()
@@ -64,14 +62,11 @@ namespace SS.System {
       instanceLookup = GetComponentLookup<ObjectInstance>(true);
       decorationLookup = GetComponentLookup<ObjectInstance.Decoration>(true);
       doorLookup = GetComponentLookup<ObjectInstance.DoorAndGrating>(true);
+      enemyLookup = GetComponentLookup<ObjectInstance.Enemy>(true);
 
       entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
       spriteSystem = World.GetOrCreateSystemManaged<SpriteSystem>();
-
-      objectProperties = await Services.ObjectProperties;
-
-      EntityManager.AddComponent<AsyncLoadTag>(SystemHandle);
     }
 
     protected override void OnUpdate() {
@@ -94,15 +89,14 @@ namespace SS.System {
         
         if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
-        var materialID = GetResource(
+        var materialID = materialProviderSystem.GetResource(
          entity,
          instanceData,
          level,
-         objectProperties.ObjectDatasBlobAsset,
-         materialProviderSystem,
          instanceLookup,
          decorationLookup,
          doorLookup,
+         enemyLookup,
          true,
          out ushort refWidthOverride);
 
@@ -132,15 +126,14 @@ namespace SS.System {
 
           if (instanceData.Class == ObjectClass.DoorAndGrating) continue; // Double sided are handled in FlatTextureSystem
 
-          var materialID = GetResource(
+          var materialID = materialProviderSystem.GetResource(
             entity,
             instanceData,
             level,
-            objectProperties.ObjectDatasBlobAsset,
-            materialProviderSystem,
             instanceLookup,
             decorationLookup,
             doorLookup,
+            enemyLookup,
             true,
             out ushort refWidthOverride);
 
@@ -201,8 +194,6 @@ namespace SS.System {
 
       decalProjector.size = new(realSize.x, realSize.y, 0.2f);
     }
-
-    private struct AsyncLoadTag : IComponentData { }
 
     internal struct DecalProjectorAddedTag : ICleanupComponentData { }
   }
