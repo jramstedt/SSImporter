@@ -467,6 +467,9 @@
     "m_Guid": {
         "m_GuidSerialized": "d0ae2752-5d79-4afd-9e5e-9f4da820c252"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "LightGrid",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "LightGrid",
@@ -480,12 +483,15 @@
     "overrideHLSLDeclaration": true,
     "hlslDeclarationOverride": 1,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
@@ -671,6 +677,9 @@
     "m_Guid": {
         "m_GuidSerialized": "d59de714-f6a1-411b-ac34-261e2faf8957"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_LIGHTGRID",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_LIGHTGRID",
@@ -955,6 +964,9 @@
     "m_Guid": {
         "m_GuidSerialized": "a2d5ecbf-ad88-4707-9e76-38746775ab10"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "CLUT",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "CLUT",
@@ -968,12 +980,15 @@
     "overrideHLSLDeclaration": true,
     "hlslDeclarationOverride": 1,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }

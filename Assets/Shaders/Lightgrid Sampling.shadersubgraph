@@ -719,6 +719,9 @@
     "m_Guid": {
         "m_GuidSerialized": "ecb16294-b4a3-4ec7-9ec9-aea7543fdc1c"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_PRECISE_SHADE",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_PRECISE_SHADE",
@@ -892,6 +895,9 @@
     "m_Guid": {
         "m_GuidSerialized": "a830e2de-73eb-4a5b-91e4-ba4fa315efc8"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "LightGrid",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "LightGrid",
@@ -905,12 +911,15 @@
     "overrideHLSLDeclaration": false,
     "hlslDeclarationOverride": 0,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
@@ -1198,6 +1207,7 @@
     "m_SourceType": 0,
     "m_FunctionName": "shadePrecise",
     "m_FunctionSource": "4bd80c567fe3b364bbb48360666fb161",
+    "m_FunctionSourceUsePragmas": true,
     "m_FunctionBody": "Enter function body here..."
 }
 
@@ -1311,6 +1321,9 @@
     "m_Guid": {
         "m_GuidSerialized": "32eaccd3-3727-4ecf-b48e-1125515b99a1"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "VerticalPosition",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "VerticalPosition",
@@ -1324,12 +1337,24 @@
     "overrideHLSLDeclaration": false,
     "hlslDeclarationOverride": 0,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": 0.0,
     "m_FloatType": 0,
     "m_RangeValues": {
         "x": 0.0,
         "y": 1.0
-    }
+    },
+    "m_SliderType": 0,
+    "m_SliderPower": 3.0,
+    "m_EnumType": 0,
+    "m_CSharpEnumString": "",
+    "m_EnumNames": [
+        "Default"
+    ],
+    "m_EnumValues": [
+        0
+    ]
 }
 
 {

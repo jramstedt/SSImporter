@@ -426,6 +426,7 @@
     "m_SourceType": 0,
     "m_FunctionName": "shade",
     "m_FunctionSource": "4bd80c567fe3b364bbb48360666fb161",
+    "m_FunctionSourceUsePragmas": true,
     "m_FunctionBody": "Enter function body here..."
 }
 
@@ -1004,6 +1005,9 @@
     "m_Guid": {
         "m_GuidSerialized": "60c6cae1-6062-48cc-9978-77aa5ac77da4"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_LIGHTGRID",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_LIGHTGRID",
@@ -1394,6 +1398,9 @@
     "m_Guid": {
         "m_GuidSerialized": "d36dacbd-6432-461f-8c67-8d95004e9cc3"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "Texture",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "Texture",
@@ -1407,12 +1414,15 @@
     "overrideHLSLDeclaration": false,
     "hlslDeclarationOverride": 0,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
@@ -1462,6 +1472,9 @@
     "m_Guid": {
         "m_GuidSerialized": "32ec1413-e1a7-41e9-875e-4b0240a70ad9"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "LightGrid",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "LightGrid",
@@ -1475,12 +1488,15 @@
     "overrideHLSLDeclaration": false,
     "hlslDeclarationOverride": 0,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }

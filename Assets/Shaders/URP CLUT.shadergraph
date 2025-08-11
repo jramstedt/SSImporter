@@ -162,34 +162,6 @@
         {
             "m_OutputSlot": {
                 "m_Node": {
-                    "m_Id": "32806840a10c432aa5da7ce08fd7b23b"
-                },
-                "m_SlotId": 0
-            },
-            "m_InputSlot": {
-                "m_Node": {
-                    "m_Id": "0cd750f4a4364d0ebd82ddf2b45f5bcf"
-                },
-                "m_SlotId": -1468908995
-            }
-        },
-        {
-            "m_OutputSlot": {
-                "m_Node": {
-                    "m_Id": "32806840a10c432aa5da7ce08fd7b23b"
-                },
-                "m_SlotId": 0
-            },
-            "m_InputSlot": {
-                "m_Node": {
-                    "m_Id": "f3b0e5c2805a458488199d219de3e465"
-                },
-                "m_SlotId": 3
-            }
-        },
-        {
-            "m_OutputSlot": {
-                "m_Node": {
                     "m_Id": "8a8de1b902da479485d2ab29d745b007"
                 },
                 "m_SlotId": 1
@@ -737,6 +709,9 @@
     "m_Guid": {
         "m_GuidSerialized": "d59de714-f6a1-411b-ac34-261e2faf8957"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_LIGHTGRID",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_LIGHTGRID",
@@ -974,6 +949,9 @@
     "m_Guid": {
         "m_GuidSerialized": "a82329eb-5f89-4a9c-ad66-293e0e6f97cf"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "CLUT",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "CLUT",
@@ -987,12 +965,15 @@
     "overrideHLSLDeclaration": true,
     "hlslDeclarationOverride": 1,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
@@ -1004,6 +985,9 @@
     "m_Guid": {
         "m_GuidSerialized": "8040b295-44de-4f81-97df-8db8535bfae7"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_ALPHATEST_ON",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_ALPHATEST_ON",
@@ -1527,6 +1511,9 @@
     "m_Guid": {
         "m_GuidSerialized": "a4bc6af9-67d3-4ff1-9a37-cb81c9a0414e"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "Texture",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "Texture",
@@ -1540,12 +1527,15 @@
     "overrideHLSLDeclaration": false,
     "hlslDeclarationOverride": 0,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
@@ -1839,6 +1829,9 @@
     "m_Guid": {
         "m_GuidSerialized": "50b4a355-cbdc-45da-b712-122d15ce7484"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "_BILINEAR",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "_BILINEAR",
@@ -1937,6 +1930,9 @@
     "m_Guid": {
         "m_GuidSerialized": "1821ac43-1adb-43a2-92de-eb89ce56193d"
     },
+    "promotedFromAssetID": "",
+    "promotedFromCategoryName": "",
+    "promotedOrdering": -1,
     "m_Name": "LightGrid",
     "m_DefaultRefNameVersion": 1,
     "m_RefNameGeneratedByDisplayName": "LightGrid",
@@ -1950,12 +1946,15 @@
     "overrideHLSLDeclaration": true,
     "hlslDeclarationOverride": 1,
     "m_Hidden": false,
+    "m_PerRendererData": false,
+    "m_customAttributes": [],
     "m_Value": {
         "m_SerializedTexture": "",
         "m_Guid": ""
     },
     "isMainTexture": false,
     "useTilingAndOffset": false,
+    "useTexelSize": true,
     "m_Modifiable": true,
     "m_DefaultType": 0
 }
