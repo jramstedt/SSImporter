@@ -428,7 +428,7 @@ namespace SS.Resources {
             entityManager.SetComponentData(entity, LocalTransform.FromPosition(x, 0f, y));
             entityManager.SetComponentData(entity, tileMap[x, y]);
 
-            entityManager.AddComponentData(entity, default(LevelViewPartRebuildTag));
+            entityManager.AddComponentData(entity, default(MapElementRebuildTag));
             entityManager.AddComponentData(entity, default(LightmapRebuildTag));
           }
         }
@@ -483,12 +483,12 @@ namespace SS.Resources {
         if (height > 3 * size) height = 3 * size;
 
         var bodyCollider = new PhysicsCollider {
-          Value = Unity.Physics.SphereCollider.Create(
+          Value = SphereCollider.Create(
             new SphereGeometry {
               Radius = size,
               Center = new float3(0f, 0f, 0f)
             },
-            CollisionFilter.Default,
+            new CollisionFilter { BelongsTo = (uint)PhysicsUtils.Layer.Player, CollidesWith = (uint)~PhysicsUtils.Layer.Player, GroupIndex = 0 },
             new Unity.Physics.Material {
               FrictionCombinePolicy = CombinePolicy.Minimum,
               RestitutionCombinePolicy = CombinePolicy.Minimum,
@@ -499,12 +499,12 @@ namespace SS.Resources {
         };
 
         var headCollider = new PhysicsCollider {
-          Value = Unity.Physics.SphereCollider.Create(
+          Value = SphereCollider.Create(
             new SphereGeometry {
               Radius = size * .75f,
               Center = new float3(0f, 0f, 0f)
             },
-            CollisionFilter.Default,
+            new CollisionFilter { BelongsTo = (uint)PhysicsUtils.Layer.Player, CollidesWith = (uint)~PhysicsUtils.Layer.Player, GroupIndex = 0 },
             new Unity.Physics.Material {
               FrictionCombinePolicy = CombinePolicy.Minimum,
               RestitutionCombinePolicy = CombinePolicy.Minimum,

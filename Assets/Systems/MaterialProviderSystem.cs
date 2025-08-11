@@ -29,7 +29,7 @@ namespace SS.System {
     private NativeParallelHashMap<(int cameraIndex, bool lightmapped, bool decal), BatchMaterialID> cameraMaterials;
     private NativeParallelHashMap<(ushort wordIndex, byte color, byte style), BatchMaterialID> wordMaterials;
     private NativeParallelHashMap<(ushort textIndex, byte color, byte style, bool lightmapped, bool decal, bool scroll), BatchMaterialID> textMaterials;
-    private NativeParallelHashMap<(UnityEngine.Hash128 textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> freeTextMaterials;
+    private NativeParallelHashMap<(uint4 textIndex, byte color, byte style, bool lightmapped, bool decal), BatchMaterialID> freeTextMaterials;
     private NativeParallelHashMap<byte, BatchMaterialID> translucentMaterials;
 
     private readonly Dictionary<BatchMaterialID, IResHandle<TextureSet>> textureSetLoaders = new();
@@ -224,6 +224,11 @@ namespace SS.System {
           Object.Destroy(cameraTextureSet.Texture);
       }
 
+      foreach (var textureSetLoader in textureSetLoaders.Values) {
+        if (textureSetLoader.IsCompleted)
+          textureSetLoader.Result.Dispose();
+      }
+
       translucencyTable.Dispose();
       
       enemyDirectionBase.Dispose();
@@ -275,7 +280,7 @@ namespace SS.System {
       batchMaterialID = entitiesGraphicsSystem.RegisterMaterial(material);
 
       if (bitmapMaterials.TryAdd((resRef, lightmapped, decal), batchMaterialID)) {
-        LoadBitmapToMaterial(resRef, batchMaterialID, smoothScale);
+        LoadBitmapToMaterial(resRef, batchMaterialID, smoothScale, smoothScale || decal ? TextureWrapMode.Clamp : TextureWrapMode.Repeat);
         return batchMaterialID;
       }
 
@@ -285,7 +290,11 @@ namespace SS.System {
     }
 
     public BatchMaterialID GetTextureMaterial(ushort textureIndex) {
-      return GetMaterial((ushort)(0x03E8 + textureIndex), 0, true, false, false); // Uses the 128x128 resource id
+      return GetMaterial((ushort)(Texture128ResourceIdBase + textureIndex), 0, true, false, false); // Uses the 128x128 resource id
+    }
+
+    public BatchMaterialID GetMeshTextureMaterial(ushort textureIndex) {
+      return GetMaterial((ushort)(CustomTextureIdBase + textureIndex), 0, true, false, false);
     }
 
     public BatchMaterialID GetCameraMaterial(int cameraIndex, bool lightmapped, bool decal) {
@@ -354,8 +363,11 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    public BatchMaterialID GetTextMaterial(string fullText, byte color, byte style, bool lightmapped, bool decal) {
-      var hash = UnityEngine.Hash128.Compute(fullText);
+    public BatchMaterialID GetTextMaterial(ref NativeText.ReadOnly fullText, byte color, byte style, bool lightmapped, bool decal) {
+      uint4 hash;
+      unsafe { 
+        hash = xxHash3.Hash128(fullText.GetUnsafePtr(), fullText.Length);
+      }
 
       if (freeTextMaterials.TryGetValue((hash, color, style, lightmapped, decal), out var batchMaterialID))
         return batchMaterialID; // Word already rendered. Skip rendering.
@@ -408,15 +420,17 @@ namespace SS.System {
       return BatchMaterialID.Null;
     }
 
-    private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID, bool smoothScale) {
+    private async void LoadBitmapToMaterial(uint resRef, BatchMaterialID batchMaterialID, bool smoothScale, TextureWrapMode wrapMode) {
       if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) { // Check if BitmapSet already loaded.
         var bitmapSetLoader = Res.Load<BitmapSet>(resRef);
         textureSetLoadOp = new PickResultLoader<TextureSet, BitmapSet>(bitmapSetLoader, smoothScale ? CreateDoubledTexture : CreateTexture);
+        bitmapSetLoader.Result.Dispose(); // TODO Res ref count?
         textureSetLoaders.TryAdd(batchMaterialID, textureSetLoadOp);
       }
 
       var bitmapSet = await textureSetLoadOp;
-
+      bitmapSet.Texture.wrapMode = wrapMode;
+      
       var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
       material.SetTexture(shaderTextureName, bitmapSet.Texture);
 
@@ -453,28 +467,28 @@ namespace SS.System {
         var textPos = new int2(1, 1);
 
         while (textPos.y < settings.Height) {
-          var fullText = await Res.Load<string>(settings.ResId, (ushort)(wordIndex + scrollIndex));
+          var fullText = await Res.Load<NativeText>(settings.ResId, (ushort)(wordIndex + scrollIndex));
 
-          var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+          GraphicUtils.MeasureString(fontSet, fullText.AsReadOnly(), out var textSize);
 
-          GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText, textPos, colorIndex);
+          GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText.AsReadOnly(), textPos, colorIndex);
 
           textPos.y += textSize.y + 1;
           ++scrollIndex;
         }
       } else {
-        var fullText = await Res.Load<string>(settings.ResId, wordIndex);
+        var fullText = await Res.Load<NativeText>(settings.ResId, wordIndex);
 
-        var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+        GraphicUtils.MeasureString(fontSet, fullText.AsReadOnly(), out var textSize);
         var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
 
-        GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText, textPos, colorIndex);
+        GraphicUtils.DrawString(ref textureData, bitmapSet.Texture.format, new int2(bitmapSet.Texture.width, bitmapSet.Texture.height), fontSet, fullText.AsReadOnly(), textPos, colorIndex);
       }
       
       bitmapSet.Texture.Apply(false, false);
     }
 
-    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, string fullText, byte color, byte style) {
+    private async void RenderTextAsync(BatchMaterialID batchMaterialID, TextType type, NativeText.ReadOnly fullText, byte color, byte style) {
       var (settings, colorIndex, fontRes) = GraphicUtils.GetTextProperties(type, color, style);
 
       if (!textureSetLoaders.TryGetValue(batchMaterialID, out var textureSetLoadOp)) {
@@ -494,7 +508,7 @@ namespace SS.System {
 
       var fontSet = await Res.Load<FontSet>(fontRes);
 
-      var textSize = GraphicUtils.MeasureString(fontSet, fullText);
+      GraphicUtils.MeasureString(fontSet, fullText, out var textSize);
       var textPos = max((new int2(settings.Width, settings.Height) - textSize) >> 1, new int2(1, 0));
 
       var textureData = bitmapSet.Texture.GetRawTextureData<byte>();
@@ -557,7 +571,8 @@ namespace SS.System {
           var seed = TimeUtils.SecondsToFastTicks(SystemAPI.Time.ElapsedTime) >> 7;
           var number = ((seed * 9277 + 7) % 14983) % 10;
 
-          return GetTextMaterial($"{number}", 0 /* style >> 16 */, style, lightmapped, decal);
+          var text = new NativeText($"{number}", Allocator.Temp).AsReadOnly();
+          return GetTextMaterial(ref text, 0 /* style >> 16 */, style, lightmapped, decal);
         } else {
           return GetTextMaterial(index, 0 /* style >> 16 */, style, lightmapped, decal, false);
         }

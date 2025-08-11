@@ -6,6 +6,8 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
+[assembly:RegisterUnityEngineComponentType(typeof(Camera))]
+
 namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -59,7 +61,7 @@ namespace SS.System {
         };
 
         var camera = gameObject.AddComponent<Camera>();
-        var urpCameraData = gameObject.AddComponent<UniversalAdditionalCameraData>();
+        gameObject.AddComponent<UniversalAdditionalCameraData>();
         
         var localToWorld = localToWorldRef.ValueRO;
         camera.transform.SetPositionAndRotation(localToWorld.Position, localToWorld.Rotation);
@@ -67,7 +69,6 @@ namespace SS.System {
         camera.clearFlags = CameraClearFlags.Depth;
         
         commandBuffer.AddComponent(entity, camera);
-        commandBuffer.AddComponent(entity, urpCameraData);
         commandBuffer.AddComponent(entity, new CameraAdded() {
           GameObject = gameObject,
           CameraIndex = surveillanceSource.CameraIndex

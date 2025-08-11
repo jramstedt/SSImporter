@@ -184,6 +184,7 @@ namespace SS.System {
             Debug.Log($"TriggerSystem Continuous e:{entity.Index}");
             Processor.Activate(entity, out bool message); // trap_activate
           } else if (chunk.IsComponentEnabled(ref ActivateTypeHandleRW, i)) {
+            // Debug.Log($"TriggerSystem Activated e:{entity.Index}");
             Processor.Activate(entity, out bool message); // TODO do_multi_stuff?
           }
         }

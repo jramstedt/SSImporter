@@ -242,6 +242,10 @@ public partial struct CharacterControllerSystem : ISystem
                 {
                     currentFrameTriggerEvents = new NativeList<StatefulTriggerEvent>(Allocator.Temp);
                 }
+                
+                // Check unsupported hit
+                if (ccInternalData.SupportedState == CharacterSupportState.Unsupported)
+                    CheckUnsupported(ref headCollider, ref ccInternalData.UnsupportedVelocity, stepInput, headTransform);
 
                 // Check support
                 CheckSupport(ref collider, stepInput, transform,
@@ -418,7 +422,7 @@ public partial struct CharacterControllerSystem : ISystem
             }
         }
 
-        private void CalculateMovement(float currentRotationAngle, float3 up, bool isJumping,
+        private static void CalculateMovement(float currentRotationAngle, float3 up, bool isJumping,
             float3 currentVelocity, float3 desiredVelocity, float3 surfaceNormal, float3 surfaceVelocity, out float3 linearVelocity)
         {
             float3 forward = math.forward(quaternion.AxisAngle(up, currentRotationAngle));
@@ -461,7 +465,7 @@ public partial struct CharacterControllerSystem : ISystem
                 (isJumping ? math.dot(desiredVelocity, up) * up : float3.zero);
         }
 
-        private void UpdateTriggerEvents(NativeList<StatefulTriggerEvent> triggerEvents,
+        private static void UpdateTriggerEvents(NativeList<StatefulTriggerEvent> triggerEvents,
             DynamicBuffer<StatefulTriggerEvent> triggerEventBuffer)
         {
             var previousFrameTriggerEvents = new NativeList<StatefulTriggerEvent>(triggerEventBuffer.Length, Allocator.Temp);
@@ -487,7 +491,7 @@ public partial struct CharacterControllerSystem : ISystem
             }
         }
 
-        private void UpdateCollisionEvents(NativeList<StatefulCollisionEvent> collisionEvents,
+        private static void UpdateCollisionEvents(NativeList<StatefulCollisionEvent> collisionEvents,
             DynamicBuffer<StatefulCollisionEvent> collisionEventBuffer)
         {
             var previousFrameCollisionEvents = new NativeList<StatefulCollisionEvent>(collisionEventBuffer.Length, Allocator.Temp);
@@ -513,7 +517,7 @@ public partial struct CharacterControllerSystem : ISystem
     }
 
     [BurstCompile]
-    struct ApplyDefferedPhysicsUpdatesJob : IJob
+    private struct ApplyDeferredPhysicsUpdatesJob : IJob
     {
         // Chunks can be deallocated at this point
         [DeallocateOnJobCompletion] public NativeArray<ArchetypeChunk> Chunks;
@@ -566,7 +570,7 @@ public partial struct CharacterControllerSystem : ISystem
 
     // override the behavior of CopyPhysicsVelocityToSmoothing
     [BurstCompile]
-    partial struct CopyVelocityToGraphicalSmoothingJob : IJobEntity
+    private partial struct CopyVelocityToGraphicalSmoothingJob : IJobEntity
     {
         public void Execute(in HackerControllerInternalData ccInternalData, ref PhysicsGraphicalSmoothing smoothing)
         {
@@ -628,7 +632,7 @@ public partial struct CharacterControllerSystem : ISystem
 
         var copyVelocitiesHandle = new CopyVelocityToGraphicalSmoothingJob().ScheduleParallel(m_SmoothedCharacterControllersGroup, state.Dependency);
 
-        var applyJob = new ApplyDefferedPhysicsUpdatesJob()
+        var applyJob = new ApplyDeferredPhysicsUpdatesJob()
         {
             Chunks = chunks,
             DeferredImpulseReader = deferredImpulses.AsReader(),

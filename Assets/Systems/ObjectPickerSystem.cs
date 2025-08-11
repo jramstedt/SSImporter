@@ -3,12 +3,10 @@ using System;
 using Render;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using NotImplementedException = System.NotImplementedException;
 
 namespace SS.System {
     public partial class ObjectPickerSystem : SystemBase {
@@ -21,7 +19,8 @@ namespace SS.System {
         private bool runningGPUReadbackRequest;
 
         protected override void OnCreate() {
-            var material = new Material(Shader.Find(@"Universal Render Pipeline/Unlit"));
+            //var material = new Material(Shader.Find(@"Universal Render Pipeline/Unlit"));
+            var material = new Material(Shader.Find(@"Unlit/URP_ObjectID"));
             var resolution = new int2(Screen.width >> 2, Screen.height >> 2);
             objectPickerRenderPass = new ObjectPickerRenderPass(material, resolution);
             objectPickerRenderPass.renderPassEvent = RenderPassEvent.BeforeRenderingTransparents;
@@ -36,6 +35,7 @@ namespace SS.System {
             AsyncGPUReadback.WaitAllRequests();
             objectPickerRenderPass.Dispose();
             objectIds.Dispose();
+            objectIdsTransparent.Dispose();
         }
         
         protected override void OnStartRunning() {
@@ -53,11 +53,13 @@ namespace SS.System {
         protected override void OnUpdate() {
             // TODO reads are longer than one frame
             
+            /*
             if (objectPickerRenderPass.ObjectPickerRenderTextureHandle != null)
                 RunAsyncGPUReadback(objectPickerRenderPass.ObjectPickerRenderTextureHandle, objectIds, 0);
-            
+
             if (objectPickerRenderPass.ObjectPickerTransparentRenderTextureHandle != null)
                 RunAsyncGPUReadback(objectPickerRenderPass.ObjectPickerTransparentRenderTextureHandle, objectIdsTransparent, 1);
+            */
         }
 
         private void RunAsyncGPUReadback(RTHandle textureHandle, NativeArray<uint> target, int semaphore) {

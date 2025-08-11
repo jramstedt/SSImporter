@@ -18,7 +18,8 @@ namespace Render {
         public RTHandle ObjectPickerTransparentRenderTextureHandle;
         
         private readonly Material objectIdMaterial;
-        private readonly int2 resolution;
+        private readonly RenderTextureDescriptor pickerTextureDescription;
+        private readonly RenderTextureDescriptor depthTextureDescription;
 
         private class PassData {
             public RendererListHandle rendererListHandle;
@@ -26,7 +27,16 @@ namespace Render {
 
         public ObjectPickerRenderPass(Material objectIdMaterial, int2 resolution) {
             this.objectIdMaterial = objectIdMaterial;
-            this.resolution = resolution;
+            
+            pickerTextureDescription = new RenderTextureDescriptor(resolution.x, resolution.y, GraphicsFormat.R32_UInt, GraphicsFormat.None, 1)
+            {
+                msaaSamples = 1
+            };
+            
+            depthTextureDescription = new RenderTextureDescriptor(resolution.x, resolution.y, GraphicsFormat.None, GraphicsFormat.D16_UNorm, 1)
+            {
+                msaaSamples = 1
+            };
             
             //shaderTagList.Add(new ShaderTagId("DepthOnly"));
             shaderTagList.Add(new ShaderTagId("SRPDefaultUnlit"));
@@ -50,16 +60,11 @@ namespace Render {
             var filterSettings = new FilteringSettings(RenderQueueRange.all, ~0);
             
             var rendererListParameters = new RendererListParams(renderingData.cullResults, drawSettings, filterSettings);
-            
-            var desc = new RenderTextureDescriptor(resolution.x, resolution.y, GraphicsFormat.R32_UInt, GraphicsFormat.D16_UNorm, 1)
-            {
-                msaaSamples = 1
-            };
 
-            RenderingUtils.ReAllocateHandleIfNeeded(ref ObjectPickerRenderTextureHandle, desc, FilterMode.Point, TextureWrapMode.Clamp, name: "Object Id Texture" );
-            RenderingUtils.ReAllocateHandleIfNeeded(ref ObjectPickerTransparentRenderTextureHandle, desc, FilterMode.Point, TextureWrapMode.Clamp, name: "Object Id Transparent Texture" );
+            RenderingUtils.ReAllocateHandleIfNeeded(ref ObjectPickerRenderTextureHandle, pickerTextureDescription, FilterMode.Point, TextureWrapMode.Clamp, name: "Object Id Texture" );
+            RenderingUtils.ReAllocateHandleIfNeeded(ref ObjectPickerTransparentRenderTextureHandle, pickerTextureDescription, FilterMode.Point, TextureWrapMode.Clamp, name: "Object Id Transparent Texture" );
 
-            var depth = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "Object Picker Depth", true);
+            var depth = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthTextureDescription, "Object Picker Depth", true);
 
             using (var builder = renderGraph.AddRasterRenderPass<PassData>(passName, out var passData)) {
                 var rendererListHandle = renderGraph.CreateRendererList(rendererListParameters);

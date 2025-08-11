@@ -182,6 +182,22 @@ public static class CharacterControllerUtilities
         #endregion
     }
 
+    public static void CheckUnsupported(ref PhysicsCollider collider, ref float3 unsupportedVelocity, CharacterControllerStepInput stepInput, RigidTransform transform) {
+        if (math.lengthsq(unsupportedVelocity) <= k_SimplexSolverEpsilonSq) return;
+        // if (math.dot(unsupportedVelocity, stepInput.Up) < 0f) return;
+        
+        // TODO filter out bodyCollider
+        
+        PhysicsWorld physicsWorld = stepInput.PhysicsWorldSingleton.PhysicsWorld;
+        
+        // Query the world
+        var maxDisplacement = stepInput.ContactTolerance * math.normalizesafe(unsupportedVelocity);
+        ColliderCastInput input = new ColliderCastInput(collider.Value, transform.pos, transform.pos + maxDisplacement, transform.rot);
+        
+        if (physicsWorld.CastCollider(input))
+            unsupportedVelocity = float3.zero;
+    }
+    
     public static void CheckSupport(
         ref PhysicsCollider collider, CharacterControllerStepInput stepInput, RigidTransform transform,
         out CharacterSupportState characterState, out float3 surfaceNormal, out float3 surfaceVelocity,
@@ -197,9 +213,9 @@ public static class CharacterControllerUtilities
 
         // Query the world
         NativeList<ColliderCastHit> castHits = new NativeList<ColliderCastHit>(k_DefaultQueryHitsCapacity, Allocator.Temp);
-        CharacterControllerAllHitsCollector<ColliderCastHit> castHitsCollector = new CharacterControllerAllHitsCollector<ColliderCastHit>(
-            stepInput.RigidBodyIndex, 1.0f, ref castHits, physicsWorld);
-        var maxDisplacement = -stepInput.ContactTolerance * stepInput.Up;
+        CharacterControllerAllHitsCollector<ColliderCastHit> castHitsCollector = new CharacterControllerAllHitsCollector<ColliderCastHit>(stepInput.RigidBodyIndex, 1.0f, ref castHits, physicsWorld);
+        
+        var maxDisplacement = -stepInput.ContactTolerance * stepInput.Up; // Downwards
         {
             ColliderCastInput input = new ColliderCastInput(collider.Value, transform.pos, transform.pos + maxDisplacement, transform.rot);
 
@@ -512,7 +528,10 @@ public static class CharacterControllerUtilities
                 var newCollector = new CharacterControllerClosestHitCollector<ColliderCastHit>(allConstraints, world, stepInput.RigidBodyIndex, 1.0f);
 
                 ColliderCastInput input = new ColliderCastInput(bodyCollider.Value, prevPosition, newPosition, orientation);
-                world.CastCollider(input, ref newCollector); 
+                world.CastCollider(input, ref newCollector);
+                
+                ColliderCastInput headInput = new ColliderCastInput(headCollider.Value, prevHeadPosition, newHeadPosition, orientation);
+                world.CastCollider(headInput, ref newCollector); 
                 
                 if (newCollector.NumHits > 0)
                 {

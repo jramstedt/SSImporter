@@ -22,7 +22,7 @@ namespace SS.Resources {
     private static readonly IReadOnlyDictionary<ContentType, IReadOnlyCollection<IResProvider>> contentProviders = 
       new Dictionary<ContentType, IReadOnlyCollection<IResProvider>> {
         { ContentType.Palette, new[]{ new PaletteProvider() } },
-        { ContentType.String, new[]{ new StringProvider() } },
+        { ContentType.String, new IResProvider[]{ new StringProvider(), new NativeTextProvider() } },
         { ContentType.Image, new[]{ new BitmapProvider() } },
         { ContentType.Font, new[]{ new FontProvider() } }, 
         // Animation
@@ -155,7 +155,7 @@ namespace SS.Resources {
           var resFile = resHandle.Result;
 
           foreach (var (resId, resource) in resFile.ResourceEntries) {
-            Debug.Log($"{(global::System.IO.Path.GetFileName(filePath))}: Adding {resId:X4} {resource.info.Id:X4} {resource.info.ContentType}");
+            // Debug.Log($"{(global::System.IO.Path.GetFileName(filePath))}: Adding {resId:X4} {resource.info.Id:X4} {resource.info.ContentType}");
 
             if (!resourceRecord.TryAdd(resId, resFile))
               Debug.LogWarning($"{(global::System.IO.Path.GetFileName(filePath))}: Resource record already contains {resId:X4}");

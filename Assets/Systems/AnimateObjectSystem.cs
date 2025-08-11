@@ -111,7 +111,7 @@ namespace SS.System {
         ObjectPropertiesBlobAsset = objectProperties.ObjectDatasBlobAsset,
 
         TimeData = SystemAPI.Time,
-        LevelIndex = 0, // TODO Level index
+        LevelIndex = level.Id,
 
         DoorFrames = materialSystemData.DoorFrames,
         Animations = level.Animations.AsArray(),
@@ -473,9 +473,8 @@ namespace SS.System {
     public readonly bool IsCyclic => (Flags & AnimationFlags.Cyclic) == AnimationFlags.Cyclic;
     public readonly bool IsReversing => (Flags & AnimationFlags.Reversing) == AnimationFlags.Reversing;
 
-    // TODO FIXME WARNINGS
-    public readonly bool IsCallbackTypeRemove => (CallbackType & AnimationCallbackType.Remove) == AnimationCallbackType.Remove;
-    public readonly bool IsCallbackTypeRepeat => (CallbackType & AnimationCallbackType.Repeat) == AnimationCallbackType.Repeat;
-    public readonly bool IsCallbackTypeCycle => (CallbackType & AnimationCallbackType.Cycle) == AnimationCallbackType.Cycle;
+    public readonly bool IsCallbackTypeRemove => CallbackType == AnimationCallbackType.Remove;
+    public readonly bool IsCallbackTypeRepeat => CallbackType == AnimationCallbackType.Repeat;
+    public readonly bool IsCallbackTypeCycle => CallbackType == AnimationCallbackType.Cycle;
   }
 }

@@ -26,7 +26,8 @@ namespace SS.System {
     private EntityArchetype physicsArchetype;
 
     private EntityQuery mapElementQuery;
-    private EntityQuery viewPartQuery;
+    private EntityQuery partQuery;
+    private EntityQuery physicsQuery;
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
     private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
@@ -43,7 +44,7 @@ namespace SS.System {
       RequireForUpdate<LevelInfo>();
 
       viewPartArchetype = EntityManager.CreateArchetype(stackalloc[] { 
-        ComponentType.ReadWrite<LevelViewPart>(),
+        ComponentType.ReadWrite<MapElementPart>(),
         
         ComponentType.ReadWrite<LocalTransform>(),
         ComponentType.ReadWrite<Parent>(),
@@ -54,7 +55,9 @@ namespace SS.System {
         ComponentType.ReadWrite<FrozenRenderSceneTag>(),
       });
 
-      physicsArchetype = EntityManager.CreateArchetype(stackalloc[] { 
+      physicsArchetype = EntityManager.CreateArchetype(stackalloc[] {
+        ComponentType.ReadWrite<MapElementPart>(),
+        
         ComponentType.ReadWrite<LocalTransform>(),
         ComponentType.ReadWrite<Parent>(),
         
@@ -66,12 +69,17 @@ namespace SS.System {
       });
 
       mapElementQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<TileLocation, MapElement, LevelViewPartRebuildTag>()
+        .WithAll<TileLocation, MapElement, MapElementRebuildTag>()
         .Build(this);
 
-      viewPartQuery = new EntityQueryBuilder(Allocator.Temp)
-          .WithAll<LevelViewPart, Parent>()
+      partQuery = new EntityQueryBuilder(Allocator.Temp)
+          .WithAll<MapElementPart, Parent>()
+          .WithAny<PhysicsCollider>()
           .Build(this);
+      
+      physicsQuery = new EntityQueryBuilder(Allocator.Temp)
+        .WithAll<MapElementPart, Parent, PhysicsCollider>()
+        .Build(this);
 
       vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
@@ -95,6 +103,10 @@ namespace SS.System {
 
       vertexAttributes.Dispose();
       entityMeshIDs.Dispose();
+
+      var colliders = physicsQuery.ToComponentDataArray<PhysicsCollider>(WorldUpdateAllocator);
+      foreach (var physicsCollider in colliders)
+        physicsCollider.Value.Dispose();
     }
 
     protected override void OnUpdate() {
@@ -116,16 +128,15 @@ namespace SS.System {
       var colliderArray = new NativeArray<BlobAssetReference<Collider>>(entityCount, Allocator.TempJob);
 
       #region Clean up old view parts that are going to be replaced
-      // TODO cleanup old collider blob references!
-
-      var cleanJob = new DestroyOldViewPartsJob {
+      var cleanJob = new DestroyOldPartsJob {
         entityTypeHandle = GetEntityTypeHandle(),
         parentTypeHandleRO = GetComponentTypeHandle<Parent>(true),
+        physicsColliderTypeHandleRO = GetComponentTypeHandle<PhysicsCollider>(true),
         updateMapElements = entities,
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      Dependency = cleanJob.ScheduleParallel(viewPartQuery, Dependency);
+      Dependency = cleanJob.ScheduleParallel(partQuery, Dependency);
       #endregion
 
       #region Build new view parts
@@ -150,7 +161,7 @@ namespace SS.System {
 
       Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
 
-      commandBuffer.RemoveComponent<LevelViewPartRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtPlayback);
+      commandBuffer.RemoveComponent<MapElementRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtPlayback);
       #endregion
 
       #region Update meshes
@@ -248,10 +259,11 @@ namespace SS.System {
   }
 
   [BurstCompile]
-  internal struct DestroyOldViewPartsJob : IJobChunk {
+  internal struct DestroyOldPartsJob : IJobChunk {
     [ReadOnly] public EntityTypeHandle entityTypeHandle;
 
     [ReadOnly] public ComponentTypeHandle<Parent> parentTypeHandleRO;
+    [ReadOnly] public ComponentTypeHandle<PhysicsCollider> physicsColliderTypeHandleRO;
 
     [ReadOnly] public NativeArray<Entity> updateMapElements;
 
@@ -261,12 +273,15 @@ namespace SS.System {
       var entities = chunk.GetNativeArray(entityTypeHandle);
       var parents = chunk.GetNativeArray(ref parentTypeHandleRO);
 
-      for (int i = 0; i < chunk.Count; ++i) {
-        var entity = entities[i];
+      for (var i = 0; i < chunk.Count; ++i) {
         var parent = parents[i];
+        if (!updateMapElements.Contains(parent.Value)) continue;
+        
+        var entity = entities[i];
+        CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
 
-        if (updateMapElements.Contains(parent.Value))
-          CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
+        if (chunk.Has(ref physicsColliderTypeHandleRO))
+          chunk.GetNativeArray(ref physicsColliderTypeHandleRO)[i].Value.Dispose();
       }
     }
   }
@@ -421,7 +436,7 @@ namespace SS.System {
       #endregion
 
       var colliderBlobInstances = new NativeArray<CompoundCollider.ColliderBlobInstance>(subMeshAccumulator, Allocator.Temp);
-      for (int index = 0; index < subMeshAccumulator; ++index) {
+      for (var index = 0; index < subMeshAccumulator; ++index) {
         colliderBlobInstances[index] = new CompoundCollider.ColliderBlobInstance {
           Collider = colliderBlobs[index],
           CompoundFromChild = Unity.Mathematics.RigidTransform.identity,
@@ -429,6 +444,9 @@ namespace SS.System {
         };
       }
       compoundCollider = CompoundCollider.Create(colliderBlobInstances);
+      
+      foreach (var colliderBlob in colliderBlobs) // Dispose collider blobs since they are copied to compound.
+        if (colliderBlob.IsCreated) colliderBlob.Dispose();
     }
 
     private static int CreatePlane(in LevelInfo levelInfo, in MapElement tile, ref Mesh.MeshData mesh, ref NativeArray<BlobAssetReference<Collider>> colliderBlobs, ref NativeArray<byte> textureIndices, [AssumeRange(0, 5)] int subMeshIndex, bool isCeiling) {
@@ -663,6 +681,6 @@ namespace SS.System {
     }
   }
 
-  public struct LevelViewPart : IComponentData { }
-  public struct LevelViewPartRebuildTag : IComponentData { }
+  public struct MapElementPart : IComponentData { }
+  public struct MapElementRebuildTag : IComponentData { }
 }

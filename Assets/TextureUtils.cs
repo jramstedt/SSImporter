@@ -11,6 +11,7 @@ using UnityEngine;
 namespace SS {
   [BurstCompile]
   public static class TextureUtils {
+    public const ushort Texture128ResourceIdBase = 1000;
     public const ushort CustomTextureIdBase = 2180;
     public const ushort ArtResourceIdBase = 1350;
     public const ushort DoorResourceIdBase = 2400;
@@ -137,7 +138,7 @@ namespace SS {
       if (SystemInfo.SupportsTextureFormat(TextureFormat.R8)) {
         texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.R8, false, true) {
           filterMode = FilterMode.Point,
-          wrapMode = TextureWrapMode.Repeat
+          wrapMode = TextureWrapMode.Clamp
         };
 
         NativeArray<byte> textureData = texture.GetRawTextureData<byte>();
@@ -150,7 +151,7 @@ namespace SS {
       } else if (SystemInfo.SupportsTextureFormat(TextureFormat.RGBA32)) {
         texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, false, true) {
           filterMode = FilterMode.Point,
-          wrapMode = TextureWrapMode.Repeat
+          wrapMode = TextureWrapMode.Clamp
         };
 
         NativeArray<Color32> textureData = texture.GetRawTextureData<Color32>();
@@ -169,6 +170,7 @@ namespace SS {
         throw new Exception("No supported TextureFormat found.");
       }
 
+      // TODO FIXME Should copy, when bitmapSet is disposed this is lost
       PrivatePalette? palette = null;
       unsafe {
         if (bitmapSet.Palette.IsCreated) {
@@ -270,7 +272,7 @@ namespace SS {
 
       }
 
-      var textureSet = CreateTexture(new BitmapSet {
+      var doubledBitmapSet = new BitmapSet {
         Bitmap = new Bitmap {
           BitmapType = BitmapType.Device,
           Flags = srcBitmap.Flags,
@@ -283,7 +285,9 @@ namespace SS {
         },
         Data = dstPixelData,
         Palette = default
-      });
+      };
+      var textureSet = CreateTexture(doubledBitmapSet);
+      doubledBitmapSet.Dispose();
 
       textureSet.Description.Width >>= 1; // Halve the size to keep render size the same.
       textureSet.Description.Height >>= 1;

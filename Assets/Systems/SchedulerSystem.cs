@@ -62,10 +62,12 @@ namespace SS.System {
       };
 
       state.Dependency = schedulerJob.ScheduleParallel(eventQuery, state.Dependency);
+      
+      Debug.Log($"Scheduler run ts:{TimeUtils.SecondsToTimestamp(SystemAPI.Time.ElapsedTime)}");
     }
 
     [BurstCompile]
-    struct SchedulerJob : IJobChunk {
+    private struct SchedulerJob : IJobChunk {
       [ReadOnly] public EntityTypeHandle EntityTypeHandle;
       [ReadOnly] public ComponentTypeHandle<ScheduleEvent> ScheduleEventTypeHandleRO;
 
@@ -88,7 +90,7 @@ namespace SS.System {
           var entity = entities[i];
           var scheduleEvent = scheduleEvents[i];
           
-          if (ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= ExpandTimestamp(timestamp, timestamp))
+          if (TimeUtils.ExpandTimestamp(scheduleEvent.Timestamp, timestamp) >= TimeUtils.ExpandTimestamp(timestamp, timestamp))
             continue;
 
           // TODO handle other ScheduleEvent.Types
@@ -96,19 +98,19 @@ namespace SS.System {
           if (scheduleEvent.Type == EventType.Door) {
             var doorEvent = *(DoorScheduleEvent*)scheduleEvent.Data;
             
-            Debug.Log($"SchedulerJob EventType.Door ets:{scheduleEvent.Timestamp} ts:{timestamp}");
-            Debug.Log($"SchedulerJob EventType.Door t:{doorEvent.ObjectIndex} a:{doorEvent.AutoClose}");
+            // Debug.Log($"SchedulerJob EventType.Door ets:{scheduleEvent.Timestamp} ts:{timestamp}");
+            // Debug.Log($"SchedulerJob EventType.Door t:{doorEvent.ObjectIndex} a:{doorEvent.AutoClose}");
             
             var targetEntity = ObjectInstancesRO[doorEvent.ObjectIndex];
             var targetObjectInstance = ObjectInstanceLookupRO.GetRefRO(targetEntity).ValueRO;
             
             if (targetObjectInstance.Class == ObjectClass.DoorAndGrating) {
-              if (!ObjectInstance.DoorAndGrating.AutoClose(targetObjectInstance, (byte)doorEvent.AutoClose)) continue;
-              if (ObjectInstance.DoorAndGrating.IsReallyClosed(targetObjectInstance)) continue;
+              if (!ObjectInstance.DoorAndGrating.AutoClose(targetObjectInstance, (byte)doorEvent.AutoClose)) goto consumed;
+              if (ObjectInstance.DoorAndGrating.IsReallyClosed(targetObjectInstance)) goto consumed;
 
               var door = DoorLookupRW.GetRefRO(targetEntity).ValueRO;
-              if (door.NeverAutoClose) continue;
-              if (door.IsMoving(AnimationData, true)) continue;
+              if (door.NeverAutoClose) goto consumed;
+              if (door.IsMoving(AnimationData, true)) goto consumed;
               
               CommandBuffer.AddComponent<ObjectUseTag>(unfilteredChunkIndex, targetEntity); // object_use(id, FALSE, OBJ_NULL);
             }
@@ -118,8 +120,8 @@ namespace SS.System {
           } else if (scheduleEvent.Type == EventType.Trap) {
             var trapEvent = *(TrapScheduleEvent*)scheduleEvent.Data;
 
-            // Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} ts:{timestamp}");
-            // Debug.Log($"SchedulerJob EventType.Trap t:{trapEvent.TargetObjectIndex} s:{trapEvent.SourceObjectIndex}");
+            Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} ts:{timestamp} s:{trapEvent.SourceObjectIndex}");
+            // Debug.Log($"SchedulerJob EventType.Trap ets:{scheduleEvent.Timestamp} t:{trapEvent.TargetObjectIndex}");
             
             DoMulti(trapEvent.TargetObjectIndex, unfilteredChunkIndex);
             if (trapEvent.SourceObjectIndex != -1)
@@ -128,20 +130,9 @@ namespace SS.System {
             Debug.LogWarning($"SchedulerJob ${scheduleEvent.Type} ets:{scheduleEvent.Timestamp} ts:{timestamp} UHANDLED");
           }
 
+          consumed:
           CommandBuffer.DestroyEntity(unfilteredChunkIndex, entity);
         }
-      }
-
-      /// <summary>
-      /// This hack is to handle timestamp overflow.
-      /// </summary>
-      private readonly ushort ExpandTimestamp(ushort timestamp, ushort gametime) {
-        if (timestamp <= (gametime - (0xFFFF >> 1)))
-          timestamp += 0xFFFF;
-        else if (timestamp >= (gametime + (0xFFFF >> 1)))
-          timestamp -= 0xFFFF;
-
-        return timestamp;
       }
       
       private void DoMulti(short objectIndex, int unfilteredChunkIndex) {

@@ -1,17 +1,19 @@
 using SS.Resources;
 using System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
 namespace SS {
+  [BurstCompile]
   public static class GraphicUtils {
-    private const char SOFTCR = (char)1;
-    private const char SOFTSP = (char)2;
+    private const byte SOFTCR = 1;
+    private const byte SOFTSP = 2;
+    private const byte LF = 0x0A;
 
-    public static void DrawString(ref NativeArray<byte> textureData, TextureFormat format, in int2 size, in FontSet fontSet, string fullText, in int2 origin, byte colorIndex = Palette.RED_8_BASE + 3) {
-      // TODO Almost burst compatible. Need to get rid of string.
-      
+    [BurstCompile]
+    public static void DrawString(ref NativeArray<byte> textureData, TextureFormat format, in int2 size, in FontSet fontSet, in NativeText.ReadOnly fullText, in int2 origin, byte colorIndex = Palette.RED_8_BASE + 3) {
       var font = fontSet.Font;
       var offsets = fontSet.Offsets;
       var bits = fontSet.Data;
@@ -24,9 +26,9 @@ namespace SS {
 
       int2 chrPos = new(origin);
       for (int index = 0; index < fullText.Length; index++) {
-        char chr = fullText[index];
+        var chr = fullText[index];
 
-        if (chr is '\n' or SOFTCR) {
+        if (chr is LF or SOFTCR) {
           chrPos.x = origin.x;
           chrPos.y += font.Rows;
           continue;
@@ -105,9 +107,8 @@ namespace SS {
       }
     }
 
-    public static int2 MeasureString(in FontSet fontSet, string fullText) {
-      // TODO Almost burst compatible. Need to get rid of string.
-      
+    [BurstCompile]
+    public static void MeasureString(in FontSet fontSet, in NativeText.ReadOnly fullText, out int2 textSize) {
       var font = fontSet.Font;
       var offsets = fontSet.Offsets;
 
@@ -116,9 +117,9 @@ namespace SS {
       var height = font.Rows;
 
       for (int index = 0; index < fullText.Length; index++) {
-        char chr = fullText[index];
+        var chr = fullText[index];
 
-        if (chr == '\n' || chr == SOFTCR) {
+        if (chr is LF or SOFTCR) {
           if (lineWide > widestLine) widestLine = lineWide;
           lineWide = 0;
           height += font.Rows;
@@ -132,7 +133,7 @@ namespace SS {
         lineWide += offsets[chr - font.FirstAscii + 1] - xOffset;
       }
 
-      return new int2(
+      textSize = new int2(
         lineWide > widestLine ? lineWide : widestLine,
         height
       );

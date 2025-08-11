@@ -25,7 +25,6 @@ namespace SS.System {
 
     private EntityArchetype viewPartArchetype;
 
-    private NativeArray<BatchMaterialID> materials;
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
@@ -61,21 +60,7 @@ namespace SS.System {
         ComponentType.ReadWrite<LocalToWorld>(),
         ComponentType.ReadWrite<RenderBounds>(),
       });
-
-      var entitiesGraphicsSystem = World.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-
-      materials = new(15, Allocator.Persistent);
-
-      // TODO FIXME should be accessible from Services.
-      for (var materialIndex = 0; materialIndex < materials.Length; ++materialIndex) {
-        var material = new Material(Shader.Find("Shader Graphs/URP CLUT"));
-        material.EnableKeyword(@"_LIGHTGRID");
-
-        materials[materialIndex] = entitiesGraphicsSystem.RegisterMaterial(material);
-
-        LoadBitmapToMaterial(materialIndex, material);
-      }
-
+      
       vertexAttributes = new(5, Allocator.Persistent) {
         [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
@@ -92,25 +77,11 @@ namespace SS.System {
 
       materialProviderSystem = World.GetOrCreateSystemManaged<MaterialProviderSystem>();
     }
-
-    // TODO FIXME Almost equals to one in MaterialProviderSystem
-    private async void LoadBitmapToMaterial(int materialIndex, Material material) {
-      var bitmapSet = await Res.Load<BitmapSet>((ushort)(CustomTextureIdBase + materialIndex));
-      var textureSet = CreateTexture(bitmapSet);
-
-      material.SetTexture(MaterialProviderSystem.shaderTextureName, textureSet.Texture);
-
-      if (textureSet.Description.Transparent)
-        material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-      else
-        material.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
-    }
-
+    
     protected override void OnDestroy() {
       base.OnDestroy();
 
       entityMeshIDs.Dispose();
-      materials.Dispose();
       vertexAttributes.Dispose();
     }
 
@@ -194,7 +165,7 @@ namespace SS.System {
             ushort textureIndex = level.TextureMap[textureMapIndex];
             material = materialProviderSystem.GetTextureMaterial(textureIndex);
           } else {
-            material = materials[SideTexture & 0x7F];
+            material = materialProviderSystem.GetMeshTextureMaterial((ushort)(SideTexture & 0x7F));
           }
 
           var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
@@ -225,7 +196,7 @@ namespace SS.System {
             ushort textureIndex = level.TextureMap[textureMapIndex];
             material = materialProviderSystem.GetTextureMaterial(textureIndex);
           } else {
-            material = materials[TopBottomTexture & 0x7F];
+            material = materialProviderSystem.GetMeshTextureMaterial((ushort)(TopBottomTexture & 0x7F));
           }
 
           var viewPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point

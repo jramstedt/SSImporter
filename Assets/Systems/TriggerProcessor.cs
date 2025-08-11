@@ -15,10 +15,17 @@ namespace SS.System {
   [BurstCompile]
   public struct TriggerProcessor {
     private const byte NUM_LIGHT_STEPS = 8;
+    private const byte LIGHT_TICKS = TimeUtils.CIT_CYCLE >> 4;
+    
     private const byte MAX_LIGHT_VAL = 15;
 
     private const byte TRAP_TIME_UNIT = 10;
 
+    private const byte LIGHT_PLAIN_ALT = 0;
+    private const byte LIGHT_EW_SMOOTH = 1;
+    private const byte LIGHT_NS_SMOOTH = 2;
+    private const byte LIGHT_RADIAL = 3;
+    
     public int unfilteredChunkIndex;
 
     [WriteOnly] public EntityCommandBuffer.ParallelWriter CommandBuffer;
@@ -114,9 +121,11 @@ namespace SS.System {
           if (steps < NUM_LIGHT_STEPS) {
             triggerable.ActionParam2 |= ++steps << 16;
 
-            var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime);
-            var timeStamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + (TimeUtils.CIT_CYCLE >> 4))) + 1);
-
+            var gameTicks = TimeUtils.SecondsToFastTicks(TimeData.ElapsedTime); // TODO player gametime
+            var timeStamp = (ushort)(TimeUtils.FastTicksToTimestamp((uint)(gameTicks + LIGHT_TICKS)) + 1);
+  
+            Debug.Log($"Schedule Light cts:{TimeUtils.SecondsToTimestamp(TimeData.ElapsedTime)} sts:{timeStamp} s:{triggerable.Link.ObjectIndex}");
+            
             var scheduleEvent = new ScheduleEvent {
               Timestamp = timeStamp,
               Type = EventType.Trap
@@ -126,7 +135,7 @@ namespace SS.System {
               SourceObjectIndex = (short)triggerable.Link.ObjectIndex
             };
 
-            // Debug.Log($"Schedule Light steps:{steps} t:{trigger.ActionParam1 & 0xFFF} s:{trigger.Link.ObjectIndex}");
+            // Debug.Log($"Schedule Light steps:{steps} t:{triggerable.ActionParam1 & 0xFFF} s:{triggerable.Link.ObjectIndex}");
 
             var eventEntity = CommandBuffer.CreateEntity(unfilteredChunkIndex, TriggerEventArchetype);
             CommandBuffer.SetComponent(unfilteredChunkIndex, eventEntity, scheduleEvent);
@@ -217,12 +226,12 @@ namespace SS.System {
       // Debug.Log($"changeLighting ls:{lightState} lt:{actionParam3} tt:{transitionType} ns:{numSteps}");
 
       int2 rectMin, rectMax;
-      if (actionParam3 == 3) { // Radial
+      if (actionParam3 == LIGHT_RADIAL) {
         short radius = QuestDataParse((ushort)(actionParam1 & 0xFFFF));
         rectMin = int2(instance.Location.TileX - radius, instance.Location.TileY - radius);
         rectMax = int2(instance.Location.TileX + radius, instance.Location.TileY + radius);
       } else {
-        if (values[0] > 0x0F || values[1] > 0x0F || values[2] > 0x0F || values[3] > 0x0F) return;
+        if (values[0] > MAX_LIGHT_VAL || values[1] > MAX_LIGHT_VAL || values[2] > MAX_LIGHT_VAL || values[3] > MAX_LIGHT_VAL) return;
 
         var firstObjID = QuestDataParse((ushort)(actionParam1 & 0xFFFF));
         var secondObjID = QuestDataParse((ushort)(actionParam1 >> 16));
@@ -239,7 +248,7 @@ namespace SS.System {
         rectMax = int2(max(firstObj.Location.TileX, secondObj.Location.TileX), max(firstObj.Location.TileY, secondObj.Location.TileY));
       }
 
-      if (numSteps == -1 || numSteps == NUM_LIGHT_STEPS) { // Toggle state if done transitioning
+      if (numSteps is -1 or NUM_LIGHT_STEPS) { // Toggle state if done transitioning
         if (lightState == 0)
           triggerable.ActionParam2 |= 0x10000000;
         else
@@ -248,8 +257,7 @@ namespace SS.System {
 
       byte startShade;
       byte endShade;
-      byte deltaShade;
-      if (actionParam3 == 0) { // All tiles are the same
+      if (actionParam3 == LIGHT_PLAIN_ALT) { // All tiles are the same
         startShade = lightState != 0 ? values[0] : values[1];
         endShade = lightState != 0 ? values[1] : values[0];
 
@@ -257,8 +265,6 @@ namespace SS.System {
 
         if (numSteps is >= 0 and < NUM_LIGHT_STEPS)
           startShade -= (byte)(((startShade - endShade) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
-
-        deltaShade = 0;
       } else {
         startShade = lightState != 0 ? values[0] : values[2];
         var startShadeEnd = lightState != 0 ? values[2] : values[0];
@@ -270,15 +276,14 @@ namespace SS.System {
           startShade -= (byte)(((startShade - startShadeEnd) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
           endShade -= (byte)(((endShade - endShadeEnd) * (NUM_LIGHT_STEPS - numSteps)) / NUM_LIGHT_STEPS);
         }
-
-        deltaShade = actionParam3 switch {
-          // EW Smooth
-          1 => (byte)((endShade - startShade) / (rectMax.x - rectMin.x)),
-          // NS Smooth
-          2 => (byte)((endShade - startShade) / (rectMax.y - rectMin.y)),
-          _ => (byte)(endShade - startShade)
-        };
       }
+      
+      byte deltaShade = actionParam3 switch {
+        LIGHT_PLAIN_ALT => 0,
+        LIGHT_EW_SMOOTH => (byte)((endShade - startShade) / (rectMax.x - rectMin.x)),
+        LIGHT_NS_SMOOTH => (byte)((endShade - startShade) / (rectMax.y - rectMin.y)),
+        _ => (byte)(endShade - startShade)
+      };
 
       var tempLight = startShade;
       for (var y = rectMin.y; y <= rectMax.y; ++y) {
@@ -286,12 +291,14 @@ namespace SS.System {
           var mapEntity = TileMapBlobAsset.Value[y * LevelInfo.Width + x];
           var mapElement = MapElementLookupRW[mapEntity];
 
-          if (actionParam3 == 3) { // Radial
+          if (actionParam3 == LIGHT_RADIAL) { // Radial
             var delta = length(float2(
               (x << 8 - instance.Location.X) / 255f,
               (y << 8 - instance.Location.Y) / 255f
             ));
-            var radius = (float)(actionParam1 & 0xFFFF);
+            
+            short radius = QuestDataParse((ushort)(actionParam1 & 0xFFFF));
+            
             if (delta <= radius)
               tempLight = (byte)(startShade + (delta / radius) * deltaShade);
             else
@@ -299,7 +306,7 @@ namespace SS.System {
 
             if (tempLight > MAX_LIGHT_VAL)
               tempLight = MAX_LIGHT_VAL;
-          } else if (actionParam3 == 1) { // EW Smooth
+          } else if (actionParam3 == LIGHT_EW_SMOOTH) { // EW Smooth
             if (x == rectMax.x - 1) // end
               tempLight = endShade;
             else
@@ -318,9 +325,9 @@ namespace SS.System {
           CommandBuffer.AddComponent<LightmapRebuildTag>(unfilteredChunkIndex, mapEntity);
         }
 
-        if (actionParam3 == 1) { // EW Smooth
+        if (actionParam3 == LIGHT_EW_SMOOTH) { // EW Smooth
           tempLight = startShade;
-        } else if (actionParam3 == 2) { // NS Smooth
+        } else if (actionParam3 == LIGHT_NS_SMOOTH) { // NS Smooth
           if (y == rectMax.y - 1)
             tempLight = endShade;
           else
