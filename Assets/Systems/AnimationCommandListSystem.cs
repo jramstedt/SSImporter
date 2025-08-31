@@ -44,7 +44,7 @@ namespace SS.System {
 
         // Debug.Log($"<color=magenta> AnimationCommandListSystem OnUpdate Schedule {stream.ForEachCount}");
       
-        state.Dependency = processAnimationCommands.Schedule(stream.ForEachCount, state.Dependency);
+        state.Dependency = processAnimationCommands.ScheduleByRef(stream.ForEachCount, state.Dependency);
       }
       
       // Prepare for next frame.
@@ -115,8 +115,8 @@ namespace SS.System {
         if (animationIndex < Animations.Length)
           Animations.RemoveAtSwapBack(animationIndex);
       }
-      
-      public static int IsAnimated(ushort objectIndex, in NativeArray<AnimationData>.ReadOnly animationData) {
+
+      private static int IsAnimated(ushort objectIndex, in NativeArray<AnimationData>.ReadOnly animationData) {
         var index = 0;
         for (; index < animationData.Length; ++index)
           if (animationData[index].ObjectIndex == objectIndex) return index;

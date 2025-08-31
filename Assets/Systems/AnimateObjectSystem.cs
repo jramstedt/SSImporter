@@ -100,13 +100,14 @@ namespace SS.System {
       
       var callbackList = new NativeList<byte>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
       var removedList = new NativeList<ushort>(MAX_ANIMLIST_SIZE, Allocator.TempJob);
-      
-      Dependency = new AnimateAnimatingJob {
+
+      var animateAnimatingJob = new AnimateAnimatingJob {
         ObjectPropertiesBlobAsset = objectProperties.ObjectDatasBlobAsset,
         TimeData = SystemAPI.Time,
-      }.Schedule(Dependency);
+      };
+      Dependency = animateAnimatingJob.ScheduleParallelByRef(Dependency);
 
-      Dependency = new AnimateAnimationJob {
+      var animateAnimationJob = new AnimateAnimationJob {
         ObjectInstancesRO = level.ObjectInstances.AsReadOnly(),
         ObjectPropertiesBlobAsset = objectProperties.ObjectDatasBlobAsset,
 
@@ -126,9 +127,11 @@ namespace SS.System {
 
         CallbackOut = callbackList.AsParallelWriter(),
         RemoveOut = removedList.AsParallelWriter()
-      }.Schedule(level.Animations.Length, Dependency);
+      };
       
-      Dependency = new ProcessCallbacksJob() {
+      Dependency = animateAnimationJob.ScheduleByRef(level.Animations.Length, Dependency);
+      
+      var processCallbacksJob = new ProcessCallbacksJob() {
         Processor = new TriggerProcessor {
           CommandBuffer = processorCommandBuffer.AsParallelWriter(),
           TriggerEventArchetype = triggerEventArchetype,
@@ -160,7 +163,9 @@ namespace SS.System {
         
         Callback = callbackList.AsDeferredJobArray(),
         Remove = removedList.AsDeferredJobArray()
-      }.Schedule(Dependency);
+      };
+      
+      Dependency = processCallbacksJob.ScheduleByRef(Dependency);
 
       callbackList.Dispose(Dependency);
       removedList.Dispose(Dependency);
@@ -219,7 +224,7 @@ namespace SS.System {
     }
     
     [BurstCompile]
-    struct AnimateAnimationJob : IJobFor {
+    private struct AnimateAnimationJob : IJobFor {
       [ReadOnly] public NativeArray<Entity>.ReadOnly ObjectInstancesRO;
       [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectPropertiesBlobAsset;
 

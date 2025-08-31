@@ -41,7 +41,7 @@ namespace SS.System {
       var commandBuffer = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
       var level = SystemAPI.GetSingleton<Level>();
-
+      
       entityTypeHandle.Update(ref state);
       scheduleEventTypeHandleRO.Update(ref state);
       objectInstanceLookupRO.Update(ref state);
@@ -61,9 +61,9 @@ namespace SS.System {
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      state.Dependency = schedulerJob.ScheduleParallel(eventQuery, state.Dependency);
+      state.Dependency = schedulerJob.ScheduleParallelByRef(eventQuery, state.Dependency);
       
-      Debug.Log($"Scheduler run ts:{TimeUtils.SecondsToTimestamp(SystemAPI.Time.ElapsedTime)}");
+      // Debug.Log($"Scheduler run ts:{TimeUtils.SecondsToTimestamp(SystemAPI.Time.ElapsedTime)}");
     }
 
     [BurstCompile]
@@ -85,7 +85,7 @@ namespace SS.System {
         var scheduleEvents = chunk.GetNativeArray(ref ScheduleEventTypeHandleRO);
 
         var timestamp = TimeUtils.SecondsToTimestamp(TimeData.ElapsedTime); // TODO player gametime
-
+        
         for (int i = 0; i < chunk.Count; ++i) {
           var entity = entities[i];
           var scheduleEvent = scheduleEvents[i];

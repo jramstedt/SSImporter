@@ -1,12 +1,14 @@
 using System;
 using System.Runtime.InteropServices;
 using SS.System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 namespace SS.Resources {
+  [BurstCompile]
   public struct Level : IComponentData {
     public byte Id;
     public TextureMap TextureMap;
@@ -16,6 +18,19 @@ namespace SS.Resources {
     public NativeArray<Entity> SurveillanceCameras;
     public NativeArray<ObjectReference> ObjectReferences;
     public NativeList<AnimationData> Animations;
+
+    public readonly ushort GetObjectIndex(in ObjectInstance instanceData) {
+      return ObjectReferences[instanceData.CrossReferenceTableIndex].ObjectIndex;
+    }
+    
+    [BurstCompile]
+    public readonly bool IsAnimated(in ObjectInstance instanceData) {
+      var objectIndex = GetObjectIndex(instanceData);
+      for (var index = 0; index < Animations.Length; ++index)
+        if (Animations[index].ObjectIndex == objectIndex) return true;
+
+      return false;
+    }
   }
 
   public struct TileLocation : IComponentData {

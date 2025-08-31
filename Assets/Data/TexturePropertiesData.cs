@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace SS.Resources {
   [StructLayout(LayoutKind.Sequential, Pack = 1)]
   public struct TexturePropertiesData {
-    public const int Version = 9;
+    private const int VERSION = 9;
 
     private readonly int version;
 

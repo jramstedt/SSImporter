@@ -1,7 +1,6 @@
 using System;
 using SS.ObjectProperties;
 using SS.Resources;
-using SS.System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -40,9 +39,8 @@ namespace SS {
       in Base baseProperties,
       in ObjectInstance instanceData,
       in Level level,
-      in ComponentLookup<ObjectInstance> instanceLookupRO,
-      in ComponentLookup<ObjectInstance.Decoration> decorationLookupRO,
-      in bool isAnimating
+      ref ComponentLookup<ObjectInstance> instanceLookupRO,
+      ref ComponentLookup<ObjectInstance.Decoration> decorationLookupRO
     ) {
 
       var textureData = 0;
@@ -63,7 +61,7 @@ namespace SS {
         const int INDIRECTED_STUFF_INDICATOR_MASK = 0x1000;
         const int INDIRECTED_STUFF_DATA_MASK = 0xFFF;
 
-        if (data != 0 || isAnimating) {
+        if (data != 0 || level.IsAnimated(instanceData)) {
           if ((data & INDIRECTED_STUFF_INDICATOR_MASK) != 0) {
             var dataEntity = level.ObjectInstances[(int)data & INDIRECTED_STUFF_DATA_MASK];
             var databObjectInstance = instanceLookupRO.GetRefRO(dataEntity).ValueRO;
@@ -87,14 +85,6 @@ namespace SS {
       }
 
       return textureData;
-    }
-
-    [BurstCompile]
-    public static bool IsAnimated(ushort objectIndex, in NativeArray<AnimationData>.ReadOnly animationData) {
-      for (var index = 0; index < animationData.Length; ++index)
-        if (animationData[index].ObjectIndex == objectIndex) return true;
-
-      return false;
     }
     
     public static TextureSet CreateTexture(string name, int width, int height, bool transparent = false) {
@@ -160,7 +150,7 @@ namespace SS {
         for (int y = 0; y < bitmap.Height; ++y) {
           for (int x = 0; x < bitmap.Width; ++x) {
             byte paletteIndex = pixelData[((lastY - y) * bitmap.Width) + x];
-            textureData[pixelIndex++] = new Color32(paletteIndex, paletteIndex, paletteIndex, (byte)0xFF);
+            textureData[pixelIndex++] = new Color32(paletteIndex, paletteIndex, paletteIndex, 0xFF);
           }
         }
 

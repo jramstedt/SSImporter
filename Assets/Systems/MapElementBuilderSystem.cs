@@ -136,7 +136,7 @@ namespace SS.System {
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      Dependency = cleanJob.ScheduleParallel(partQuery, Dependency);
+      Dependency = cleanJob.ScheduleParallelByRef(partQuery, Dependency);
       #endregion
 
       #region Build new view parts
@@ -159,7 +159,7 @@ namespace SS.System {
         colliderArray = colliderArray,
       };
 
-      Dependency = buildJob.ScheduleParallel(mapElementQuery, baseIndexJobHandle);
+      Dependency = buildJob.ScheduleParallelByRef(mapElementQuery, baseIndexJobHandle);
 
       commandBuffer.RemoveComponent<MapElementRebuildTag>(mapElementQuery, EntityQueryCaptureMode.AtPlayback);
       #endregion

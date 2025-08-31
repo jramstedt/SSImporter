@@ -66,7 +66,7 @@ namespace SS.System {
         CommandBuffer = commandBuffer.AsParallelWriter()
       };
 
-      state.Dependency = checkNearbyJob.ScheduleParallel(objectQuery, state.Dependency);
+      state.Dependency = checkNearbyJob.ScheduleParallelByRef(objectQuery, state.Dependency);
     }
     
     [BurstCompile]

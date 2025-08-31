@@ -149,7 +149,7 @@ namespace SS.System {
         TriggerLevelEnter = triggerLevelEnter
       };
 
-      state.Dependency = triggerJob.ScheduleParallel(triggerQuery, state.Dependency);
+      state.Dependency = triggerJob.ScheduleParallelByRef(triggerQuery, state.Dependency);
       
       if (triggerLevelEnter) LevelEnterProcessed = true;
       if (triggerContinuous) NextContinuousTrigger = SystemAPI.Time.ElapsedTime + NextContinuousSeconds;

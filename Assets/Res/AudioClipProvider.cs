@@ -12,14 +12,12 @@ namespace SS.Resources {
     private class AudioClipLoader : LoaderBase<AudioClip> {
 
       [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
-      private struct ParallelConvert : IJobParallelForBatch {
+      private struct ParallelConvert : IJobFor {
         [ReadOnly] public NativeArray<byte>.ReadOnly wavData;
         [WriteOnly] public NativeArray<float> result;
 
-        public void Execute(int startIndex, int count) {
-          int lastIndex = startIndex + count;
-          for (int index = startIndex; index < lastIndex; ++index)
-            result[index] = (0x80 - wavData[index]) / 128.0f;
+        public void Execute(int index) {
+          result[index] = (0x80 - wavData[index]) / 128.0f;
         }
       }
 
@@ -49,7 +47,7 @@ namespace SS.Resources {
           wavData = wavData.AsReadOnly(),
           result = result,
         };
-        var jobHandle = convertJob.ScheduleBatch(result.Length, 64);
+        var jobHandle = convertJob.ScheduleParallelByRef(result.Length, 64, default);
         wavData.Dispose(jobHandle);
 
         AudioClip audioClip = AudioClip.Create($"{resInfo.info.Id:X4}:{blockIndex:X4}", result.Length, sfx.ChannelCount, sfx.SampleRate, false);

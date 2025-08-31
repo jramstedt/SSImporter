@@ -20,7 +20,7 @@ namespace SS.System {
   [BurstCompile]
   [CreateAfter(typeof(MaterialProviderSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
-  public partial class MeshInterpeterSystem : SystemBase {
+  public partial class MeshInterpreterSystem : SystemBase {
 
     private EntityQuery newMeshQuery;
     private EntityQuery activeMeshQuery;

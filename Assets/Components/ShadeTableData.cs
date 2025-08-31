@@ -6,7 +6,7 @@ namespace SS.Resources {
     private unsafe fixed byte paletteIndex[256 * 16];
 
     public unsafe byte this[int index] {
-      get => paletteIndex[index];
+      readonly get => paletteIndex[index];
       set => paletteIndex[index] = value;
     }
   }

@@ -50,7 +50,7 @@ namespace SS.System {
         timeData = SystemAPI.Time
       };
 
-      Dependency = animateTexturesJob.ScheduleParallel(textureAnimationQuery, Dependency);
+      Dependency = animateTexturesJob.ScheduleParallelByRef(textureAnimationQuery, Dependency);
 
       CompleteDependency();
 
@@ -81,7 +81,7 @@ namespace SS.System {
         var materialID = materialProviderSystem.GetTextureMaterial(textureIndex);
         var material = entitiesGraphicsSystem.GetMaterial(materialID);
 
-        material.SetTexture(MaterialProviderSystem.shaderTextureName, newBitmapSet.Texture);
+        material.SetTexture(MaterialProviderSystem.ShaderTexture, newBitmapSet.Texture);
 
         if (newBitmapSet.Description.Transparent)
           material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
@@ -91,7 +91,7 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct AnimateTexturesJob : IJobChunk {
+    private struct AnimateTexturesJob : IJobChunk {
       public ComponentTypeHandle<TextureAnimationData> textureAnimationTypeHandleRW;
 
       [ReadOnly] public TimeData timeData;

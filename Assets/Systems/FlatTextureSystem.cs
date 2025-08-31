@@ -163,11 +163,11 @@ namespace SS.System {
           entity,
           instanceData,
           level,
-          instanceLookupRO,
-          decorationLookupRO,
-          doorLookupRO,
-          enemyLookupRO,
           false,
+          ref instanceLookupRO,
+          ref decorationLookupRO,
+          ref doorLookupRO,
+          ref enemyLookupRO,
           out var refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {

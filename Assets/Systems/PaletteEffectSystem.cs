@@ -46,7 +46,7 @@ namespace SS.System {
         palette = palette,
         deltaTicks = delta
       };
-      Dependency = effectJob.ScheduleParallel(paletteEffectQuery, Dependency);
+      Dependency = effectJob.ScheduleParallelByRef(paletteEffectQuery, Dependency);
 
       var textureData = clut.GetRawTextureData<Color32>();
       var fillClutJob = new FillClutJob {
@@ -54,7 +54,7 @@ namespace SS.System {
         shadeTable = shadeTable,
         textureData = textureData
       };
-      Dependency = fillClutJob.Schedule(textureData.Length, 256, Dependency);
+      Dependency = fillClutJob.ScheduleParallelByRef(textureData.Length, 256, Dependency);
 
       CompleteDependency();
       clut.Apply(false, false);
@@ -99,7 +99,7 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    struct FillClutJob : IJobParallelFor {
+    private struct FillClutJob : IJobFor {
       [ReadOnly] public NativeArray<Color32> palette;
       [ReadOnly] public ShadeTableData shadeTable;
       [WriteOnly] public NativeArray<Color32> textureData;

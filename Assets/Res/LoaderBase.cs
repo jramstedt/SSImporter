@@ -50,8 +50,8 @@ namespace SS.Resources {
     }
   }
 
-  public class PickResultLoader<T, K> : LoaderBase<T> {
-    public PickResultLoader(IResHandle<K> loadOp, Func<K, T> pickResult) {
+  public class PickResultLoader<T, TK> : LoaderBase<T> {
+    public PickResultLoader(IResHandle<TK> loadOp, Func<TK, T> pickResult) {
       loadOp.Completed += op => {
         try {
           InvokeCompletionEvent(pickResult(op.Result));

@@ -21,7 +21,10 @@ namespace SS.System {
   [CreateAfter(typeof(EntitiesGraphicsSystem))]
   [UpdateInGroup(typeof(InitializationSystemGroup))]
   public partial class MaterialProviderSystem : SystemBase {
-    public static readonly int shaderTextureName = Shader.PropertyToID(@"_Texture");
+    public static readonly int ShaderTexture = Shader.PropertyToID(@"_Texture");
+    private static readonly int ShaderOpacity = Shader.PropertyToID(@"_Opacity");
+    private static readonly int ShaderPurity = Shader.PropertyToID(@"_Purity");
+    private static readonly int ShaderColor = Shader.PropertyToID(@"_Color");
 
     private NativeParallelHashMap<byte, (float opacity, float purity, Color32 color)> translucencyTable;
 
@@ -103,7 +106,7 @@ namespace SS.System {
       {
         var noiseBitmapSet = CreateTexture(@"Noise", 32, 32);
         Material noiseMaterial = new(clutMaterialTemplate);
-        noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
+        noiseMaterial.SetTexture(ShaderTexture, noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
@@ -111,7 +114,7 @@ namespace SS.System {
         textureSetLoaders.Add(noiseMaterialID, new CompletedLoader<TextureSet>(noiseBitmapSet));
 
         noiseMaterial = new(clutDecalMaterialTemplate);
-        noiseMaterial.SetTexture(shaderTextureName, noiseBitmapSet.Texture);
+        noiseMaterial.SetTexture(ShaderTexture, noiseBitmapSet.Texture);
         noiseMaterial.DisableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
         noiseMaterial.DisableKeyword(@"_LIGHTGRID");
 
@@ -252,7 +255,7 @@ namespace SS.System {
             Randoms = randoms
           };
 
-          Dependency = fillStaticTextureJob.ScheduleBatch(noiseTextureData.Length, 32, Dependency);
+          Dependency = fillStaticTextureJob.ScheduleBatchByRef(noiseTextureData.Length, 32, Dependency);
 
           CompleteDependency();
 
@@ -309,7 +312,7 @@ namespace SS.System {
 
       if (cameraMaterials.TryAdd((cameraIndex, lightmapped, decal), batchMaterialID)) {
         var cameraTexture = cameraTextureSets[cameraIndex].Texture;
-        material.SetTexture(shaderTextureName, cameraTexture);
+        material.SetTexture(ShaderTexture, cameraTexture);
         return batchMaterialID;
       }
 
@@ -396,13 +399,13 @@ namespace SS.System {
       Material material = new(translucencyMaterialTemplate);
 
       if (translucencyTable.TryGetValue(colorIndex, out var attributes)) {
-        material.SetFloat(@"_Opacity", attributes.opacity);
-        material.SetFloat(@"_Purity", attributes.purity);
-        material.SetColor(@"_Color", attributes.color);
+        material.SetFloat(ShaderOpacity, attributes.opacity);
+        material.SetFloat(ShaderPurity, attributes.purity);
+        material.SetColor(ShaderColor, attributes.color);
       } else {
-        material.SetFloat(@"_Opacity", 1f);
-        material.SetFloat(@"_Purity", 0f);
-        material.SetColor(@"_Color", new Color32(128, 128, 128, 0)); // TODO clut lookup colorIndex
+        material.SetFloat(ShaderOpacity, 1f);
+        material.SetFloat(ShaderPurity, 0f);
+        material.SetColor(ShaderColor, new Color32(128, 128, 128, 0)); // TODO clut lookup colorIndex
       }
 
       /*
@@ -432,7 +435,7 @@ namespace SS.System {
       bitmapSet.Texture.wrapMode = wrapMode;
       
       var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
-      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+      material.SetTexture(ShaderTexture, bitmapSet.Texture);
 
       if (bitmapSet.Description.Transparent)
         material.EnableKeyword(ShaderKeywordStrings._ALPHATEST_ON);
@@ -456,7 +459,7 @@ namespace SS.System {
       }
 
       var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
-      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+      material.SetTexture(ShaderTexture, bitmapSet.Texture);
 
       var fontSet = await Res.Load<FontSet>(fontRes);
 
@@ -504,7 +507,7 @@ namespace SS.System {
       }
 
       var material = entitiesGraphicsSystem.GetMaterial(batchMaterialID);
-      material.SetTexture(shaderTextureName, bitmapSet.Texture);
+      material.SetTexture(ShaderTexture, bitmapSet.Texture);
 
       var fontSet = await Res.Load<FontSet>(fontRes);
 
@@ -593,11 +596,11 @@ namespace SS.System {
       in Entity entity,
       in ObjectInstance instanceData,
       in Level level,
-      in ComponentLookup<ObjectInstance> instanceLookup,
-      in ComponentLookup<ObjectInstance.Decoration> decorationLookup,
-      in ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
-      in ComponentLookup<ObjectInstance.Enemy> enemyLookup,
       in bool decal,
+      ref ComponentLookup<ObjectInstance> instanceLookup,
+      ref ComponentLookup<ObjectInstance.Decoration> decorationLookup,
+      ref ComponentLookup<ObjectInstance.DoorAndGrating> doorLookup,
+      ref ComponentLookup<ObjectInstance.Enemy> enemyLookup,
       out ushort refWidthOverride
     ) {
       var baseProperties = objectProperties.BasePropertyData(instanceData);
@@ -609,8 +612,7 @@ namespace SS.System {
 
         if (instanceData.Class == ObjectClass.Decoration) {
           var decorationData = decorationLookup.GetRefRO(entity).ValueRO; // TODO FIXME this is also called in CalculateTextureData
-          var isAnimating = IsAnimated(decorationData.Link.ObjectIndex, level.Animations.AsReadOnly());
-          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, isAnimating);
+          var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, ref instanceLookup, ref decorationLookup);
 
           if (instanceData.Triple == 0x70207) { // TMAP_TRIPLE
             refWidthOverride = 128;
@@ -725,7 +727,7 @@ namespace SS.System {
           return GetMaterial((ushort)(resBase + directionBase + (int)direction), frame, true, false, true);
         }
         
-        var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, instanceLookup, decorationLookup, false);
+        var textureData = CalculateTextureData(entity, baseProperties, instanceData, level, ref instanceLookup, ref decorationLookup);
         return ParseTextureData(textureData + (int)direction, true, decal, out var textureType, out var scale);
       }
 

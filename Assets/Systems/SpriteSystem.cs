@@ -205,7 +205,10 @@ namespace SS.System {
       if (Camera.main != null) {
         var towardsCameraRotation = Unity.Mathematics.quaternion.LookRotation(Camera.main.transform.forward, Vector3.up);
         localToWorldRO.Update(this);
-        Dependency = new RotateSpritesJob { LocalToWorldRO = localToWorldRO, TowardsCameraRotation = towardsCameraRotation }.ScheduleParallel(Dependency);
+        Dependency = new RotateSpritesJob {
+          LocalToWorldRO = localToWorldRO,
+          TowardsCameraRotation = towardsCameraRotation
+        }.ScheduleParallel(Dependency);
       }
     }
 

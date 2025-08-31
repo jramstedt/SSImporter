@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace SS.System {
   [UpdateBefore(typeof(SpriteSystem))]
-  [UpdateBefore(typeof(MeshInterpeterSystem))]
+  [UpdateBefore(typeof(MeshInterpreterSystem))]
   [UpdateInGroup(typeof(VariableRateSimulationSystemGroup))]
   public partial class CameraSystem : SystemBase {
     protected override void OnCreate() {

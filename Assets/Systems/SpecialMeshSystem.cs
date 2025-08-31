@@ -10,8 +10,6 @@ using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
-using static SS.TextureUtils;
 using static Unity.Mathematics.math;
 using Object = UnityEngine.Object;
 

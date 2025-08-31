@@ -12,7 +12,7 @@ namespace SS.Resources {
         InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      private Palette Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      private static Palette Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
         return resFile.GetResourceData<Palette>(resInfo, blockIndex);
       }
     }
@@ -51,7 +51,7 @@ namespace SS.Resources {
     private unsafe fixed byte rgb[PALETTE_LENGTH]; // RGBRGB...
 
     public unsafe Color32 this[int index] {
-      get {
+      readonly get {
         index *= 3;
 
         if (index > PALETTE_LENGTH)

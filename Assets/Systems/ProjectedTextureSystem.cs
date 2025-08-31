@@ -93,12 +93,12 @@ namespace SS.System {
          entity,
          instanceData,
          level,
-         instanceLookup,
-         decorationLookup,
-         doorLookup,
-         enemyLookup,
          true,
-         out ushort refWidthOverride);
+         ref instanceLookup,
+         ref decorationLookup,
+         ref doorLookup,
+         ref enemyLookup,
+         out var refWidthOverride);
 
         if (materialID == BatchMaterialID.Null) {
           var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
@@ -130,12 +130,12 @@ namespace SS.System {
             entity,
             instanceData,
             level,
-            instanceLookup,
-            decorationLookup,
-            doorLookup,
-            enemyLookup,
             true,
-            out ushort refWidthOverride);
+            ref instanceLookup,
+            ref decorationLookup,
+            ref doorLookup,
+            ref enemyLookup,
+            out var refWidthOverride);
 
           if (materialID == BatchMaterialID.Null) {
             var currentFrame = instanceData.Info.CurrentFrame != -1 ? instanceData.Info.CurrentFrame : 0;
