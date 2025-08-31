@@ -165,7 +165,7 @@
       }
     },
     "com.unity.scriptablebuildpipeline": {
-      "version": "2.3.8",
+      "version": "2.4.1",
       "depth": 2,
       "source": "registry",
       "dependencies": {
@@ -456,6 +456,16 @@
         "com.unity.modules.audio": "1.0.0",
         "com.unity.modules.assetbundle": "1.0.0",
         "com.unity.modules.imageconversion": "1.0.0"
+      }
+    },
+    "com.unity.modules.vectorgraphics": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.modules.uielements": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.imgui": "1.0.0"
       }
     },
     "com.unity.modules.vehicles": {
