@@ -2,6 +2,7 @@ using SS.Resources;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
@@ -30,6 +31,7 @@ namespace SS.System {
 
     private readonly ConcurrentDictionary<Entity, Mesh> entityMeshes = new();
     private NativeHashMap<Entity, BatchMeshID> entityMeshIDs = new(ObjectConstants.NUM_OBJECTS, Allocator.Persistent);
+    private NativeParallelHashMap<uint4, BatchMeshID> hashMeshIDs = new(ObjectConstants.NUM_OBJECTS * 10, Allocator.Persistent);
 
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
     private RenderMeshDescription renderMeshDescription;
@@ -54,7 +56,7 @@ namespace SS.System {
         .Build(this);
 
       activeMeshQuery = new EntityQueryBuilder(Allocator.Temp)
-        .WithAll<MeshInfo, ObjectInstance, LocalToWorld, MeshCachedTag>()
+        .WithAll<MeshInfo, ObjectInstance, LocalToWorld, MeshCachedTag, HashChangedTag>()
         .Build(this);
 
       removedMeshQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -99,7 +101,10 @@ namespace SS.System {
     protected override void OnDestroy() {
       base.OnDestroy();
 
+      // TODO Should deregister meshes and dispose them too?
+      
       entityMeshIDs.Dispose();
+      hashMeshIDs.Dispose();
       vertexAttributes.Dispose();
     }
 
@@ -108,7 +113,7 @@ namespace SS.System {
       var commandBuffer = ecbSystem.CreateCommandBuffer();
 
       var entitiesGraphicsSystem = World.DefaultGameObjectInjectionWorld.GetOrCreateSystemManaged<EntitiesGraphicsSystem>();
-
+      
       #region Cache mesh of new entities
       /*
       var addMeshToCacheJob = new AddMeshToCacheJob() {
@@ -125,6 +130,7 @@ namespace SS.System {
         mesh.MarkDynamic();
         if (entityMeshes.TryAdd(entity, mesh) && entityMeshIDs.TryAdd(entity, entitiesGraphicsSystem.RegisterMesh(mesh))) {
           commandBuffer.AddComponent<MeshCachedTag>(entity);
+          commandBuffer.AddComponent<HashChangedTag>(entity);
         } else {
           entityMeshes.Remove(entity, out Mesh tmp);
           entityMeshIDs.Remove(entity);
@@ -133,75 +139,89 @@ namespace SS.System {
       }
       #endregion
       
+      var cameraWorldPosition = Camera.main?.transform.position ?? Vector3.zero;
+      
+      // 1. Gather hashes
+      // 2. Compare hashes
+      // 3. Generate meshes (cache new ones) & Update renderers
+
+      #region Gather mesh hashes
+      new CompareHashJob() {
+        CameraWorldPosition = cameraWorldPosition
+      }.ScheduleParallel();
+      #endregion
+      
+      CompleteDependency();
+      
+      // TODO MaterialMeshInfo needs to be updated if materialID changes!
+      
       var entityCount = activeMeshQuery.CalculateEntityCount();
       if (entityCount > 0) {
+        // Debug.Log($"MeshInterpreter c:{entityCount}");
+        
         instanceLookupRO.Update(this);
         decorationLookupRO.Update(this);
         
         var level = SystemAPI.GetSingleton<Level>();
         var entities = activeMeshQuery.ToEntityListAsync(WorldUpdateAllocator, out var entitiesListJobHandle);
-
+        Dependency = JobHandle.CombineDependencies(Dependency, entitiesListJobHandle);
+        
         var meshDataArray = Mesh.AllocateWritableMeshData(entityCount); // No need to dispose
 
-        var textureIds = new NativeArray<ushort>(entityCount * 8, Allocator.TempJob);
-        var textureDatas = new NativeArray<int>(entityCount, Allocator.TempJob);
-
-        var cameraWorldPosition = Camera.main?.transform.position ?? Vector3.zero;
-
-        //var parameterData = (byte*)UnsafeUtility.Malloc(4 * 100, 4, Allocator.Persistent);
-        var parameterData = new NativeArray<byte>(4 * 100, Allocator.TempJob);
-        
-        new BuildMeshJob {
+        var textureDatas = new NativeParallelHashMap<Entity, int>(entityCount, Allocator.TempJob);
+        new UpdateTextureData {
           Level = level,
           InstanceLookupRO = instanceLookupRO,
           DecorationLookupRO = decorationLookupRO,
           
-          ParameterData = parameterData,
+          TextureDatas = textureDatas.AsParallelWriter(),
           
-          TextureIds = textureIds,
-          TextureDatas = textureDatas,
+          ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
+        }.ScheduleParallel(activeMeshQuery);
+        
+        var textureIds = new NativeParallelHashMap<Entity, UnsafeList<ushort>>(entityCount * 8, Allocator.TempJob);
+        new BuildMeshJob {
+          TextureIds = textureIds.AsParallelWriter(),
           
           MeshDataArray = meshDataArray,
           CameraWorldPosition = cameraWorldPosition,
           
           VertexAttributes = vertexAttributes,
           
-          ObjectDatasBlobAsset = objectProperties.ObjectDatasBlobAsset,
-          
           ShadeTable = shadeTable
-        }.ScheduleParallel(activeMeshQuery);
+        }.ScheduleParallel(activeMeshQuery); // NOTE this job disables HashChangedTag
         
-        Dependency = JobHandle.CombineDependencies(Dependency, entitiesListJobHandle);
-        parameterData.Dispose(Dependency);
         CompleteDependency();
 
         // Debug.Log($"textureIdAccumulator {textureIdAccumulator} entities {entityCount} max {textureIds.Length}");
         
         var meshes = new Mesh[entityCount];
-        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
+        for (var entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
           var entity = entities[entityIndex];
 
-          if (entityMeshes.TryGetValue(entity, out meshes[entityIndex]) == false)
+          if (!entityMeshes.TryGetValue(entity, out meshes[entityIndex]))
             throw new Exception(@"No mesh in cache.");
         }
 
         Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshes);
 
-        for (int meshIndex = 0; meshIndex < meshes.Length; ++meshIndex) {
-          var mesh = meshes[meshIndex];
+        foreach (var mesh in meshes) {
           mesh.RecalculateNormals();
-          // mesh.RecalculateTangents();
           mesh.RecalculateBounds();
           mesh.UploadMeshData(false);
         }
-
-        for (int entityIndex = 0; entityIndex < entityCount; ++entityIndex) {
-          var entity = entities[entityIndex];
-
-          if (entityMeshIDs.TryGetValue(entity, out BatchMeshID meshID) == false)
+        
+        foreach (var entity in entities) {
+          if (!entityMeshIDs.TryGetValue(entity, out var meshID))
             continue;
 
-          if (entityMeshes.TryGetValue(entity, out Mesh mesh) == false)
+          if (!entityMeshes.TryGetValue(entity, out var mesh))
+            continue;
+          
+          if (!textureDatas.TryGetValue(entity, out var textureData))
+            continue;
+          
+          if (!textureIds.TryGetValue(entity, out var submeshTextureIds))
             continue;
 
           var childCount = 0;
@@ -212,11 +232,11 @@ namespace SS.System {
             childCount = children.Length;
           }
 
-          var texturedMaterialID = materialProviderSystem.ParseTextureData(textureDatas[entityIndex], true, false, out var textureType, out var scale);
-
+          var texturedMaterialID = materialProviderSystem.ParseTextureData(textureData, true, false, out var textureType, out var scale);
+          
           var submeshCount = mesh.subMeshCount;
           for (ushort submeshIndex = 0; submeshIndex < Mathf.Max(submeshCount, childCount); ++submeshIndex) {
-            var textureId = textureIds[entityIndex * 8 + submeshIndex];
+            var textureId = submeshTextureIds[submeshIndex];
 
             var materialID = textureId switch {
               ushort.MaxValue => materialProviderSystem.ColorMaterialID,
@@ -246,7 +266,7 @@ namespace SS.System {
               var modelPart = EntityManager.CreateEntity(viewPartArchetype); // Sync point
               SystemAPI.SetComponent(modelPart, new Parent { Value = entity });
               SystemAPI.SetComponent(modelPart, LocalTransform.Identity);
-              RenderMeshUtility.AddComponents( // TODO should this be after if (see commented out section)
+              RenderMeshUtility.AddComponents(
                 modelPart,
                 EntityManager,
                 renderMeshDescription,
@@ -257,8 +277,6 @@ namespace SS.System {
                 }
               );
             }
-
-            // commandBuffer.SetSharedComponent(viewPart, sceneTileTag);
           }
         }
 
@@ -274,7 +292,7 @@ namespace SS.System {
         EntityMeshes = entityMeshes,
         EntityMeshIDs = entityMeshIDs
       };
-      Dependency = removeMeshToCacheJob.ScheduleParallel(removedMeshQuery, Dependency);
+      Dependency = removeMeshToCacheJob.ScheduleParallelByRef(removedMeshQuery, Dependency);
     }
 
     private struct AddMeshToCacheJob : IJobChunk {
@@ -321,96 +339,356 @@ namespace SS.System {
     }
 
     [BurstCompile]
-    private partial struct BuildMeshJob : IJobEntity {
+    [WithPresent(typeof(HashChangedTag))]
+    private partial struct CompareHashJob : IJobEntity {
+      [ReadOnly] public float3 CameraWorldPosition;
+      
+      private void Execute(EnabledRefRW<HashChangedTag> hashChanged, in LocalToWorld localToWorld, ref MeshInfo meshInfo) {
+        var xxHash3 = new xxHash3.StreamingState();
+        
+        unsafe {
+          var parameterDataPtr = (byte*)UnsafeUtility.Malloc(4 * 100, UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
+          var bbr = new BufferBinaryReader((byte*)meshInfo.Commands.Value.GetUnsafePtr(), meshInfo.Commands.Value.Length);
+          InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, localToWorld.Value);
+        }
+
+        var hash = xxHash3.DigestHash128();
+        // Debug.Log($"m.vh:{meshInfo.VariantHash} h:{hash}");
+
+        if (meshInfo.VariantHash.Equals(hash)) return;
+        
+        hashChanged.ValueRW = true;
+        meshInfo.VariantHash = hash;
+      }
+      
+      [BurstCompile]
+      private unsafe void InterpreterLoopHash(ref BufferBinaryReader bbr, ref xxHash3.StreamingState xxHash3, byte* parameterDataPtr, float4x4 objectLocalToWorld) {
+        float3 eyePositionLocal = math.transform(math.inverse(objectLocalToWorld), CameraWorldPosition); // Camera position in object space.
+        
+        while (bbr.Position < bbr.Length) {
+          long dataPos = bbr.Position;
+          OpCode command = bbr.Read<OpCode>();
+          
+          xxHash3.Update(command);
+  
+          if (command is OpCode.eof or OpCode.debug) {
+            break;
+          } else if (command == OpCode.jnorm) {
+            ushort skipBytes = bbr.Read<ushort>();
+  
+            float3 normal = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+            float3 point = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+  
+            var viewVec = point - eyePositionLocal;
+  
+            // is normal pointin towards camera?
+            if (math.dot(viewVec, normal) >= 0f) { // Not facing.
+              bbr.Position = dataPos + skipBytes;
+              xxHash3.Update(skipBytes);
+            }
+          } else if (command == OpCode.lnres) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            // draw line a -> b
+          } else if (command == OpCode.multires) {
+            ushort count = bbr.Read<ushort>();
+            bbr.Skip<ushort>();
+  
+            for (ushort i = 0; i < count; ++i) {
+              bbr.SkipFixed1616();
+              bbr.SkipFixed1616();
+              bbr.SkipFixed1616();
+            }
+          } else if (command == OpCode.polyres) {
+            ushort count = bbr.Read<ushort>();
+            while (count-- > 0)
+              bbr.Skip<ushort>();
+          } else if (command == OpCode.setcolor) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.sortnorm) {
+            float3 normal = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+            float3 point = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+  
+            long firstOpcodePosition = dataPos + bbr.Read<ushort>();
+            long secondOpcodePosition = dataPos + bbr.Read<ushort>();
+  
+            long continuePosition = bbr.Position;
+  
+            var viewVec = point - eyePositionLocal;
+  
+            if (math.dot(viewVec, normal) < 0f) { // is normal pointin towards camera?
+              bbr.Position = firstOpcodePosition;
+              xxHash3.Update(firstOpcodePosition);
+              InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, objectLocalToWorld);
+              bbr.Position = secondOpcodePosition;
+              xxHash3.Update(secondOpcodePosition);
+              InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, objectLocalToWorld);
+            } else {
+              bbr.Position = secondOpcodePosition;
+              xxHash3.Update(secondOpcodePosition);
+              InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, objectLocalToWorld);
+              bbr.Position = firstOpcodePosition;
+              xxHash3.Update(firstOpcodePosition);
+              InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, objectLocalToWorld);
+            }
+  
+            bbr.Position = continuePosition;
+          } else if (command == OpCode.setshade) {
+            ushort count = bbr.Read<ushort>();
+            while (count-- > 0) {
+              bbr.Skip<ushort>();
+              bbr.Skip<ushort>();
+            }
+          } else if (command == OpCode.goursurf) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.x_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.y_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.z_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.xy_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.xz_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.yz_rel) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.icall_p) {
+            long nextOpcode = dataPos + bbr.Read<uint>();
+  
+            float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateX(angle), float4x4.Translate(subObjectPosition)));
+  
+            var continuePosition = bbr.Position;
+            bbr.Position = nextOpcode;
+            xxHash3.Update(nextOpcode);
+            InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, subobjectLocalToWorld);
+  
+            bbr.Position = continuePosition;
+          } else if (command == OpCode.icall_b) {
+            long nextOpcode = dataPos + bbr.Read<uint>();
+  
+            float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateZ(angle), float4x4.Translate(subObjectPosition)));
+  
+            var continuePosition = bbr.Position;
+            bbr.Position = nextOpcode;
+            xxHash3.Update(nextOpcode);
+            InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, subobjectLocalToWorld);
+  
+            bbr.Position = continuePosition;
+          } else if (command == OpCode.icall_h) {
+            long nextOpcode = dataPos + bbr.Read<uint>();
+  
+            float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateY(angle), float4x4.Translate(subObjectPosition)));
+  
+            var continuePosition = bbr.Position;
+            bbr.Position = nextOpcode;
+            xxHash3.Update(nextOpcode);
+            InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, subobjectLocalToWorld);
+  
+            bbr.Position = continuePosition;
+          } else if (command == OpCode.sfcal) {
+            long nextOpcode = dataPos + bbr.Read<ushort>();
+            
+            var continuePosition = bbr.Position;
+            bbr.Position = nextOpcode;
+            xxHash3.Update(nextOpcode);
+            InterpreterLoopHash(ref bbr, ref xxHash3, parameterDataPtr, objectLocalToWorld);
+            
+            bbr.Position = continuePosition;
+          } else if (command == OpCode.defres) {
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.defres_i) {
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getparms) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getparms_i) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.gour_p) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.gour_vc) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getvcolor) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getvscolor) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.rgbshades) {
+            ushort count = bbr.Read<ushort>();
+            while (count-- > 0) {
+              bbr.Skip<ushort>();
+              bbr.Skip<uint>();
+              bbr.Position += 4;
+            }
+          } else if (command == OpCode.draw_mode) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getpcolor) {
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.getpscolor) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.scaleres) {
+            break;
+          } else if (command == OpCode.vpnt_p) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.vpnt_v) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          } else if (command == OpCode.setuv) {
+            bbr.Skip<ushort>();
+            bbr.SkipFixed1616();
+            bbr.SkipFixed1616();
+          } else if (command == OpCode.uvlist) {
+            ushort count = bbr.Read<ushort>();
+            while (count-- > 0) {
+              bbr.Skip<ushort>();
+              bbr.SkipFixed1616();
+              bbr.SkipFixed1616();
+            }
+          } else if (command == OpCode.tmap) {
+            bbr.Skip<ushort>();
+            ushort vertexCount = bbr.Read<ushort>();
+            for (int i = 0; i < vertexCount; ++i)
+              bbr.Skip<ushort>();
+          } else if (command == OpCode.dbg) {
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+            bbr.Skip<ushort>();
+          }
+        }
+      }
+    }
+
+    [BurstCompile]
+    private partial struct UpdateTextureData : IJobEntity {
       [ReadOnly] public Level Level;
+            
       [ReadOnly] public ComponentLookup<ObjectInstance> InstanceLookupRO;
       [ReadOnly] public ComponentLookup<ObjectInstance.Decoration> DecorationLookupRO;
       
-      [ReadOnly] public NativeArray<byte> ParameterData; // TODO Should be per mesh, not per job!
+      [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectDatasBlobAsset;
+      
+      [WriteOnly] public NativeParallelHashMap<Entity, int>.ParallelWriter TextureDatas;
+      
+      private void Execute(Entity entity, in ObjectInstance instanceData) {
+        var baseProperties = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
 
-      [NativeDisableParallelForRestriction, WriteOnly] public NativeArray<ushort> TextureIds;
-      [NativeDisableParallelForRestriction, WriteOnly] public NativeArray<int> TextureDatas;
+        // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
 
+        TextureDatas.TryAdd(entity, CalculateTextureData(entity, baseProperties, instanceData, Level, ref InstanceLookupRO, ref DecorationLookupRO));
+      }
+    }
+    
+    [BurstCompile]
+    private partial struct BuildMeshJob : IJobEntity {
+      [WriteOnly] public NativeParallelHashMap<Entity, UnsafeList<ushort>>.ParallelWriter TextureIds;
+      
       public Mesh.MeshDataArray MeshDataArray;
       [ReadOnly] public float3 CameraWorldPosition;
       
       [ReadOnly] public NativeArray<VertexAttributeDescriptor> VertexAttributes;
       
-      [ReadOnly] public BlobAssetReference<ObjectPropertiesBlob> ObjectDatasBlobAsset;
-      
       [ReadOnly] public ShadeTableData ShadeTable;
       
-      private struct BuildContext {
+      private unsafe struct BuildContext {
         public DrawState drawState;
         public NativeParallelMultiHashMap<ushort, ushort> subMeshIndices;
         public NativeList<Vertex> subMeshVertices;
         public NativeArray<VertexState> vertexBuffer;
         public NativeArray<byte> vertexColor;
+        public byte* parameterDataPtr;
       }
       
-      private void Execute([EntityIndexInQuery] int entityIndexInQuery, Entity entity, in ObjectInstance instanceData, in MeshInfo meshInfo, in LocalToWorld localToWorld) {
+      private void Execute([EntityIndexInQuery] int entityIndexInQuery, EnabledRefRW<HashChangedTag> hashChanged, Entity entity, in ObjectInstance instanceData, in MeshInfo meshInfo, in LocalToWorld localToWorld) {
         #region Interpret, copy vertices and reorder indices, assing texture ids to submeshes
-        {
-          var buildContext = new BuildContext {
-            drawState = default,
-            subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp),
-            subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp),
-            vertexBuffer = new NativeArray<VertexState>(512, Allocator.Temp),
-            vertexColor = new NativeArray<byte>(32, Allocator.Temp)
-          };
-          
-          unsafe {
-            BufferBinaryReader bbr = new BufferBinaryReader((byte*)meshInfo.Commands.Value.GetUnsafePtr(), meshInfo.Commands.Value.Length);
-            InterpreterLoop(ref bbr, ref buildContext, localToWorld.Value);
-          }
-
-          ref var subMeshIndices = ref buildContext.subMeshIndices;
-          ref var subMeshVertices = ref buildContext.subMeshVertices;
-          
-          var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
-          var totalVertexCount = subMeshVertices.Length;
-          var totalIndexCount = subMeshIndices.Count();
-
-          // Debug.Log($"totalVertexCount {submeshCount} {totalVertexCount}");
-
-          var meshData = MeshDataArray[entityIndexInQuery];
-          meshData.subMeshCount = submeshCount;
-          meshData.SetVertexBufferParams(totalVertexCount, VertexAttributes);
-          meshData.SetIndexBufferParams(totalIndexCount, IndexFormat.UInt16);
-
-          // Debug.Log($"{entityIndex} Indice count requested {totalIndexCount} tvc {totalVertexCount}");
-
-          ushort submeshIndexStart = 0;
-          ushort indexCount = 0;
-          var indices = meshData.GetIndexData<ushort>();
-          var vertices = meshData.GetVertexData<Vertex>();
-          vertices.CopyFrom(subMeshVertices.AsArray());
-
-          for (int submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
-            if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
-              do {
-                indices[indexCount++] = index;
-              } while (subMeshIndices.TryGetNextValue(out index, ref indexIterator));
-            }
-
-            meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
-            TextureIds[entityIndexInQuery * 8 + submeshIndex] = submeshKeys[submeshIndex];
-            submeshIndexStart = indexCount;
-          }
-
-          // Debug.Log($"{entityIndex} Indice count allocated {indexCount} vc {vertexCount}");
-        }
-        #endregion
+        var buildContext = new BuildContext {
+          drawState = default,
+          subMeshIndices = new NativeParallelMultiHashMap<ushort, ushort>(256, Allocator.Temp),
+          subMeshVertices = new NativeList<Vertex>(64, Allocator.Temp),
+          vertexBuffer = new NativeArray<VertexState>(512, Allocator.Temp),
+          vertexColor = new NativeArray<byte>(32, Allocator.Temp)
+        };
         
-        var baseProperties = ObjectDatasBlobAsset.Value.BasePropertyData(instanceData);
+        unsafe {
+          buildContext.parameterDataPtr = (byte*)UnsafeUtility.Malloc(4 * 100, UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
+          var bbr = new BufferBinaryReader((byte*)meshInfo.Commands.Value.GetUnsafePtr(), meshInfo.Commands.Value.Length);
+          InterpreterLoop(ref bbr, ref buildContext, localToWorld.Value);
+        }
 
-        // Debug.Log($"{instanceData.Class}:{instanceData.SubClass}:{instanceData.Info.Type} DrawType {baseProperties.DrawType} CurrentFrame {instanceData.Info.CurrentFrame}");
+        ref var subMeshIndices = ref buildContext.subMeshIndices;
+        ref var subMeshVertices = ref buildContext.subMeshVertices;
+        
+        var (submeshKeys, submeshCount) = subMeshIndices.GetUniqueKeyArray(Allocator.Temp);
+        var totalVertexCount = subMeshVertices.Length;
+        var totalIndexCount = subMeshIndices.Count();
 
-        // TODO could more of this be moved to TextureUtils. CalculateTextureData already gets level and instanceData
-        var objectIndex = Level.ObjectReferences[instanceData.CrossReferenceTableIndex].ObjectIndex;
-        var isAnimating = IsAnimated(objectIndex, Level.Animations.AsReadOnly());
+        // Debug.Log($"totalVertexCount {submeshCount} {totalVertexCount}");
 
-        TextureDatas[entityIndexInQuery] = CalculateTextureData(entity, baseProperties, instanceData, Level, InstanceLookupRO, DecorationLookupRO, isAnimating);
+        var meshData = MeshDataArray[entityIndexInQuery];
+        meshData.subMeshCount = submeshCount;
+        meshData.SetVertexBufferParams(totalVertexCount, VertexAttributes);
+        meshData.SetIndexBufferParams(totalIndexCount, IndexFormat.UInt16);
+
+        // Debug.Log($"{entityIndex} Indice count requested {totalIndexCount} tvc {totalVertexCount}");
+
+        ushort submeshIndexStart = 0;
+        ushort indexCount = 0;
+        var indices = meshData.GetIndexData<ushort>();
+        var vertices = meshData.GetVertexData<Vertex>();
+        vertices.CopyFrom(subMeshVertices.AsArray());
+
+        for (var submeshIndex = 0; submeshIndex < submeshCount; ++submeshIndex) {
+          if (subMeshIndices.TryGetFirstValue(submeshKeys[submeshIndex], out var index, out var indexIterator)) {
+            do {
+              indices[indexCount++] = index;
+            } while (subMeshIndices.TryGetNextValue(out index, ref indexIterator));
+          }
+
+          meshData.SetSubMesh(submeshIndex, new SubMeshDescriptor(submeshIndexStart, indexCount - submeshIndexStart, MeshTopology.Triangles));
+
+          unsafe {
+            TextureIds.TryAdd(entity, new UnsafeList<ushort>((ushort*)submeshKeys.GetUnsafePtr(), submeshKeys.Length));
+          }
+          
+          submeshIndexStart = indexCount;
+        }
+
+        // Debug.Log($"{entityIndex} Indice count allocated {indexCount} vc {vertexCount}");
+        #endregion
+
+        hashChanged.ValueRW = false;
       }
       
       [BurstCompile]
@@ -422,6 +700,7 @@ namespace SS.System {
         ref var subMeshVertices = ref context.subMeshVertices;
         ref var vertexBuffer = ref context.vertexBuffer;
         ref var vertexColor = ref context.vertexColor;
+        var parameterDataPtr = context.parameterDataPtr;
         
         while (bbr.Position < bbr.Length) {
           long dataPos = bbr.Position;
@@ -592,7 +871,7 @@ namespace SS.System {
             long nextOpcode = dataPos + bbr.Read<uint>();
   
             float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
-            var angle = (*(ushort*)((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
             var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateX(angle), float4x4.Translate(subObjectPosition)));
   
             var continuePosition = bbr.Position;
@@ -604,7 +883,7 @@ namespace SS.System {
             long nextOpcode = dataPos + bbr.Read<uint>();
   
             float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
-            var angle = (*(ushort*)((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
             var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateZ(angle), float4x4.Translate(subObjectPosition)));
   
             var continuePosition = bbr.Position;
@@ -616,7 +895,7 @@ namespace SS.System {
             long nextOpcode = dataPos + bbr.Read<uint>();
   
             float3 subObjectPosition = new(bbr.ReadFixed1616(), -bbr.ReadFixed1616(), bbr.ReadFixed1616());
-            var angle = (*(ushort*)((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
+            var angle = (*(ushort*)(parameterDataPtr + bbr.Read<ushort>()) * 2f * math.PI) / 255f;
             var subobjectLocalToWorld = math.mul(objectLocalToWorld, math.mul(float4x4.RotateY(angle), float4x4.Translate(subObjectPosition)));
   
             var continuePosition = bbr.Position;
@@ -626,8 +905,11 @@ namespace SS.System {
             bbr.Position = continuePosition;
           } else if (command == OpCode.sfcal) {
             long nextOpcode = dataPos + bbr.Read<ushort>();
+            
             var continuePosition = bbr.Position;
+            bbr.Position = nextOpcode;
             InterpreterLoop(ref bbr, ref context, objectLocalToWorld);
+            
             bbr.Position = continuePosition;
           } else if (command == OpCode.defres) {
             ushort vertexIndex = bbr.Read<ushort>();
@@ -644,21 +926,21 @@ namespace SS.System {
             vertex.flags |= VertexFlag.I;
             vertexBuffer[vertexIndex] = vertex;
           } else if (command == OpCode.getparms) {
-            var dest = (int*)((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>());
+            var dest = (int*)(parameterDataPtr + bbr.Read<ushort>());
             ushort src = bbr.Read<ushort>();
             ushort count = bbr.Read<ushort>();
             // In SS object rendering is called with variable amount of params. This copies them to array
             while (count-- > 0)
               *(dest++) = customParams[src++];
           } else if (command == OpCode.getparms_i) {
-            var dest = *(int**)((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>()); // Notice, pointer of pointer.
+            var dest = *(int**)(parameterDataPtr + bbr.Read<ushort>()); // Notice, pointer of pointer.
             ushort src = bbr.Read<ushort>();
             ushort count = bbr.Read<ushort>();
             // In SS object rendering is called with variable amount of params. This copies them to array
             while (count-- > 0)
               *(dest++) = customParams[src++];
           } else if (command == OpCode.gour_p) {
-            drawState.gouraudColorBase = (ushort)(*((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>()) << 8);
+            drawState.gouraudColorBase = (ushort)(*(parameterDataPtr + bbr.Read<ushort>()) << 8);
             drawState.gouraud = Gouraud.spoly;
           } else if (command == OpCode.gour_vc) {
             drawState.gouraudColorBase = (ushort)(vertexColor[bbr.Read<ushort>()] << 8);
@@ -693,10 +975,10 @@ namespace SS.System {
             flags <<= 2;
             drawState.gouraud = (Gouraud)(flags - 1);
           } else if (command == OpCode.getpcolor) {
-            drawState.color = *((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>());
+            drawState.color = *(parameterDataPtr + bbr.Read<ushort>());
             drawState.gouraud = Gouraud.normal;
           } else if (command == OpCode.getpscolor) {
-            ushort colorIndex = *((byte*)ParameterData.GetUnsafePtr() + bbr.Read<ushort>());
+            ushort colorIndex = *(parameterDataPtr + bbr.Read<ushort>());
             ushort shade = bbr.Read<ushort>();
             drawState.color = ShadeTable[(shade << 8) | (colorIndex & 0xFF)];
           } else if (command == OpCode.scaleres) {
@@ -705,7 +987,7 @@ namespace SS.System {
             ushort paramByteOffset = bbr.Read<ushort>();
             ushort vertexIndex = bbr.Read<ushort>();
   
-            var p = *(g3s_point*)(* (long *) ((byte*)ParameterData.GetUnsafePtr() + paramByteOffset));
+            var p = *(g3s_point*)(* (long *) (parameterDataPtr + paramByteOffset));
   
             vertexBuffer[vertexIndex] = new VertexState {
               position = new(p.x / 65536f, p.y / 65536f, p.z / 65536f),
@@ -761,6 +1043,8 @@ namespace SS.System {
 
     public struct ModelPart : IComponentData { }
 
+    private struct HashChangedTag : IComponentData, IEnableableComponent { }
+    
     internal struct MeshCachedTag : ICleanupComponentData { }
 
     internal enum OpCode : ushort {

@@ -199,5 +199,22 @@ namespace SS {
         public float ReadFixed1616() {
             return Read<int>() / 65536f;
         }
+        
+        public void SkipBytes(int bytes) {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS || UNITY_DOTS_DEBUG
+            if (Position + bytes > length)
+                throw new ArgumentException("SkipBytes skips beyond end of memory block");
+#endif
+            
+            Position += bytes;
+        }
+        
+        public void Skip<T>() where T : unmanaged {
+            SkipBytes(sizeof(T));
+        }
+        
+        public void SkipFixed1616() {
+            Skip<int>();
+        }
     }
 }

@@ -2,6 +2,7 @@
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Mathematics;
 using static SS.Resources.ResourceFile;
 
 namespace SS.Resources {
@@ -11,7 +12,7 @@ namespace SS.Resources {
         InvokeCompletionEvent(Load(resFile, resInfo, blockIndex));
       }
 
-      private unsafe MeshInfo Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
+      private static unsafe MeshInfo Load(ResourceFile resFile, ResourceInfo resInfo, ushort blockIndex) {
         byte[] rawResource = resFile.GetResourceData(resInfo, blockIndex);
 
         using BlobBuilder blobBuilder = new(Allocator.Temp);
@@ -21,7 +22,10 @@ namespace SS.Resources {
         UnsafeUtility.ReleaseGCObject(gcHandle);
         var blobAssetReference = blobBuilder.CreateBlobAssetReference<BlobArray<byte>>(Allocator.Persistent);
 
-        return new MeshInfo { Commands = blobAssetReference };
+        return new MeshInfo {
+          VariantHash = uint4.zero,
+          Commands = blobAssetReference
+        };
       }
     }
 
@@ -33,6 +37,10 @@ namespace SS.Resources {
     }
   }
   public struct MeshInfo : IComponentData {
+    /// <summary>
+    /// Hash of interpreted commands currently in mesh renderer.
+    /// </summary>
+    public uint4 VariantHash;
     public BlobAssetReference<BlobArray<byte>> Commands;
   }
 }
